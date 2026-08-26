@@ -1,7 +1,6 @@
-use warpui::assets::asset_cache::AssetSource;
 use warpui::elements::{
-    Align, CacheOption, ConstrainedBox, Container, CrossAxisAlignment, Element, Flex, Image,
-    MainAxisAlignment, MouseStateHandle, ParentElement, Wrap,
+    Align, Container, CrossAxisAlignment, Element, Flex, MainAxisAlignment, MouseStateHandle,
+    ParentElement, Wrap,
 };
 use warpui::ui_components::components::UiComponent;
 use warpui::{AppContext, Entity, View, ViewContext, ViewHandle};
@@ -13,7 +12,6 @@ use super::settings_page::{
 };
 use crate::appearance::Appearance;
 use crate::channel::ChannelState;
-use crate::themes::theme::ColorScheme;
 use crate::workspace::WorkspaceAction;
 
 pub struct AboutPageView {
@@ -51,7 +49,7 @@ impl SettingsWidget for AboutPageWidget {
     type View = AboutPageView;
 
     fn search_terms(&self) -> &str {
-        "about warp version"
+        "about tilde version"
     }
 
     fn render(
@@ -60,16 +58,15 @@ impl SettingsWidget for AboutPageWidget {
         appearance: &Appearance,
         _app: &AppContext,
     ) -> Box<dyn Element> {
-        let theme = appearance.theme();
         let ui_builder = appearance.ui_builder();
 
-        let image_path = if theme.inferred_color_scheme() == ColorScheme::LightOnDark {
-            "bundled/svg/warp-logo-with-light-title.svg"
-        } else {
-            "bundled/svg/warp-logo-with-dark-title.svg"
-        };
-
         let version = ChannelState::app_version().unwrap_or("v#.##.###");
+
+        let title = ui_builder
+            .span("Tilde")
+            .build()
+            .with_margin_top(16.)
+            .finish();
 
         let version_text = ui_builder
             .span(version.to_string())
@@ -100,22 +97,11 @@ impl SettingsWidget for AboutPageWidget {
         Align::new(
             Flex::column()
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(
-                    ConstrainedBox::new(
-                        Image::new(
-                            AssetSource::Bundled { path: image_path },
-                            CacheOption::BySize,
-                        )
-                        .finish(),
-                    )
-                    .with_max_height(100.)
-                    .with_max_width(350.)
-                    .finish(),
-                )
+                .with_child(title)
                 .with_child(version_row.finish())
                 .with_child(
                     ui_builder
-                        .span("Copyright 2026 Warp")
+                        .span("Copyright © 2026 Trong Nguyen")
                         .build()
                         .with_margin_top(16.)
                         .finish(),
