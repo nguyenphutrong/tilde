@@ -71,10 +71,10 @@ pub use action_model::{
     StartAgentExecutor, StartAgentExecutorEvent, StartAgentOutcome, StartAgentRequest,
     StartAgentRequestId,
 };
+pub use block::keyboard_navigable_buttons;
 #[cfg(any(test, feature = "integration_tests"))]
 pub(crate) use block::model::testing::FakeAIBlockModel;
 pub(crate) use block::{AIBlock, AIBlockEvent, RequestedEditResolution, model};
-pub use block::keyboard_navigable_buttons;
 pub use child_agent_launch::inherit_child_agent_settings;
 #[cfg(not(target_family = "wasm"))]
 #[cfg_attr(not(feature = "tui"), allow(unused_imports))]
