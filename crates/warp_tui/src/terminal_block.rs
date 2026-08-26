@@ -1,4 +1,6 @@
-use warp::tui_export::{GridHandler, TerminalColorList};
+use std::ops::Range;
+
+use warp::tui_export::{BlockGrid, GridHandler, TerminalColorList};
 use warp_terminal::model::ansi::{Color, NamedColor};
 use warp_terminal::model::grid::Dimensions as _;
 use warp_terminal::model::grid::cell::{Cell, Flags};
@@ -24,6 +26,39 @@ pub(crate) fn render_grid_handler(
             let cell = &row[column];
             let Some(buffer_cell) = surface.cell_mut(
                 origin.offset(i32::try_from(column).unwrap_or(i32::MAX), screen_row as i32),
+            ) else {
+                continue;
+            };
+            buffer_cell
+                .set_symbol(&sanitized_symbol(cell))
+                .set_style(cell_to_style(cell, colors));
+        }
+    }
+}
+
+pub(crate) fn render_block_grid_rows(
+    block_grid: &BlockGrid,
+    displayed_rows: Range<usize>,
+    origin: TuiScreenPosition,
+    size: TuiSize,
+    surface: &mut TuiPaintSurface<'_>,
+    colors: &TerminalColorList,
+) {
+    let grid = block_grid.grid_handler();
+    let end = displayed_rows.end.min(block_grid.len_displayed());
+    let columns = grid.columns().min(usize::from(size.width));
+    for (target_row, displayed_row) in (displayed_rows.start.min(end)..end).enumerate() {
+        if target_row >= usize::from(size.height) {
+            break;
+        }
+        let row = grid.maybe_translate_row_from_displayed_to_original(displayed_row);
+        let Some(row) = grid.row(row) else {
+            continue;
+        };
+        for column in 0..columns {
+            let cell = &row[column];
+            let Some(buffer_cell) = surface.cell_mut(
+                origin.offset(i32::try_from(column).unwrap_or(i32::MAX), target_row as i32),
             ) else {
                 continue;
             };

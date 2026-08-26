@@ -79,7 +79,7 @@ fn init(ctx: &mut AppContext) {
     match spawn_tui_driver(
         ctx,
         window_id,
-        root,
+        root.clone(),
         TuiFocusPolicy::PresentedTree,
         false,
         freeze,
@@ -92,6 +92,7 @@ fn init(ctx: &mut AppContext) {
                 std::env::current_dir().ok(),
                 ctx,
             );
+            root.update(ctx, |_, ctx| ctx.notify());
             surface.update(ctx, |view, ctx| view.activate(ctx));
         }
         Err(TuiDriverStartupError::TerminalDisconnected(error)) => {

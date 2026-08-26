@@ -16,7 +16,7 @@
 use std::sync::Arc;
 
 use parking_lot::FairMutex;
-use warp::tui_export::{TermMode, TerminalModel};
+use warp::tui_export::{BlockGrid, GridHandler, TermMode, TerminalColorList, TerminalModel};
 use warp_terminal::model::grid::Dimensions as _;
 use warpui_core::AppContext;
 use warpui_core::elements::tui::{
@@ -24,7 +24,7 @@ use warpui_core::elements::tui::{
     TuiScreenPosition, TuiSize,
 };
 
-use crate::terminal_block::render_grid_handler;
+use crate::terminal_block::{render_block_grid_rows, render_grid_handler};
 
 /// Renders the terminal's alt-screen grid full-area while a full-screen app is
 /// active.
@@ -69,31 +69,18 @@ impl TuiElement for AltScreenElement {
         };
         let model = self.model.lock();
         let colors = model.colors();
-        let grid = if model.is_alt_screen_active() {
-            model.alt_screen().grid_handler()
+        let cursor = if model.is_alt_screen_active() {
+            let grid = model.alt_screen().grid_handler();
+            render_grid_handler(grid, origin, size, surface, &colors);
+            visible_grid_cursor(grid, size)
         } else {
-            let block = model.block_list().active_block();
-            if block.is_command_grid_active() {
-                block.prompt_and_command_grid().grid_handler()
-            } else {
-                block.output_grid().grid_handler()
-            }
+            render_block_list(&model, origin, size, surface, &colors)
         };
-        render_grid_handler(grid, origin, size, surface, &colors);
 
-        // Submit the hardware cursor if the alt-screen app is showing it. The
-        // alt screen has no scrollback, but subtract history defensively so the
-        // cursor maps to a visible (screen-relative) row.
-        let cursor = if model.is_term_mode_set(TermMode::SHOW_CURSOR) {
-            let point = grid.cursor_render_point();
-            point.row.checked_sub(grid.history_size()).and_then(|row| {
-                let col = u16::try_from(point.col).ok()?;
-                let row = u16::try_from(row).ok()?;
-                (col < size.width && row < size.height).then_some((col, row))
-            })
-        } else {
-            None
-        };
+        let cursor = model
+            .is_term_mode_set(TermMode::SHOW_CURSOR)
+            .then_some(cursor)
+            .flatten();
         drop(model);
         if let Some((col, row)) = cursor {
             let cursor_point = ctx.scene_point(origin.offset(i32::from(col), i32::from(row)));
@@ -108,4 +95,71 @@ impl TuiElement for AltScreenElement {
     fn origin(&self) -> Option<TuiScreenPoint> {
         self.origin
     }
+}
+
+fn visible_grid_cursor(grid: &GridHandler, size: TuiSize) -> Option<(u16, u16)> {
+    let point = grid.cursor_render_point();
+    let row = point.row.checked_sub(grid.history_size())?;
+    let col = u16::try_from(point.col).ok()?;
+    let row = u16::try_from(row).ok()?;
+    (col < size.width && row < size.height).then_some((col, row))
+}
+
+fn render_block_list(
+    model: &TerminalModel,
+    origin: TuiScreenPosition,
+    size: TuiSize,
+    surface: &mut TuiPaintSurface<'_>,
+    colors: &TerminalColorList,
+) -> Option<(u16, u16)> {
+    let block_list = model.block_list();
+    let active_block_id = block_list.active_block_id();
+    let grids = block_list
+        .blocks()
+        .iter()
+        .filter(|block| {
+            block.id() == active_block_id
+                || (block.is_visible(block_list.transcript_scope())
+                    && (block.started() || block.finished()))
+        })
+        .flat_map(|block| {
+            [
+                (!block.should_hide_command_grid()).then_some(block.prompt_and_command_grid()),
+                (!block.should_hide_output_grid()).then_some(block.output_grid()),
+            ]
+            .into_iter()
+            .flatten()
+        })
+        .collect::<Vec<&BlockGrid>>();
+    let total_rows = grids.iter().map(|grid| grid.len_displayed()).sum::<usize>();
+    let first_row = total_rows.saturating_sub(usize::from(size.height));
+    let mut grid_start = 0;
+    let mut target_row = 0;
+    for grid in grids {
+        let grid_end = grid_start + grid.len_displayed();
+        let visible_start = grid_start.max(first_row);
+        if visible_start < grid_end {
+            let local_start = visible_start - grid_start;
+            let visible_rows = grid_end - visible_start;
+            render_block_grid_rows(
+                grid,
+                local_start..local_start + visible_rows,
+                origin.offset(0, target_row as i32),
+                TuiSize::new(size.width, size.height.saturating_sub(target_row as u16)),
+                surface,
+                colors,
+            );
+            target_row += visible_rows;
+        }
+        grid_start = grid_end;
+    }
+
+    let point = block_list
+        .active_block()
+        .grid_of_type(block_list.active_block().active_grid_type())?
+        .grid_handler()
+        .cursor_render_point();
+    let col = u16::try_from(point.col).ok()?;
+    let row = u16::try_from(target_row.min(usize::from(size.height.saturating_sub(1)))).ok()?;
+    (col < size.width).then_some((col, row))
 }
