@@ -17,12 +17,16 @@ STAGE_DIR="$DIST_DIR/appimagepkg"
 APP_DIR="$DIST_DIR/AppDir"
 
 # Extract channel suffix from BINARY_NAME
-if [ "$ARTIFACT" = "cli" ]; then
+if [ "$RELEASE_CHANNEL" = "oss" ]; then
+  CHANNEL_SUFFIX=""
+  PACKAGE_NAME="tilde"
+elif [ "$ARTIFACT" = "cli" ]; then
   CHANNEL_SUFFIX="${BINARY_NAME#oz}"
+  PACKAGE_NAME="warp-terminal$CHANNEL_SUFFIX"
 else
   CHANNEL_SUFFIX="${BINARY_NAME#warp}"
+  PACKAGE_NAME="warp-terminal$CHANNEL_SUFFIX"
 fi
-PACKAGE_NAME="warp-terminal$CHANNEL_SUFFIX"
 
 
 # Adding NO_STRIP to stop linuxdeploy from attempting to strip symbols
@@ -52,12 +56,18 @@ mkdir -p "$STAGE_DIR"
 
 # Populate the directory with the package contents, in the appropriate
 # locations.
-OPT_DIR="/opt/warpdotdev/$PACKAGE_NAME"
+if [ "$RELEASE_CHANNEL" = "oss" ]; then
+  OPT_DIR="/opt/tilde"
+else
+  OPT_DIR="/opt/warpdotdev/$PACKAGE_NAME"
+fi
 source "$WORKSPACE_ROOT_DIR/script/linux/bundle_install" "$STAGE_DIR"
 
 # Modify the "Exec=" line in the .desktop file to use the name of the installed
 # binary and not our /usr/bin symlink (which doesn't exist in an AppImage).
-sed -i -E 's/Exec=warp-terminal/Exec=warp/' "$STAGE_DIR/usr/share/applications/$BUNDLE_ID.desktop"
+if [ "$RELEASE_CHANNEL" != "oss" ]; then
+  sed -i -E 's/Exec=warp-terminal/Exec=warp/' "$STAGE_DIR/usr/share/applications/$BUNDLE_ID.desktop"
+fi
 
 # Find all icon files from inside the package staging directory.
 ICON_FILES=( $(find "$STAGE_DIR/usr/share/icons" -name "*.png") )

@@ -154,9 +154,9 @@ if ("$CHANNEL" -eq 'local') {
     $BINARY_NAME = 'warp.exe'
     $APP_NAME = 'Warp'
 } elseif ("$CHANNEL" -eq 'oss') {
-    $WARP_BIN = 'warp-oss'
-    $BINARY_NAME = 'warp-oss.exe'
-    $APP_NAME = 'WarpOss'
+    $WARP_BIN = 'tilde'
+    $BINARY_NAME = 'tilde.exe'
+    $APP_NAME = 'Tilde'
     # The OSS channel does not ship Sentry, so drop the crash_reporting feature
     # (which would otherwise pull in the Sentry SDK as a dependency).
     $FEATURES = 'release_bundle,gui'
@@ -165,7 +165,7 @@ if ("$CHANNEL" -eq 'local') {
 if ($IS_TUI) {
     $WARP_BIN = switch ($CHANNEL) {
         'local' { 'warp-tui' }
-        'oss' { 'warp-tui-oss' }
+        'oss' { 'tilde-tui' }
         Default { "warp-tui-$CHANNEL" }
     }
     $BINARY_NAME = "$WARP_BIN.exe"
@@ -174,21 +174,21 @@ if ($IS_TUI) {
         'dev' { 'WarpAgentCLIDev' }
         'preview' { 'WarpAgentCLIPreview' }
         'stable' { 'WarpAgentCLI' }
-        'oss' { 'WarpAgentCLIOss' }
+        'oss' { 'Tilde TUI' }
     }
     $CLI_NAME = switch ($CHANNEL) {
         'local' { 'warp' }
         'dev' { 'warp-dev' }
         'preview' { 'warp-preview' }
         'stable' { 'warp' }
-        'oss' { 'warp-oss' }
+        'oss' { 'tilde-tui' }
     }
     $INSTALL_DIR_NAME = switch ($CHANNEL) {
         'local' { 'tui-local' }
         'dev' { 'tui-dev' }
         'preview' { 'tui-preview' }
         'stable' { 'tui' }
-        'oss' { 'tui-oss' }
+        'oss' { 'tui' }
     }
     $FEATURES = 'release_bundle,standalone,voice_input'
     if ("$CHANNEL" -ne 'oss') {
@@ -200,7 +200,7 @@ if ($IS_TUI) {
 }
 
 $BINARY_PATH = "$CARGO_TARGET_OUTPUT_DIR\$BINARY_NAME"
-$BUNDLE_ID = "dev.warp.$APP_NAME"
+$BUNDLE_ID = if ("$CHANNEL" -eq 'oss') { 'bytrong.app.tilde' } else { "dev.warp.$APP_NAME" }
 $INSTALLER_OUTPUT_DIR = "$WINDOWS_INSTALLER_DIR\Output"
 $INSTALLER_NAME = "$($APP_NAME)$($FILE_ENDING)"
 $INSTALLER_PATH = "$($INSTALLER_OUTPUT_DIR)\$($INSTALLER_NAME).exe"

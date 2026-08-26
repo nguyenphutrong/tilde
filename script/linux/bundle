@@ -224,9 +224,9 @@ elif [[ $RELEASE_CHANNEL = "stable" ]]; then
   BINARY_NAME="warp"
   APP_NAME="Warp"
 elif [[ $RELEASE_CHANNEL = "oss" ]]; then
-  WARP_BIN="warp-oss"
-  BINARY_NAME="warp-oss"
-  APP_NAME="WarpOss"
+  WARP_BIN="tilde"
+  BINARY_NAME="tilde"
+  APP_NAME="tilde"
   # The OSS channel does not ship Sentry, so drop the crash_reporting feature
   # (which would otherwise pull in the Sentry SDK as a dependency).
   FEATURES="release_bundle"
@@ -235,7 +235,7 @@ fi
 # Artifact-specific binary naming
 if [[ "$ARTIFACT" == "cli" ]]; then
   # For CLI artifacts, use oz instead of warp as the binary name.  The OSS
-  # channel is an exception: its CLI command name is `warp-oss`, matching
+  # channel is an exception: its CLI command name is `tilde`, matching
   # `Channel::cli_command_name` in the Rust source.
   if [[ $RELEASE_CHANNEL != "oss" ]]; then
     BINARY_NAME="${BINARY_NAME/warp/oz}"
@@ -246,7 +246,7 @@ elif [[ "$ARTIFACT" == "warpctrl" ]]; then
 elif [[ "$ARTIFACT" == "tui" ]]; then
   case "$RELEASE_CHANNEL" in
     local) WARP_BIN="warp-tui" ;;
-    oss) WARP_BIN="warp-tui-oss" ;;
+    oss) WARP_BIN="tilde-tui" ;;
     *) WARP_BIN="warp-tui-$RELEASE_CHANNEL" ;;
   esac
   BINARY_NAME="$WARP_BIN"
@@ -272,6 +272,16 @@ elif [[ "$ARTIFACT" == "app" ]]; then
   # All channels ship the v3 classifier and v2 heuristic.
   FEATURES="$FEATURES,gui,nld_classifier_v3,nld_heuristic_v2"
 fi
+
+if [[ $RELEASE_CHANNEL = "oss" ]]; then
+  for package in "${PACKAGES[@]}"; do
+    if [[ $package != "appimage" ]]; then
+      echo "Error: Tilde packaging currently supports AppImage only; refusing to build the upstream '$package' package metadata." >&2
+      exit 1
+    fi
+  done
+fi
+
 if [[ -n "$EXTRA_FEATURES" ]]; then
   if [[ "$ARTIFACT" == "tui" ]]; then
     WARP_TUI_FEATURES="$WARP_TUI_FEATURES,$EXTRA_FEATURES"
@@ -280,7 +290,11 @@ if [[ -n "$EXTRA_FEATURES" ]]; then
   fi
 fi
 
-BUNDLE_ID="dev.warp.$APP_NAME"
+if [[ $RELEASE_CHANNEL = "oss" ]]; then
+  BUNDLE_ID="bytrong.app.tilde"
+else
+  BUNDLE_ID="dev.warp.$APP_NAME"
+fi
 EXECUTABLE_PATH="$CARGO_TARGET_OUTPUT_DIR/$WARP_BIN"
 DEBUG_EXECUTABLE_PATH="$EXECUTABLE_PATH.debug"
 

@@ -1,7 +1,5 @@
 #include "environment.iss"
 
-#define MyAppPublisher "Denver Technologies, Inc."
-#define MyAppURL "https://www.warp.dev/"
 #ifndef MyAppName
   #define MyAppName "WarpAgentCLIDev"
 #endif
@@ -13,6 +11,19 @@
 #endif
 #ifndef ReleaseChannel
   #define ReleaseChannel "dev"
+#endif
+#if ReleaseChannel == "oss"
+  #define MyAppPublisher "Trong Nguyen"
+  #define MyAppURL "https://github.com/nguyenphutrong/tilde"
+  #define InstallerAppId "bytrong.app.tilde.tui"
+  #define ProductRegistryKey "SOFTWARE\bytrong.app\Tilde\TUI"
+  #define ProductRootDir "Tilde"
+#else
+  #define MyAppPublisher "Denver Technologies, Inc."
+  #define MyAppURL "https://www.warp.dev/"
+  #define InstallerAppId "warp-agent-cli-" + ReleaseChannel
+  #define ProductRegistryKey "SOFTWARE\Warp.dev\WarpAgentCLI\" + ReleaseChannel
+  #define ProductRootDir "Warp"
 #endif
 #ifndef CLIName
   #define CLIName "warp-dev"
@@ -27,10 +38,8 @@
   #define WindowsAssetsDir "..\..\app\assets\windows\x64"
 #endif
 
-#define ProductRegistryKey "SOFTWARE\Warp.dev\WarpAgentCLI\" + ReleaseChannel
-
 [Setup]
-AppId=warp-agent-cli-{#ReleaseChannel}
+AppId={#InstallerAppId}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
@@ -54,12 +63,14 @@ OutputBaseFilename={#OutputName}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-WizardSmallImageFile="installer-images\warp-logo.bmp"
-WizardImageFile="installer-images\warp-banner.bmp"
+#if ReleaseChannel != "oss"
+  WizardSmallImageFile="installer-images\warp-logo.bmp"
+  WizardImageFile="installer-images\warp-banner.bmp"
+#endif
 SetupIconFile="..\..\app\channels\{#ReleaseChannel}\icon\no-padding\icon.ico"
 CloseApplications=no
 RestartApplications=no
-SetupMutex=Local\WarpAgentCLI{#ReleaseChannel}Setup
+SetupMutex=Local\{#MyAppName}Setup
 MinVersion=10.0.18362
 ChangesEnvironment=true
 RedirectionGuard=no
@@ -119,17 +130,17 @@ end;
 function GetDefaultInstallDir(Param: string): string;
 begin
   if IsAdminInstallMode then
-    Result := ExpandConstant('{commonappdata}\Warp\{#InstallDirName}')
+    Result := ExpandConstant('{commonappdata}\{#ProductRootDir}\{#InstallDirName}')
   else
-    Result := ExpandConstant('{localappdata}\Warp\{#InstallDirName}');
+    Result := ExpandConstant('{localappdata}\{#ProductRootDir}\{#InstallDirName}');
 end;
 
 function GetDefaultBinDir(): string;
 begin
   if IsAdminInstallMode then
-    Result := ExpandConstant('{commonappdata}\Warp\bin')
+    Result := ExpandConstant('{commonappdata}\{#ProductRootDir}\bin')
   else
-    Result := ExpandConstant('{localappdata}\Warp\bin');
+    Result := ExpandConstant('{localappdata}\{#ProductRootDir}\bin');
 end;
 function GetRegisteredBinDir(var BinDir: string): Boolean;
 begin

@@ -49,8 +49,11 @@ fi
 # Create the destination directory if it doesn't exist
 mkdir -p "$DEST_DIR"
 
-# Copy bundled resources
-if [ -d "$RESOURCES_SRC/bundled" ]; then
+# Copy bundled resources. The upstream directory contains AI/Agent skills and
+# is intentionally excluded from Tilde distributions.
+if [ "$CHANNEL" = "oss" ]; then
+  rm -rf "$DEST_DIR/bundled"
+elif [ -d "$RESOURCES_SRC/bundled" ]; then
   echo "Copying bundled resources to $DEST_DIR/bundled"
   rm -rf "$DEST_DIR/bundled"
   cp -R "$RESOURCES_SRC/bundled" "$DEST_DIR/bundled"
@@ -62,16 +65,20 @@ if [ -n "$GIT_RELEASE_TAG" ]; then
   VERSION_METADATA_DIR="$DEST_DIR/bundled/metadata"
   VERSION_METADATA_PATH="$VERSION_METADATA_DIR/version.json"
 
-  echo "Writing bundled Warp version metadata to $VERSION_METADATA_PATH"
+  echo "Writing bundled version metadata to $VERSION_METADATA_PATH"
   mkdir -p "$VERSION_METADATA_DIR"
-  printf '{\n  "warp_version": "%s"\n}\n' "$GIT_RELEASE_TAG" > "$VERSION_METADATA_PATH"
+  if [ "$CHANNEL" = "oss" ]; then
+    printf '{\n  "tilde_version": "%s"\n}\n' "$GIT_RELEASE_TAG" > "$VERSION_METADATA_PATH"
+  else
+    printf '{\n  "warp_version": "%s"\n}\n' "$GIT_RELEASE_TAG" > "$VERSION_METADATA_PATH"
+  fi
 fi
 
 # Copy channel-gated skills matching the current release channel.
 GATED_SRC="$REPO_ROOT/resources/channel-gated-skills"
 DEST_SKILLS="$DEST_DIR/bundled/skills"
 
-if [ -n "$CHANNEL" ] && [ -d "$GATED_SRC" ]; then
+if [ -n "$CHANNEL" ] && [ "$CHANNEL" != "oss" ] && [ -d "$GATED_SRC" ]; then
   echo "Copying channel-gated skills for channel '$CHANNEL'..."
   "$SCRIPT_DIR/copy_conditional_skills" \
     "$CHANNEL" \
