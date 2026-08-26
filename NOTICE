@@ -1,0 +1,17 @@
+Tilde
+Copyright (C) 2026 Trong Nguyen
+
+Tilde is a modified derivative of the open-source Warp client.
+Original Warp client code is Copyright (C) 2020-2026 Denver Technologies, Inc.
+Upstream source: https://github.com/warpdotdev/warp
+
+Tilde is independently developed. It is not affiliated with, endorsed by, or maintained by Warp
+or Denver Technologies, Inc.
+
+Except for components carrying a different license notice, Tilde is distributed under the GNU
+Affero General Public License, version 3 only. The warpui and warpui_core crates retain their MIT
+license. See LICENSE-AGPL, LICENSE-MIT, and the third-party license notices included with the
+distribution.
+
+Tilde modifications began in 2026. The Git history identifies the authors and dates of individual
+modifications.

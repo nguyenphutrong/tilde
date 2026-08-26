@@ -1,20 +1,22 @@
 [package]
-authors = ["Warp Team <dev@warp.dev>"]
-default-run = "warp-oss"
+authors.workspace = true
+default-run = "tilde"
 description = "A local terminal emulator"
 edition = "2024"
 autobins = false
 name = "warp"
 version = "0.1.0"
 publish.workspace = true
+homepage.workspace = true
 license.workspace = true
+repository.workspace = true
 
 [lib]
 name = "warp"
 path = "src/lib.rs"
 
 [[bin]]
-name = "warp-oss"
+name = "tilde"
 path = "src/bin/oss.rs"
 test = false
 
@@ -854,14 +856,14 @@ prompt_cache_expiry_warning = []
 osc_hyperlinks = []
 ctrl_c_cancels_third_party_harness = []
 
-[package.metadata.bundle.bin.warp-oss]
+[package.metadata.bundle.bin.tilde]
 category = "public.app-category.developer-tools"
-copyright = "© 2025, Denver Technologies, Inc"
-identifier = "dev.warp.WarpOss"
-name = "WarpOss"
+copyright = "© 2026 Trong Nguyen"
+identifier = "bytrong.app.tilde"
+name = "Tilde"
 resources = ["assets/onboarding"]
 icon = ["channels/oss/icon/no-padding/512x512.png", "channels/oss/icon/no-padding/icon.ico"]
-short_description = "The open-source, cloud-backed terminal for individuals and teams."
+short_description = "A slim, AI-free terminal for local command-line workflows."
 
 [package.metadata.bundle.bin.stable]
 category = "public.app-category.developer-tools"

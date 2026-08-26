@@ -23,9 +23,11 @@ default-members = [
 ]
 
 [workspace.package]
-authors = ["Warp Team <dev@warp.dev>"]
+authors = ["Trong Nguyen <nguyenphutrong.dev@gmail.com>"]
+homepage = "https://github.com/nguyenphutrong/tilde"
 license = "AGPL-3.0-only"
 publish = false
+repository = "https://github.com/nguyenphutrong/tilde"
 
 [workspace.dependencies]
 # Local workspace crates. This lets us reference them in other crates without specifying a path.
