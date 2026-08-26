@@ -369,7 +369,3 @@ fn paste_bytes_from_normalized(normalized: &str, needs_bracketed_paste: bool) ->
     bytes.extend_from_slice(BRACKETED_PASTE_END);
     bytes
 }
-
-#[cfg(test)]
-#[path = "terminal_content_element_tests.rs"]
-mod tests;

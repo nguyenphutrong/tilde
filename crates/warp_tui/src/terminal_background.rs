@@ -31,9 +31,3 @@ pub(crate) fn probe_and_select_theme(selected_theme: TuiTheme) -> WarpTheme {
 fn set_probed_colors(colors: ProbedTerminalColors) {
     let _ = PROBED_COLORS.set(colors);
 }
-
-/// The probed terminal colors, or empty colors when the probe never ran or
-/// the terminal did not answer.
-pub(crate) fn probed_colors() -> ProbedTerminalColors {
-    PROBED_COLORS.get().copied().unwrap_or_default()
-}

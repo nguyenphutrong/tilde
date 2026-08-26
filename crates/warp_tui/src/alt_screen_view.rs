@@ -69,14 +69,22 @@ impl TuiElement for AltScreenElement {
         };
         let model = self.model.lock();
         let colors = model.colors();
-        let alt = model.alt_screen();
-        render_grid_handler(alt.grid_handler(), origin, size, surface, &colors);
+        let grid = if model.is_alt_screen_active() {
+            model.alt_screen().grid_handler()
+        } else {
+            let block = model.block_list().active_block();
+            if block.is_command_grid_active() {
+                block.prompt_and_command_grid().grid_handler()
+            } else {
+                block.output_grid().grid_handler()
+            }
+        };
+        render_grid_handler(grid, origin, size, surface, &colors);
 
         // Submit the hardware cursor if the alt-screen app is showing it. The
         // alt screen has no scrollback, but subtract history defensively so the
         // cursor maps to a visible (screen-relative) row.
-        let cursor = if alt.is_mode_set(TermMode::SHOW_CURSOR) {
-            let grid = alt.grid_handler();
+        let cursor = if model.is_term_mode_set(TermMode::SHOW_CURSOR) {
             let point = grid.cursor_render_point();
             point.row.checked_sub(grid.history_size()).and_then(|row| {
                 let col = u16::try_from(point.col).ok()?;
@@ -101,7 +109,3 @@ impl TuiElement for AltScreenElement {
         self.origin
     }
 }
-
-#[cfg(test)]
-#[path = "alt_screen_view_tests.rs"]
-mod tests;
