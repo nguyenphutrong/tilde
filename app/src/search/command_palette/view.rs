@@ -238,14 +238,8 @@ impl View {
         let binding_source = ctx.add_model(|_| BindingSource::None);
         let session_source = ctx.add_model(|_| SessionSource::None);
 
-        let window_id = ctx.window_id();
         let data_source_store = ctx.add_model(|ctx| {
-            DataSourceStore::new(
-                binding_source.clone(),
-                session_source.clone(),
-                window_id,
-                ctx,
-            )
+            DataSourceStore::new(binding_source.clone(), session_source.clone(), ctx)
         });
 
         ctx.observe(&binding_source, |me, _, ctx| {
@@ -275,7 +269,7 @@ impl View {
 
         let mixer = ctx.add_model(|_| CommandPaletteMixer::new());
         data_source_store.update(ctx, |store, ctx| {
-            store.reset_search_mixer(mixer.clone(), false, ctx);
+            store.reset_search_mixer(mixer.clone(), ctx);
             ctx.notify();
         });
 
@@ -418,7 +412,7 @@ impl View {
 
         let mixer = self.search_bar.as_ref(ctx).mixer().clone();
         self.data_source_store.update(ctx, |store, ctx| {
-            store.reset_search_mixer(mixer.clone(), self.is_shared_session_viewer, ctx);
+            store.reset_search_mixer(mixer.clone(), ctx);
             ctx.notify();
         });
     }

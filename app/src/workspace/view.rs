@@ -14448,10 +14448,9 @@ impl Workspace {
 
         self.palette.update(ctx, |view, ctx| {
             view.reset(ctx);
-            // Reset mixer with correct file data source before setting filter
             let mixer = view.search_bar.as_ref(ctx).mixer().clone();
             view.data_source_store.update(ctx, |store, ctx| {
-                store.reset_search_mixer(mixer, self.is_shared_session_viewer_focused(ctx), ctx);
+                store.reset_search_mixer(mixer, ctx);
             });
             view.set_active_query_filter(QueryFilter::Files, ctx);
         });
