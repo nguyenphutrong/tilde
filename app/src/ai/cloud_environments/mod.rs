@@ -4,9 +4,11 @@ pub use catalog::CloudEnvironmentCatalog;
 pub(crate) use catalog::sort_environments_by_recency;
 #[cfg(feature = "tui")]
 pub use catalog::{CloudEnvironment, CloudEnvironmentCatalogEvent};
+#[cfg(test)]
+pub use cloud_object_models::BaseImage;
 #[cfg_attr(target_family = "wasm", expect(unused_imports))]
 pub use cloud_object_models::{
-    AmbientAgentEnvironment, AwsProviderConfig, BaseImage, CloudAmbientAgentEnvironment,
+    AmbientAgentEnvironment, AwsProviderConfig, CloudAmbientAgentEnvironment,
     CloudAmbientAgentEnvironmentModel, GcpProviderConfig, GithubRepo, ProvidersConfig, SourceRepo,
 };
 use cloud_objects::cloud_object::Owner;

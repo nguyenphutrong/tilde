@@ -48,28 +48,6 @@ fn current_codebase_index_limits(
     }
 }
 
-/// Run the `remote-server-proxy` subcommand.
-#[cfg(unix)]
-pub fn run_proxy(identity_key: String) -> anyhow::Result<()> {
-    unix::proxy::run(&identity_key)
-}
-
-#[cfg(not(unix))]
-pub fn run_proxy(_identity_key: String) -> anyhow::Result<()> {
-    anyhow::bail!("remote-server-proxy is not supported on this platform")
-}
-
-/// Run the `remote-server-daemon` subcommand.
-#[cfg(unix)]
-pub fn run_daemon(identity_key: String) -> anyhow::Result<()> {
-    unix::run_daemon(identity_key)
-}
-
-#[cfg(not(unix))]
-pub fn run_daemon(_identity_key: String) -> anyhow::Result<()> {
-    anyhow::bail!("remote-server-daemon is not supported on this platform")
-}
-
 /// Forwards app auth-token rotation and privacy preference change events
 /// to the remote-server manager.
 #[cfg(not(target_family = "wasm"))]

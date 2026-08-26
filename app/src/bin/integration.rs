@@ -63,7 +63,7 @@ pub fn main() -> Result<()> {
             }
             #[cfg(not(target_family = "wasm"))]
             WorkerCommand::RemoteServerProxy(_) | WorkerCommand::RemoteServerDaemon(_) => {
-                return warp::run();
+                anyhow::bail!("remote server workers are not supported in integration tests");
             }
             // This is a catch-all to handle the plugin host, which the integration test crate doesn't have a feature flag for.
             #[allow(unreachable_patterns)]

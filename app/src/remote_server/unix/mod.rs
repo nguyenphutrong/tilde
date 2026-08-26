@@ -1,15 +1,4 @@
-//! Unix-specific implementation of the remote server daemon and proxy.
-//!
-//! - `run_proxy()`: entry point for the `remote-server-proxy` subcommand.
-//!   Uses a ControlMaster-like pattern (flock + fork + exec) to daemonize
-//!   the server and bridge the SSH stdio channel to its Unix socket.
-//!
-//! - `run_daemon()`: entry point for the `remote-server-daemon` subcommand.
-//!   Binds a Unix domain socket, accepts multiple concurrent proxy connections,
-//!   and exits after a grace period with no connections.
-//!
-//! All platform-specific code is contained here so that the parent `mod.rs`
-//! is a thin dispatcher with no Unix assumptions.
+//! Unix-specific remote terminal support.
 
 pub(super) mod proxy;
 
@@ -22,27 +11,6 @@ use warpui::r#async::executor;
 
 use super::server_model::{ConnectionId, ServerModel};
 use crate::{TelemetryEvent, send_telemetry_from_app_ctx};
-
-/// Run the `remote-server-daemon` subcommand.
-///
-/// Delegates to `run_internal` with `LaunchMode::RemoteServerDaemon`.
-/// All initialization (feature flags, profiling, logging, resource limits,
-/// TLS, `initialize_app`, crash reporting) is handled by `run_internal`.
-/// The daemon-specific socket binding and `ServerModel` registration
-/// happen in [`launch_daemon`], called from `launch()`.
-pub fn run_daemon(identity_key: String) -> anyhow::Result<()> {
-    let result = crate::run_internal(crate::LaunchMode::RemoteServerDaemon {
-        identity_key: identity_key.clone(),
-    });
-
-    // Clean up socket and PID files after the event loop exits.
-    let socket_path = proxy::socket_path(&identity_key);
-    let pid_path = proxy::pid_path(&identity_key);
-    let _ = std::fs::remove_file(&socket_path);
-    let _ = std::fs::remove_file(&pid_path);
-    log::info!("Daemon exiting");
-    result
-}
 
 /// Called from `launch()` inside the headless AppBuilder callback.
 /// Binds the Unix domain socket, writes the PID file, spawns the
