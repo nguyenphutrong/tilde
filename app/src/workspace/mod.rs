@@ -1117,13 +1117,6 @@ fn add_overflow_menu_items_as_editable_binding(app: &mut AppContext) {
     // Add the ability to open all overflow menu items to the command palette.
     app.register_editable_bindings([
         EditableBinding::new(
-            "workspace:show_invite_modal",
-            "Invite People...",
-            WorkspaceAction::ShowReferralSettingsPage,
-        )
-        .with_context_predicate(id!("Workspace"))
-        .with_custom_action(CustomAction::ReferAFriend),
-        EditableBinding::new(
             "workspace:link_to_slack",
             "Join our Slack community (opens external link)",
             WorkspaceAction::JoinSlack,

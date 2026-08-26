@@ -46,6 +46,7 @@ use warpui::{
 };
 
 use self::telemetry::SettingsTelemetryEvent;
+use crate::TelemetryEvent;
 use crate::ai::custom_model_routers::CustomModelRouter;
 use crate::ai::execution_profiles::ExecutionProfileId;
 use crate::appearance::Appearance;
@@ -67,7 +68,6 @@ use crate::util::bindings::{BindingGroup, CustomAction, keybinding_name_to_displ
 use crate::view_components::ToastFlavor;
 use crate::workspace::WorkspaceAction;
 use crate::workspaces::workspace::{BillingMetadata, CustomerType};
-use crate::TelemetryEvent;
 
 mod about_page;
 mod admin_actions;

@@ -1,6 +1,4 @@
-pub mod conversations;
 mod data_sources;
-mod files;
 mod filter_chip_renderer;
 pub mod launch_config;
 pub mod mixer;
@@ -8,7 +6,6 @@ pub mod navigation;
 #[cfg_attr(not(feature = "local_tty"), allow(dead_code))]
 pub mod new_session;
 pub mod render_util;
-pub mod repos;
 mod selected_items;
 pub mod separator_search_item;
 pub mod tabs;

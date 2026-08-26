@@ -73,8 +73,8 @@ pub use action_model::{
 };
 #[cfg(any(test, feature = "integration_tests"))]
 pub(crate) use block::model::testing::FakeAIBlockModel;
-pub(crate) use block::{AIBlock, AIBlockEvent, RequestedEditResolution, init, model};
-pub use block::{keyboard_navigable_buttons, toggleable_items};
+pub(crate) use block::{AIBlock, AIBlockEvent, RequestedEditResolution, model};
+pub use block::keyboard_navigable_buttons;
 pub use child_agent_launch::inherit_child_agent_settings;
 #[cfg(not(target_family = "wasm"))]
 #[cfg_attr(not(feature = "tui"), allow(unused_imports))]
@@ -137,8 +137,8 @@ pub use queued_query::{QueuedQueryEvent, QueuedQueryModel};
 pub use suggestion_chip_view::*;
 pub use view_util::error_color;
 pub(crate) use view_util::{
-    ATTACH_AS_AGENT_MODE_CONTEXT_TEXT, CLAUDE_ORANGE, NEW_AGENT_PANE_LABEL, ai_brand_color,
-    ai_indicator_height, format_credits, get_ai_block_overflow_menu_element_position_id,
+    ATTACH_AS_AGENT_MODE_CONTEXT_TEXT, CLAUDE_ORANGE, ai_brand_color, ai_indicator_height,
+    format_credits, get_ai_block_overflow_menu_element_position_id,
     get_attached_blocks_chip_element_position_id, render_ai_agent_mode_icon,
     render_ai_follow_up_icon,
 };

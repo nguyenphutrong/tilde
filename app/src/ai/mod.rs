@@ -60,7 +60,6 @@ pub(crate) mod voice;
 pub use agent_tips::*;
 pub use credit_availability::*;
 pub use request_usage_model::*;
-use warpui::AppContext;
 #[cfg(not(target_family = "wasm"))]
 pub mod agent_sdk;
 pub mod cloud_agent_config;
@@ -76,14 +75,3 @@ pub mod mcp;
 pub mod outline;
 
 pub(crate) use ai::paths;
-
-pub fn init(app: &mut AppContext) {
-    blocklist::keyboard_navigable_buttons::init(app);
-    blocklist::block::number_shortcut_buttons::init(app);
-    blocklist::toggleable_items::init(app);
-    blocklist::suggested_agent_mode_workflow_modal::init(app);
-    blocklist::suggested_rule_modal::init(app);
-    ai_document_view::init(app);
-    conversation_details_panel::init(app);
-    agent_management::init(app);
-}

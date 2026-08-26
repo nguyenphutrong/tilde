@@ -10,7 +10,7 @@ use crate::search::binding_source::BindingSource;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::data_source::{DataSourceSearchError, Query, QueryResult};
 use crate::search::mixer::{DataSourceRunErrorWrapper, SyncDataSource};
-use crate::util::bindings::CommandBinding;
+use crate::util::bindings::{BindingGroup, CommandBinding};
 
 /// Data source for [`CommandBinding`]s. Produces a list of in-app actions a user can currently
 /// perform.
@@ -303,7 +303,18 @@ mod full_text_searcher {
     }
 }
 
-// Context on why the search_drive action is excluded can be seen here: https://github.com/warpdotdev/warp-internal/pull/11705
 fn is_excluded_binding(binding: &CommandBinding) -> bool {
-    binding.name == *"workspace:search_drive"
+    matches!(
+        binding.group,
+        Some(
+            BindingGroup::WarpAi
+                | BindingGroup::Workflow
+                | BindingGroup::Notebooks
+                | BindingGroup::EnvVarCollection
+        )
+    )
 }
+
+#[cfg(test)]
+#[path = "data_source_tests.rs"]
+mod tests;

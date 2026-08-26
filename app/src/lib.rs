@@ -1615,17 +1615,12 @@ pub(crate) fn initialize_app(
     timer.mark_interval_end("INITIALIZE_TELEMETRY_COLLECTION");
 
     // Register initial keybindings prior to creating menus
-    ai::init(ctx);
     app_services::init(ctx);
-    // // TODO: Temporarily disabling keybindings for WASM builds. Will be implemented in future WASM support.
-    #[cfg(not(target_family = "wasm"))]
-    code::editor::find::view::init(ctx);
     workspace::init(ctx);
     pane_group::init(ctx);
     terminal::init(ctx);
     input::init(ctx);
     editor::init(ctx);
-    onboarding::init(ctx);
     menu::init(ctx);
     tips::tip_view::init(ctx);
     launch_configs::init(ctx);
@@ -1635,31 +1630,11 @@ pub(crate) fn initialize_app(
     themes::theme_deletion_modal::init(ctx);
     root_view::init(ctx);
     voltron::init(ctx);
-    auth::init(ctx);
-    reward_view::init(ctx);
     crate::view_components::find::init(ctx);
-    prompt::editor_modal::init(ctx);
-    ai::blocklist::agent_view::editor::init(ctx);
     undo_close::init(ctx);
-    billing::shared_objects_creation_denied_modal::init(ctx);
-    tab_configs::new_worktree_modal::init(ctx);
     tab_configs::params_modal::init(ctx);
-    ai::blocklist::init(ctx);
-    ai::blocklist::block::status_bar::init(ctx);
-    drive::index::init(ctx);
-    drive::sharing::dialog::init(ctx);
-    ai_assistant::panel::init(ctx);
-    settings_view::update_environment_form::init(ctx);
-    env_vars::env_var_collection_block::init(ctx);
     context_chips::display_menu::init(ctx);
     context_chips::node_version_popup::init(ctx);
-    env_vars::view::env_var_collection::init(ctx);
-    ai::agent::todos::popup::init(ctx);
-    terminal::view::init_environment::mode_selector::init(ctx);
-    coding_entrypoints::project_buttons::init(ctx);
-    if FeatureFlag::CodeReviewSaveChanges.is_enabled() {
-        code_review::init(ctx);
-    }
 
     let display_count = ctx.windows().display_count();
     ctx.add_singleton_model(|_| DisplayCount(display_count));
