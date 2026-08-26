@@ -16,7 +16,9 @@ use crate::terminal::model::terminal_model::ExitReason;
 use crate::ui_components;
 
 const FILE_ISSUE_TEXT: &str = "File issue";
-const MORE_INFO_TEXT: &str = "More info";
+const PROJECT_URL: &str = "https://github.com/nguyenphutrong/tilde";
+const ISSUE_URL: &str = "https://github.com/nguyenphutrong/tilde/issues/new";
+const MORE_INFO_TEXT: &str = "View project";
 
 /// A banner to display when the shell process terminates.
 ///
@@ -183,9 +185,9 @@ impl TerminationType {
                 format!("{pty_spawn_error:#}").into()
             }
             TerminationType::Premature { shell_detail, .. } => format!(
-                "Something went wrong while starting {shell_detail} and Warpifying it, causing the \
-                process to terminate. Warpify script output is displayed here, which may point at \
-                a cause."
+                "Something went wrong while enabling shell integration for {shell_detail}, causing \
+                the process to terminate. Shell integration output is displayed here, which may \
+                point at a cause."
             )
             .into(),
         };
@@ -215,9 +217,7 @@ impl TerminationType {
                         .with_text_label(FILE_ISSUE_TEXT.to_string())
                         .build()
                         .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(Action::OpenUrl(
-                                "https://github.com/warpdotdev/Warp/issues/new/choose".to_string(),
-                            ));
+                            ctx.dispatch_typed_action(Action::OpenUrl(ISSUE_URL.to_string()));
                         })
                         .finish(),
                     ui_builder
@@ -225,9 +225,7 @@ impl TerminationType {
                         .with_text_label(MORE_INFO_TEXT.to_string())
                         .build()
                         .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(Action::OpenUrl(
-                                "https://docs.warp.dev/support-and-community/troubleshooting-and-support/known-issues#debugging".to_string(),
-                            ));
+                            ctx.dispatch_typed_action(Action::OpenUrl(PROJECT_URL.to_string()));
                         })
                         .finish(),
                 ]
@@ -253,9 +251,7 @@ impl TerminationType {
                         .with_text_label(FILE_ISSUE_TEXT.to_string())
                         .build()
                         .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(Action::OpenUrl(
-                                "https://github.com/warpdotdev/Warp/issues/new/choose".to_string(),
-                            ));
+                            ctx.dispatch_typed_action(Action::OpenUrl(ISSUE_URL.to_string()));
                         })
                         .finish(),
                     ui_builder
@@ -263,9 +259,7 @@ impl TerminationType {
                         .with_text_label(MORE_INFO_TEXT.to_string())
                         .build()
                         .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(Action::OpenUrl(
-                                "https://docs.warp.dev/support-and-community/troubleshooting-and-support/known-issues#debugging".to_string(),
-                            ));
+                            ctx.dispatch_typed_action(Action::OpenUrl(PROJECT_URL.to_string()));
                         })
                         .finish(),
                 ]

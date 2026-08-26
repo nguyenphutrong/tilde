@@ -16,8 +16,6 @@ use warpui::accessibility::{AccessibilityContent, ActionAccessibilityContent, Wa
 use warpui::{SingletonEntity, ViewContext};
 
 use super::{Event, InlineBannerItem, InlineBannerType, TerminalView};
-#[cfg(feature = "local_fs")]
-use crate::code::editor_management::CodeSource;
 use crate::terminal::event::UserBlockCompleted;
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::model::session::Session;
@@ -30,9 +28,7 @@ use crate::util::openable_file_type::{
 #[path = "open_in_warp_tests.rs"]
 mod tests;
 
-const LEARN_MORE_MARKDOWN_URL: &str =
-    "https://docs.warp.dev/terminal/more-features/markdown-viewer";
-const LEARN_MORE_CODE_URL: &str = "https://docs.warp.dev/code/overview#built-in-code-editor";
+const LEARN_MORE_MARKDOWN_URL: &str = "https://github.com/nguyenphutrong/tilde";
 
 /// A path to a file that can be opened in Warp, along with its type.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,8 +78,7 @@ impl TerminalView {
                 },
                 move |view, maybe_match, ctx| {
                     if let Some(openable_path) = maybe_match
-                        && (renders_in_warp_notebook_viewer(&openable_path.path)
-                            || matches!(openable_path.file_type, OpenableFileType::Code))
+                        && renders_in_warp_notebook_viewer(&openable_path.path)
                     {
                         view.suggest_open_in_warp(openable_path, session, ctx);
                     }
@@ -159,38 +154,17 @@ impl TerminalView {
         match action {
             OpenInWarpBannerAction::OpenFile => {
                 if let Some(banner_state) = self.inline_banners_state.open_in_warp_banner.take() {
-                    if renders_in_warp_notebook_viewer(&banner_state.target.path) {
-                        // Markdown and Jupyter notebooks open in the notebook viewer.
-                        ctx.emit(Event::OpenFileInWarp {
-                            path: banner_state.target.path,
-                            session: banner_state.session,
-                        });
-                    } else {
-                        // Code and other text files open in the code editor.
-                        #[cfg(feature = "local_fs")]
-                        ctx.emit(Event::OpenCodeInWarp {
-                            source: CodeSource::Link {
-                                path: banner_state.target.path,
-                                range_start: None,
-                                range_end: None,
-                            },
-                            layout: *crate::terminal::view::EditorSettings::as_ref(ctx)
-                                .open_file_layout
-                                .value(),
-                        });
-                    }
+                    ctx.emit(Event::OpenFileInWarp {
+                        path: banner_state.target.path,
+                        session: banner_state.session,
+                    });
                     self.close_open_in_warp_banner(banner_state.id);
                     ctx.notify();
                 }
             }
             OpenInWarpBannerAction::LearnMore => {
-                if let Some(banner_state) = &self.inline_banners_state.open_in_warp_banner {
-                    let url = if renders_in_warp_notebook_viewer(&banner_state.target.path) {
-                        LEARN_MORE_MARKDOWN_URL
-                    } else {
-                        LEARN_MORE_CODE_URL
-                    };
-                    ctx.open_url(url);
+                if self.inline_banners_state.open_in_warp_banner.is_some() {
+                    ctx.open_url(LEARN_MORE_MARKDOWN_URL);
                 }
             }
             OpenInWarpBannerAction::Close => {
@@ -228,7 +202,7 @@ impl TerminalView {
                 match &self.inline_banners_state.open_in_warp_banner {
                     Some(banner_state) => {
                         ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                            format!("Open {} in Warp", banner_state.target.path.display()),
+                            format!("Open {} in Tilde", banner_state.target.path.display()),
                             WarpA11yRole::UserAction,
                         ))
                     }
@@ -237,14 +211,14 @@ impl TerminalView {
             }
             OpenInWarpBannerAction::Close => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    "Close View in Warp banner",
+                    "Close View in Tilde banner",
                     WarpA11yRole::UserAction,
                 ))
             }
             OpenInWarpBannerAction::LearnMore => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new(
                     "Learn more",
-                    "Learn more about opening Markdown files in Warp",
+                    "Learn more about opening Markdown files in Tilde",
                     WarpA11yRole::UserAction,
                 ))
             }

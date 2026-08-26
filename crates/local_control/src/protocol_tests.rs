@@ -163,8 +163,8 @@ fn malformed_and_removed_action_names_are_not_deserialized() {
 }
 
 #[test]
-fn catalog_has_exactly_84_retained_actions() {
-    assert_eq!(ActionKind::ALL.len(), 84);
+fn catalog_has_exactly_73_retained_actions() {
+    assert_eq!(ActionKind::ALL.len(), 73);
 }
 
 #[test]
@@ -179,28 +179,8 @@ fn direct_surface_actions_have_stable_names() {
         "surface.keybindings.open"
     );
     assert_eq!(
-        ActionKind::SurfaceCodeReviewOpen.as_str(),
-        "surface.code_review.open"
-    );
-    assert_eq!(
-        ActionKind::SurfaceProjectExplorerOpen.as_str(),
-        "surface.project_explorer.open"
-    );
-    assert_eq!(
-        ActionKind::SurfaceGlobalSearchOpen.as_str(),
-        "surface.global_search.open"
-    );
-    assert_eq!(
-        ActionKind::SurfaceConversationListOpen.as_str(),
-        "surface.conversation_list.open"
-    );
-    assert_eq!(
         ActionKind::SurfaceVerticalTabsOpen.as_str(),
         "surface.vertical_tabs.open"
-    );
-    assert_eq!(
-        ActionKind::SurfaceAgentManagementOpen.as_str(),
-        "surface.agent_management.open"
     );
 }
 

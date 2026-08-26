@@ -589,22 +589,6 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         )
         .with_enabled(|| FeatureFlag::AgentView.is_enabled()),
     );
-    toggle_binding_pairs.push(
-        ToggleSettingActionPair::new(
-            "'@' context menu in terminal mode",
-            builder(SettingsAction::FeaturesPageToggle(
-                FeaturesPageAction::ToggleAtContextMenuInTerminalMode,
-            )),
-            context,
-            flags::AT_CONTEXT_MENU_IN_TERMINAL_FLAG,
-        )
-        .is_supported_on_current_platform(
-            InputSettings::as_ref(app)
-                .at_context_menu_in_terminal_mode
-                .is_supported_on_current_platform(),
-        ),
-    );
-
     toggle_binding_pairs.push(ToggleSettingActionPair::new(
         "preserve input focus on block selection",
         builder(SettingsAction::FeaturesPageToggle(
@@ -715,7 +699,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 
     if DefaultTerminal::can_warp_become_default() {
         app.register_fixed_bindings([FixedBinding::empty(
-            "Make Warp the default terminal",
+            "Make Tilde the default terminal",
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::MakeWarpDefaultTerminal,
             )),
@@ -829,7 +813,7 @@ lazy_static! {
 const NOTIFICATION_CHECKBOX_MARGIN_RIGHT: f32 = 5.;
 const NOTIFICATION_EDITOR_MARGIN: f32 = 5.;
 
-const NOTIFICATIONS_DOCS_URL: &str = "https://docs.warp.dev/terminal/more-features/notifications";
+const NOTIFICATIONS_DOCS_URL: &str = "https://github.com/nguyenphutrong/tilde";
 
 /// WARNING: this constant was computed manually by determining the pixel width
 /// of the quake mode dropdowns based on the number of expanded items in the flex row.
@@ -2927,13 +2911,6 @@ impl FeaturesPageView {
             editor_widgets.push(Box::new(AutosuggestionIgnoreButtonWidget::default()));
         }
 
-        if input_settings
-            .at_context_menu_in_terminal_mode
-            .is_supported_on_current_platform()
-        {
-            editor_widgets.push(Box::new(AtContextMenuInTerminalModeWidget::default()));
-        }
-
         if FeatureFlag::AgentView.is_enabled()
             && input_settings
                 .enable_slash_commands_in_terminal
@@ -4618,7 +4595,7 @@ impl SettingsWidget for SessionRestorationWidget {
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
                 on_click_action: Some(FeaturesPageAction::OpenUrl(
-                    "https://docs.warp.dev/terminal/sessions/session-restoration".into(),
+                    "https://github.com/nguyenphutrong/tilde".into(),
                 )),
                 secondary_text: None,
                 tooltip_override_text: None,
@@ -4650,7 +4627,7 @@ impl SettingsWidget for SessionRestorationWidget {
             let link = ui_builder
                 .link(
                     "See docs.".to_owned(),
-                    Some("https://docs.warp.dev/terminal/sessions/session-restoration".to_owned()),
+                    Some("https://github.com/nguyenphutrong/tilde".to_owned()),
                     None,
                     self.docs_link.clone(),
                 )
@@ -4703,7 +4680,7 @@ impl SettingsWidget for SnackbarHeaderWidget {
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
                 on_click_action: Some(FeaturesPageAction::OpenUrl(
-                    "https://docs.warp.dev/terminal/blocks/sticky-command-header".into(),
+                    "https://github.com/nguyenphutrong/tilde".into(),
                 )),
                 secondary_text: None,
                 tooltip_override_text: None,
@@ -4846,9 +4823,9 @@ impl SettingsWidget for LoginItemWidget {
         let general_settings = GeneralSettings::as_ref(app);
         let ui_builder = appearance.ui_builder();
         #[cfg(target_os = "macos")]
-        let label = "Start Warp at login (requires macOS 13+)";
+        let label = "Start Tilde at login (requires macOS 13+)";
         #[cfg(not(target_os = "macos"))]
-        let label = "Start Warp at login";
+        let label = "Start Tilde at login";
         render_body_item::<FeaturesPageAction>(
             label.into(),
             None,
@@ -5065,7 +5042,7 @@ impl SettingsWidget for DefaultTerminalWidget {
     type View = FeaturesPageView;
 
     fn search_terms(&self) -> &str {
-        "warp default terminal application"
+        "tilde default terminal application"
     }
 
     fn render(
@@ -5078,7 +5055,7 @@ impl SettingsWidget for DefaultTerminalWidget {
         let default_terminal = DefaultTerminal::as_ref(app);
         if default_terminal.is_warp_default() {
             ui_builder
-                .wrappable_text("Warp is the default terminal", true)
+                .wrappable_text("Tilde is the default terminal", true)
                 .with_style(UiComponentStyles {
                     font_color: Some(appearance.theme().disabled_ui_text_color().into()),
                     margin: Some(Coords::default().bottom(16.)),
@@ -5089,7 +5066,7 @@ impl SettingsWidget for DefaultTerminalWidget {
         } else {
             ui_builder
                 .link(
-                    "Make Warp the default terminal".to_string(),
+                    "Make Tilde the default terminal".to_string(),
                     None,
                     Some(Box::new(|ctx| {
                         ctx.dispatch_typed_action(FeaturesPageAction::MakeWarpDefaultTerminal);
@@ -5184,7 +5161,7 @@ impl SettingsWidget for DesktopNotificationsWidget {
         let ui_builder = appearance.ui_builder();
         let mut column = Flex::column();
         column.add_child(render_body_item::<FeaturesPageAction>(
-            "Receive desktop notifications from Warp".into(),
+            "Receive desktop notifications from Tilde".into(),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
                 on_click_action: Some(FeaturesPageAction::OpenUrl(NOTIFICATIONS_DOCS_URL.into())),
@@ -5606,10 +5583,7 @@ impl SettingsWidget for GlobalHotkeyWidget {
                         ui_builder
                             .link(
                                 "See docs.".to_owned(),
-                                Some(
-                                    "https://docs.warp.dev/terminal/windows/global-hotkey"
-                                        .to_owned(),
-                                ),
+                                Some("https://github.com/nguyenphutrong/tilde".to_owned()),
                                 None,
                                 view.button_mouse_states.global_hotkey_link.clone(),
                             )
@@ -6771,8 +6745,7 @@ impl SettingsWidget for MouseReportingWidget {
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
                 on_click_action: Some(FeaturesPageAction::OpenUrl(
-                    "https://docs.warp.dev/terminal/more-features/full-screen-apps#mouse-and-scroll-reporting"
-                        .into(),
+                    "https://github.com/nguyenphutrong/tilde".into(),
                 )),
                 secondary_text: None,
                 tooltip_override_text: None,
@@ -7036,7 +7009,7 @@ impl SettingsWidget for SmartSelectWidget {
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
                 on_click_action: Some(FeaturesPageAction::OpenUrl(
-                    "https://docs.warp.dev/terminal/more-features/text-selection".into(),
+                    "https://github.com/nguyenphutrong/tilde".into(),
                 )),
                 secondary_text: None,
                 tooltip_override_text: None,
@@ -7325,7 +7298,7 @@ impl SettingsWidget for WorkflowsInCommandSearch {
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
                 on_click_action: Some(FeaturesPageAction::OpenUrl(
-                    "https://docs.warp.dev/terminal/entry/yaml-workflows".into(),
+                    "https://github.com/nguyenphutrong/tilde".into(),
                 )),
                 secondary_text: None,
                 tooltip_override_text: None,
@@ -7535,7 +7508,7 @@ impl SettingsWidget for WindowSystemWidget {
                     may be blurry if your Wayland compositor is using fraction scaling (ex: 125%)."
                 .to_string();
         if view.force_x11_changed {
-            secondary_text.push_str("\n\nRestart Warp for changes to take effect.");
+            secondary_text.push_str("\n\nRestart Tilde for changes to take effect.");
         }
         let warp_theme = appearance.theme();
         children.add_child(

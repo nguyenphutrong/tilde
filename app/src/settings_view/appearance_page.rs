@@ -243,10 +243,10 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         context.to_owned(),
     )]);
 
-    // Add command palette entry for toggling between Warp and Classic input modes
+    // Add command palette entry for toggling between pinned and classic input modes.
     app.register_fixed_bindings(vec![
         FixedBinding::empty(
-            "Toggle Input Mode (Warp/Classic)".to_string(),
+            "Toggle Input Mode (Pinned/Classic)".to_string(),
             builder(SettingsAction::AppearancePageToggle(
                 AppearancePageAction::ToggleInputMode,
             )),
@@ -1395,39 +1395,8 @@ impl AppearanceSettingsPageView {
             window_settings_widgets.push(Box::new(ZoomLevelWidget));
         }
 
-        if window_settings
-            .left_panel_visibility_across_tabs
-            .is_supported_on_current_platform()
-        {
-            window_settings_widgets.push(Box::new(ToolsPanelStateScopeWidget::default()));
-        }
-
         if !window_settings_widgets.is_empty() {
             categories.push(Category::new("Window", window_settings_widgets));
-        }
-
-        // Tools panel tab visibility toggles. These control which of the four
-        // tabs appear in the tools panel and mirror the onboarding "Customize
-        // your UI" tools-panel selection (see `crates/onboarding`); each toggle
-        // points at the same backing setting as onboarding so the two surfaces
-        // stay in sync, and the tools panel already recomputes its available
-        // views live when these settings change (see `Workspace::new`).
-        // Each toggle is gated only on compile-time / feature-flag availability
-        // of the corresponding tab (not on transient login/AI state), so the
-        // section stays stable regardless of when the page is built.
-        let mut tools_panel_widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![];
-        if cfg!(feature = "local_fs") {
-            tools_panel_widgets.push(Box::new(ToolsPanelProjectExplorerWidget::default()));
-        }
-        if FeatureFlag::AgentViewConversationListView.is_enabled() {
-            tools_panel_widgets.push(Box::new(ToolsPanelConversationHistoryWidget::default()));
-        }
-        if cfg!(feature = "local_fs") && FeatureFlag::GlobalSearch.is_enabled() {
-            tools_panel_widgets.push(Box::new(ToolsPanelGlobalSearchWidget::default()));
-        }
-        tools_panel_widgets.push(Box::new(ToolsPanelWarpDriveWidget::default()));
-        if !tools_panel_widgets.is_empty() {
-            categories.push(Category::new("Tools panel", tools_panel_widgets));
         }
 
         // Create the Input category with all widgets
@@ -1461,7 +1430,6 @@ impl AppearanceSettingsPageView {
         let font_settings = FontSettings::as_ref(ctx);
         let mut text_settings_widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![
             Box::new(TerminalFontWidget::default()),
-            Box::new(AIFontWidget::default()),
             Box::new(NotebookFontSizeWidget::default()),
         ];
         if font_settings
@@ -1651,7 +1619,7 @@ impl AppearanceSettingsPageView {
 
     fn input_mode_dropdown_item_label(val: InputMode) -> &'static str {
         match val {
-            InputMode::PinnedToBottom => "Pin to the bottom (Warp mode)",
+            InputMode::PinnedToBottom => "Pin to the bottom (Pinned mode)",
             InputMode::PinnedToTop => "Pin to the top (Reverse mode)",
             InputMode::Waterfall => "Start at the top (Classic mode)",
         }
@@ -2801,7 +2769,7 @@ impl SettingsWidget for CreateCustomThemeWidget {
                 .ui_builder()
                 .link(
                     "Create your own custom theme".to_string(),
-                    Some("https://docs.warp.dev/terminal/appearance/custom-themes".to_string()),
+                    Some("https://github.com/nguyenphutrong/tilde".to_string()),
                     None,
                     self.mouse_state.clone(),
                 )
@@ -3046,7 +3014,7 @@ impl SettingsWidget for CustomAppIconWidget {
         );
 
         let show_dock_icon_toggle = render_body_item::<AppearancePageAction>(
-            "Show Warp in Dock".into(),
+            "Show Tilde in Dock".into(),
             None,
             LocalOnlyIconState::for_setting(
                 ShowDockIconState::storage_key(),
@@ -3086,7 +3054,7 @@ impl SettingsWidget for CustomAppIconWidget {
                     appearance
                         .ui_builder()
                         .wrappable_text(
-                            "You may need to restart Warp for MacOS to apply the preferred icon style.",
+                            "You may need to restart Tilde for macOS to apply the preferred icon style.",
                             true,
                         )
                         .with_style(UiComponentStyles {
@@ -3391,7 +3359,7 @@ impl SettingsWidget for WindowBlurWidget {
         let label_info = AdditionalInfo {
             mouse_state: self.info_button.clone(),
             on_click_action: Some(AppearancePageAction::OpenUrl(
-                "https://docs.warp.dev/terminal/appearance/size-opacity-blurring".into(),
+                "https://github.com/nguyenphutrong/tilde".into(),
             )),
             secondary_text: None,
             tooltip_override_text: None,
@@ -3722,7 +3690,7 @@ impl SettingsWidget for InputTypeWidget {
     type View = AppearanceSettingsPageView;
 
     fn search_terms(&self) -> &str {
-        "input type warp universal classic style prompt terminal ai developer mode interface shell chips ps1"
+        "input type modern universal classic style prompt terminal interface shell chips ps1"
     }
 
     fn render(
@@ -3737,7 +3705,7 @@ impl SettingsWidget for InputTypeWidget {
             .radio_buttons(
                 self.radio_buttons_states.clone(),
                 vec![
-                    RadioButtonItem::text("Warp"),
+                    RadioButtonItem::text("Modern"),
                     RadioButtonItem::text("Shell (PS1)"),
                 ],
                 view.input_type_radio_state.clone(),
@@ -5421,7 +5389,7 @@ impl SettingsWidget for AltScreenPaddingWidget {
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_mouse_state.clone(),
                 on_click_action: Some(AppearancePageAction::OpenUrl(
-                    "https://docs.warp.dev/terminal/more-features/full-screen-apps#padding".into(),
+                    "https://github.com/nguyenphutrong/tilde".into(),
                 )),
                 secondary_text: None,
                 tooltip_override_text: None,

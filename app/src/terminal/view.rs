@@ -645,16 +645,13 @@ const ENV_VAR_BOOTSTRAP_FAILED_DURATION: Duration = Duration::from_secs(60);
 /// dismissal keeps the warning informational without turning it into a
 /// permanent fixture.
 const SLOW_BOOTSTRAP_BANNER_AUTO_DISMISS_DURATION: Duration = Duration::from_secs(30);
-const KNOWN_ISSUES_URL: &str =
-    "https://docs.warp.dev/support-and-community/troubleshooting-and-support/known-issues";
+const KNOWN_ISSUES_URL: &str = "https://github.com/nguyenphutrong/tilde/issues";
 
 /// Link to supported custom prompts.
-const PROMPT_COMPATIBILITY_URL: &str =
-    "https://docs.warp.dev/terminal/appearance/prompt#custom-prompt-compatibility-table";
+const PROMPT_COMPATIBILITY_URL: &str = "https://github.com/nguyenphutrong/tilde/issues";
 
 /// Link to troubleshooting steps for ControlMaster errors.
-const CONTROLMASTER_ISSUES_URL: &str =
-    "https://docs.warp.dev/terminal/warpify/ssh-legacy#troubleshooting";
+const CONTROLMASTER_ISSUES_URL: &str = "https://github.com/nguyenphutrong/tilde/issues";
 
 /// Link to instructions on how to update p10k.
 const P10K_UPDATE_INSTRUCTIONS_URL: &str =
@@ -669,10 +666,8 @@ const MIN_DELTA_FOR_TEXT_SELECTION: f32 = 0.5;
 
 /// Notifications-specific info
 /// TODO (suraj): add documentation for notifications in docs
-const NOTIFICATIONS_LEARN_MORE_URL: &str =
-    "https://docs.warp.dev/terminal/more-features/notifications";
-pub const NOTIFICATIONS_TROUBLESHOOT_URL: &str =
-    "https://docs.warp.dev/terminal/more-features/notifications#troubleshooting-notifications";
+const NOTIFICATIONS_LEARN_MORE_URL: &str = "https://github.com/nguyenphutrong/tilde";
+pub const NOTIFICATIONS_TROUBLESHOOT_URL: &str = "https://github.com/nguyenphutrong/tilde/issues";
 
 const DEBOUNCE_PERIOD: Duration = Duration::from_millis(40);
 
@@ -798,16 +793,16 @@ impl NotificationsTrigger {
     pub fn discovery_banner_copy(&self) -> &'static str {
         match self {
             NotificationsTrigger::LongRunningCommand(..) => {
-                "Warp can notify you when long-running commands finish."
+                "Tilde can notify you when long-running commands finish."
             }
             NotificationsTrigger::AgentTaskCompleted(..) => {
-                "Warp can notify you when an agent finishes responding."
+                "Tilde can notify you when a task finishes responding."
             }
             NotificationsTrigger::NeedsAttention => {
-                "Warp can notify you when a command or agent needs your attention."
+                "Tilde can notify you when a command needs your attention."
             }
             NotificationsTrigger::PasswordPrompt => {
-                "Warp can notify you when you're prompted to enter a password."
+                "Tilde can notify you when you're prompted to enter a password."
             }
         }
     }
@@ -3956,7 +3951,7 @@ impl TerminalView {
         let incompatible_configuration_banner = ctx.add_typed_action_view(|_| {
             Banner::new(BannerTextContent::formatted_text(vec![
                 FormattedTextFragment::plain_text(
-                    "Your shell configuration is incompatible with Warp...  ",
+                    "Your shell configuration is incompatible with Tilde.  ",
                 ),
                 FormattedTextFragment::hyperlink("More info", KNOWN_ISSUES_URL),
             ]))
@@ -10012,11 +10007,11 @@ impl TerminalView {
 
         let a11y_message = match &warpify_keybinding {
             Some(keystroke) => format!(
-                "You can press {} to Warpify this {} for more Warp features.",
+                "You can press {} to enable shell integration for this {}.",
                 keystroke.displayed(),
                 lowercase_title
             ),
-            None => format!("You can Warpify this {lowercase_title} for more Warp features."),
+            None => format!("You can enable shell integration for this {lowercase_title}."),
         };
 
         model
@@ -10174,7 +10169,7 @@ impl TerminalView {
 
         let a11y_content = AccessibilityContent::new(
             banner_title,
-            "Make sure you have enabled access for Warp notifications in System Preferences.",
+            "Make sure you have enabled access for Tilde notifications in System Preferences.",
             WarpA11yRole::TextRole,
         );
         ctx.emit_a11y_content(a11y_content);
@@ -22658,7 +22653,7 @@ impl TerminalView {
         let show_banner = if honor_ps1 {
             let banner_content = if shell_plugins.contains("p10k_unsupported") {
                 Some(BannerTextContent::formatted_text(vec![
-                    FormattedTextFragment::bold("Powerlevel10k now supports Warp!  "),
+                    FormattedTextFragment::bold("A Powerlevel10k update is available.  "),
                     FormattedTextFragment::plain_text(
                         "You seem to be running an older (unsupported) version, please follow ",
                     ),

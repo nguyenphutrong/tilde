@@ -67,7 +67,7 @@ impl Channel {
             Channel::Preview => "warpctrl-preview",
             Channel::Local => "warpctrl-local",
             Channel::Integration => "warpctrl-integration",
-            Channel::Oss => "warpctrl-oss",
+            Channel::Oss => "tilde-ctrl",
         }
     }
 }

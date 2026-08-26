@@ -23,7 +23,7 @@ const CLI_VERSION: &str = match option_env!("GIT_RELEASE_TAG") {
 };
 
 #[derive(Debug, Parser)]
-#[command(name = "warp", version = CLI_VERSION)]
+#[command(name = "tilde-tui", version = CLI_VERSION)]
 struct TuiArgs {
     #[command(subcommand)]
     command: Option<TuiCommand>,

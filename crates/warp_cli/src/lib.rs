@@ -107,9 +107,13 @@ pub struct GlobalOptions {
     pub output_format: OutputFormat,
 }
 
-/// Argument parser for the local Warp terminal application.
+/// Argument parser for the local Tilde terminal application.
 #[derive(Debug, Default, Parser, Clone)]
-#[command(name = "warp", display_name = "Warp", about = "A fast local terminal")]
+#[command(
+    name = "tilde",
+    display_name = "Tilde",
+    about = "A fast local terminal"
+)]
 #[clap(subcommand_precedence_over_arg = true)]
 pub struct Args {
     #[command(subcommand)]
@@ -136,7 +140,7 @@ pub struct AppArgs {
     #[clap(flatten)]
     pub parent: ParentOpts,
 
-    /// URLs to open in Warp.
+    /// URLs to open in Tilde.
     #[arg(hide = true)]
     pub urls: Vec<Url>,
 }
@@ -334,7 +338,7 @@ impl CliCommand {
     }
 }
 
-/// A subcommand of the main Warp application. This includes all [`WorkerCommand`]s as well as app-specific debugging tools.
+/// A subcommand of the main Tilde application.
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
     #[clap(flatten)]
@@ -344,18 +348,18 @@ pub enum Command {
     ///
     ///
     /// For bash, add the following to ~/.bashrc:
-    ///     source <(path/to/warp completions bash)
+    ///     source <(path/to/tilde completions bash)
     ///
     /// For zsh, add the following to ~/.zshrc:
-    ///     source <(path/to/warp completions zsh)
+    ///     source <(path/to/tilde completions zsh)
     ///
     /// For fish, add the following to ~/.config/fish/config.fish:
-    ///     path/to/warp completions fish | source
+    ///     path/to/tilde completions fish | source
     ///
     /// For Powershell, add the following to $PROFILE:
-    ///     path\to\warp | Out-String | Invoke-Expression
+    ///     path\to\tilde | Out-String | Invoke-Expression
     ///
-    /// If no shell is provided, this defaults to the shell that Warp was run from.
+    /// If no shell is provided, this defaults to the shell that Tilde was run from.
     #[command(verbatim_doc_comment)]
     Completions {
         /// Shell to generate completions for.
@@ -366,7 +370,7 @@ pub enum Command {
     /// Print debugging information and exit.
     #[clap(long_flag = "dump-debug-info")]
     DumpDebugInfo,
-    /// Print the JSON schema for the current Warp channel's settings and exit.
+    /// Print the JSON schema for the current Tilde channel's settings and exit.
     #[cfg(not(target_family = "wasm"))]
     DumpSettingsSchema {
         /// Write the schema to this path instead of standard output.

@@ -44,14 +44,13 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     context: &ContextPredicate,
     builder: fn(SettingsAction) -> T,
 ) {
-    // Add all of the toggle settings from the Warpify Page that you want to show up on the Command Palette here.
     let mut toggle_binding_pairs = vec![];
     if WarpifySettings::as_ref(app)
         .enable_ssh_warpification
         .is_supported_on_current_platform()
     {
         toggle_binding_pairs.push(ToggleSettingActionPair::new(
-            "SSH Warpification",
+            "SSH shell integration",
             builder(SettingsAction::WarpifyPageToggle(
                 WarpifyPageAction::ToggleSshWarpification,
             )),
@@ -69,9 +68,9 @@ const ITEM_VERTICAL_SPACING: f32 = 24.;
 const BUILT_IN_TEXT_INPUT_MARGIN: f32 = 10.;
 const SPACE_AFTER_TEXT_INPUT: f32 = ITEM_VERTICAL_SPACING - BUILT_IN_TEXT_INPUT_MARGIN;
 
-const SSH_REUSE_CONTROL_MASTER_DESCRIPTION: &str = "Attach to a live SSH ControlMaster you already have configured for the destination host instead of creating a Warp-owned one. Takes effect in new tabs.";
+const SSH_REUSE_CONTROL_MASTER_DESCRIPTION: &str = "Attach to a live SSH ControlMaster you already have configured for the destination host instead of creating an app-owned one. Takes effect in new tabs.";
 
-const SSH_EXTENSION_INSTALL_MODE_DESCRIPTION: &str = "Controls the installation behavior for Warp's SSH extension when a remote host doesn't have it installed.";
+const SSH_EXTENSION_INSTALL_MODE_DESCRIPTION: &str = "Controls the installation behavior for Tilde's SSH extension when a remote host doesn't have it installed.";
 
 /// This page lets users configure when they get asked to warpify a session. Some shell commands
 /// are recognized by default. Users can add new shell commands, or prevent the default ones from
@@ -163,7 +162,8 @@ impl WarpifyPageView {
             .is_supported_on_current_platform()
         {
             categories.push(Category::with_header(
-                CategoryHeader::new("SSH").with_subtitle("Warpify your interactive SSH sessions."),
+                CategoryHeader::new("SSH")
+                    .with_subtitle("Enable shell integration in interactive SSH sessions."),
                 vec![Box::new(SSHWidget::default())],
             ));
         }
@@ -490,12 +490,12 @@ impl TitleWidget {
     fn render_top_of_page(&self, appearance: &Appearance, _app: &AppContext) -> Box<dyn Element> {
         let warpify_description = vec![
             FormattedTextFragment::plain_text(
-                "Configure whether Warp attempts to “Warpify” (add support for blocks, \
-                    input modes, etc) certain shells. ",
+                "Configure shell integration for blocks, input modes, and other terminal features \
+                 in supported shells. ",
             ),
             FormattedTextFragment::hyperlink(
-                "Learn more",
-                "https://docs.warp.dev/terminal/warpify/subshells",
+                "View project",
+                "https://github.com/nguyenphutrong/tilde",
             ),
         ];
 
@@ -514,7 +514,11 @@ impl TitleWidget {
         .finish();
 
         Flex::column()
-            .with_child(render_page_title("Warpify", HEADER_FONT_SIZE, appearance))
+            .with_child(render_page_title(
+                "Shell integration",
+                HEADER_FONT_SIZE,
+                appearance,
+            ))
             .with_child(warpify_description)
             .finish()
     }
@@ -524,7 +528,7 @@ impl SettingsWidget for TitleWidget {
     type View = WarpifyPageView;
 
     fn search_terms(&self) -> &str {
-        "ssh subshell warpify session"
+        "ssh subshell shell integration session"
     }
 
     fn render(
@@ -636,7 +640,7 @@ impl SettingsWidget for SSHWidget {
             &WarpifySettings::as_ref(app).enable_ssh_warpification,
             move || {
                 render_body_item::<WarpifyPageAction>(
-                    "Warpify SSH Sessions".into(),
+                    "Shell integration in SSH sessions".into(),
                     None,
                     LocalOnlyIconState::for_setting(
                         EnableSshWarpification::storage_key(),

@@ -7,7 +7,6 @@ use std::time::Duration;
 use pathfinder_geometry::vector::vec2f;
 use regex::Regex;
 use settings::Setting as _;
-use warp_core::context_flag::ContextFlag;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::WarpTheme;
 use warp_core::ui::theme::color::internal_colors;
@@ -219,18 +218,10 @@ impl PrivacyPageView {
     }
 
     fn build_page() -> PageType<Self> {
-        let mut widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![
-            Box::new(SecretRedactionWidget::default()),
-            Box::new(AppAnalyticsWidget::default()),
-            Box::new(CrashReportsWidget::default()),
-            Box::new(CloudConversationStorageWidget::default()),
-        ];
-        if ContextFlag::NetworkLogConsole.is_enabled() {
-            widgets.push(Box::new(NetworkLogWidget::default()));
-        }
-        widgets.push(Box::new(DataManagementWidget::default()));
-        widgets.push(Box::new(PrivacyPolicyWidget::default()));
-        PageType::new_uncategorized(widgets, Some(PageTitle::new("Privacy")))
+        PageType::new_uncategorized(
+            vec![Box::new(SecretRedactionWidget::default())],
+            Some(PageTitle::new("Privacy")),
+        )
     }
 
     fn update_button_states(

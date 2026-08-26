@@ -1,4 +1,4 @@
-//! Command-line interface for controlling a running local Warp app.
+//! Command-line interface for controlling a running local Tilde app.
 mod commands;
 mod completions;
 mod output;
@@ -19,15 +19,15 @@ use output::write_control_error;
 
 use crate::agent::OutputFormat;
 
-/// Hidden flag used by the channel-specific Warp app binary to enter `warpctrl` mode.
+/// Hidden flag used by the app binary to enter local-control mode.
 pub const CONTROL_MODE_FLAG: &str = "--warpctrl";
 
-/// Parsed top-level arguments for `warpctrl`.
+/// Parsed top-level arguments for `tilde-ctrl`.
 #[derive(Debug, Parser)]
 #[command(
-    name = "warpctrl",
-    display_name = "warpctrl",
-    about = "Control a running local Warp app instance"
+    name = "tilde-ctrl",
+    display_name = "tilde-ctrl",
+    about = "Control a running local Tilde app instance"
 )]
 pub struct ControlArgs {
     /// Set the output format.
@@ -59,7 +59,7 @@ pub enum ActionCatalogCommand {
 
 impl ControlArgs {
     pub fn from_env() -> Self {
-        let bin_name = crate::binary_name().unwrap_or_else(|| "warpctrl".to_owned());
+        let bin_name = crate::binary_name().unwrap_or_else(|| "tilde-ctrl".to_owned());
         Self::try_parse_from_args(std::env::args_os(), bin_name).unwrap_or_else(|err| err.exit())
     }
 
@@ -79,7 +79,7 @@ impl ControlArgs {
         I: IntoIterator<Item = T>,
         T: Into<OsString>,
     {
-        let mut stripped_args = vec![OsString::from("warpctrl")];
+        let mut stripped_args = vec![OsString::from("tilde-ctrl")];
         let mut found_control_mode = false;
 
         for arg in args {
@@ -93,11 +93,11 @@ impl ControlArgs {
             stripped_args.push(arg);
         }
 
-        found_control_mode.then(|| Self::try_parse_from_args(stripped_args, "warpctrl"))
+        found_control_mode.then(|| Self::try_parse_from_args(stripped_args, "tilde-ctrl"))
     }
 
     pub fn clap_command() -> clap::Command {
-        let bin_name = crate::binary_name().unwrap_or_else(|| "warpctrl".to_owned());
+        let bin_name = crate::binary_name().unwrap_or_else(|| "tilde-ctrl".to_owned());
         Self::clap_command_for_bin_name(bin_name)
     }
 
@@ -133,13 +133,13 @@ impl ControlArgs {
     }
 }
 
-/// Top-level `warpctrl` command groups.
+/// Top-level `tilde-ctrl` command groups.
 #[derive(Debug, Clone, Subcommand)]
 pub enum ControlCommand {
-    /// Inspect local Warp app instances.
+    /// Inspect local Tilde app instances.
     #[command(subcommand)]
     Instance(InstanceCommand),
-    /// Inspect a selected local Warp app.
+    /// Inspect a selected local Tilde app.
     #[command(subcommand)]
     App(AppCommand),
     /// Inspect local-control capabilities.
@@ -149,18 +149,18 @@ pub enum ControlCommand {
     #[command(subcommand)]
     Action(ActionCatalogCommand),
 
-    /// Inspect local Warp windows.
+    /// Inspect local Tilde windows.
     #[command(subcommand)]
     Window(WindowCommand),
 
-    /// Control local Warp tabs.
+    /// Control local Tilde tabs.
     #[command(subcommand)]
     Tab(TabCommand),
-    /// Inspect local Warp panes.
+    /// Inspect local Tilde panes.
     #[command(subcommand)]
     Pane(PaneCommand),
 
-    /// Inspect local Warp sessions.
+    /// Inspect local Tilde sessions.
     #[command(subcommand)]
     Session(SessionCommand),
 
@@ -168,7 +168,7 @@ pub enum ControlCommand {
     #[command(subcommand)]
     Input(InputCommand),
 
-    /// Inspect Warp themes.
+    /// Inspect Tilde themes.
     #[command(subcommand)]
     Theme(ThemeCommand),
 
@@ -188,25 +188,25 @@ pub enum ControlCommand {
     #[command(subcommand)]
     File(FileCommand),
 
-    /// Open or toggle local Warp surfaces.
+    /// Open or toggle local Tilde surfaces.
     #[command(subcommand)]
     Surface(SurfaceCommand),
 
     /// Generate shell completions for your shell to stdout.
     ///
     /// For bash, add the following to ~/.bashrc:
-    ///     source <(path/to/warpctrl completions bash)
+    ///     source <(path/to/tilde-ctrl completions bash)
     ///
     /// For zsh, add the following to ~/.zshrc:
-    ///     source <(path/to/warpctrl completions zsh)
+    ///     source <(path/to/tilde-ctrl completions zsh)
     ///
     /// For fish, add the following to ~/.config/fish/config.fish:
-    ///     path/to/warpctrl completions fish | source
+    ///     path/to/tilde-ctrl completions fish | source
     ///
     /// For Powershell, add the following to $PROFILE:
-    ///     path\to\warpctrl completions powershell | Out-String | Invoke-Expression
+    ///     path\to\tilde-ctrl completions powershell | Out-String | Invoke-Expression
     ///
-    /// If no shell is provided, this defaults to the shell that Warp was run from.
+    /// If no shell is provided, this defaults to the shell that Tilde was run from.
     #[command(verbatim_doc_comment)]
     Completions {
         /// Shell to generate completions for.
@@ -405,49 +405,13 @@ pub enum SurfaceCommand {
     #[command(subcommand)]
     Keybindings(SurfaceOpenCommand),
 
-    /// Open or toggle Warp Drive.
-    #[command(subcommand)]
-    WarpDrive(SurfaceOpenToggleCommand),
-
     /// Toggle the resource center.
     #[command(subcommand)]
     ResourceCenter(SurfaceToggleCommand),
 
-    /// Toggle the AI assistant.
-    #[command(subcommand)]
-    AiAssistant(SurfaceToggleCommand),
-
-    /// Open or toggle code review.
-    #[command(subcommand)]
-    CodeReview(SurfaceOpenToggleCommand),
-
-    /// Open the project explorer.
-    #[command(subcommand)]
-    ProjectExplorer(SurfaceOpenCommand),
-
-    /// Open global search.
-    #[command(subcommand)]
-    GlobalSearch(SurfaceOpenCommand),
-
-    /// Open the conversation list.
-    #[command(subcommand)]
-    ConversationList(SurfaceOpenCommand),
-
-    /// Toggle the left panel.
-    #[command(subcommand)]
-    LeftPanel(SurfaceToggleCommand),
-
-    /// Toggle the right panel.
-    #[command(subcommand)]
-    RightPanel(SurfaceToggleCommand),
-
     /// Open or toggle vertical tabs.
     #[command(subcommand)]
     VerticalTabs(SurfaceOpenToggleCommand),
-
-    /// Open agent management.
-    #[command(subcommand)]
-    AgentManagement(SurfaceOpenCommand),
 }
 
 #[derive(Debug, Clone, Subcommand)]
