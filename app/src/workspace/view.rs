@@ -665,8 +665,6 @@ pub(crate) const TOGGLE_CONVERSATION_LIST_VIEW_BINDING_NAME: &str =
 pub(crate) const NEW_TAB_BINDING_NAME: &str = "workspace:new_tab";
 pub(crate) const NEW_TERMINAL_TAB_BINDING_NAME: &str = "workspace:new_terminal_tab";
 pub(crate) const NEW_FILE_BINDING_NAME: &str = "workspace:new_file";
-pub(crate) const NEW_AGENT_TAB_BINDING_NAME: &str = "workspace:new_agent_tab";
-pub(crate) const NEW_AMBIENT_AGENT_TAB_BINDING_NAME: &str = "workspace:new_ambient_agent_tab";
 pub(crate) const TOGGLE_TAB_CONFIGS_MENU_BINDING_NAME: &str = "workspace:toggle_tab_configs_menu";
 
 // Editable left panel toolbelt keybindings.
@@ -26282,40 +26280,12 @@ impl View for Workspace {
     fn keymap_context(&self, app: &AppContext) -> warpui::keymap::Context {
         let mut context = Self::default_keymap_context();
 
-        if NetworkStatus::as_ref(app).is_online() {
-            context.set.insert("IsOnline");
-        }
-
-        if AISettings::as_ref(app).is_any_ai_enabled(app) {
-            context.set.insert(flags::IS_ANY_AI_ENABLED);
-        }
-
-        if AISettings::as_ref(app).is_active_ai_enabled(app) {
-            context.set.insert(flags::IS_ACTIVE_AI_ENABLED);
-        }
-        if AISettings::as_ref(app).is_voice_input_enabled(app)
-            && UserWorkspaces::as_ref(app).is_voice_enabled()
-        {
-            context.set.insert(flags::IS_VOICE_INPUT_ENABLED);
-        }
-
         if self
             .active_tab_pane_group()
             .as_ref(app)
             .any_pane_being_dragged(app)
         {
             context.set.insert("Workspace_PaneDragging");
-        }
-
-        // TODO: This is temporary. We currently check if any code pane is open where it should
-        // really be whether the code pane is opened and focused.
-        if self
-            .active_tab_pane_group()
-            .as_ref(app)
-            .pane_ids()
-            .any(|id| id.is_code_pane())
-        {
-            context.set.insert("Workspace_TextOpen");
         }
 
         if matches!(
@@ -26390,32 +26360,6 @@ impl View for Workspace {
             context.set.insert("Workspace_ActiveOrSelectedTabsInGroup");
         }
 
-        if WarpDriveSettings::is_warp_drive_enabled(app) {
-            context.set.insert(flags::ENABLE_WARP_DRIVE);
-        }
-
-        if AISettings::as_ref(app).is_conversation_history_enabled(app) {
-            context.set.insert(flags::SHOW_CONVERSATION_HISTORY);
-        }
-
-        if *CodeSettings::as_ref(app).show_project_explorer {
-            context.set.insert(flags::SHOW_PROJECT_EXPLORER);
-        }
-        if *CodeSettings::as_ref(app).show_global_search {
-            context.set.insert(flags::SHOW_GLOBAL_SEARCH);
-        }
-        if *CodeSettings::as_ref(app).show_hidden_files {
-            context.set.insert(flags::SHOW_HIDDEN_FILES);
-        }
-
-        if self.team_uid(app).is_some() {
-            context.set.insert("WarpDrive_BelongsToTeam");
-        }
-
-        if self.auth_state.is_anonymous_or_logged_out() {
-            context.set.insert("IsAnonymousUser");
-        }
-
         self.add_toggle_setting_context_flags(app, &mut context);
 
         let sync_state = SyncedInputState::as_ref(app);
@@ -26426,13 +26370,6 @@ impl View for Workspace {
             .is_syncing_all_panes_in_pane_group(self.window_id, self.active_tab_pane_group().id())
         {
             context.set.insert(flags::SYNC_ALL_PANES_IN_CURRENT_TAB);
-        }
-
-        let is_universal_developer_input_enabled =
-            InputSettings::as_ref(app).is_universal_developer_input_enabled(app);
-
-        if is_universal_developer_input_enabled {
-            context.set.insert(flags::UNIVERSAL_DEVELOPER_INPUT_ENABLED);
         }
 
         let default_terminal = DefaultTerminal::as_ref(app);

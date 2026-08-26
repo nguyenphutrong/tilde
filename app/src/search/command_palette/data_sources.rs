@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use warp_core::context_flag::ContextFlag;
 use warp_core::features::FeatureFlag;
 use warpui::keymap::BindingId;
-use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
+use warpui::{AppContext, Entity, ModelContext, ModelHandle};
 
 use crate::search::QueryFilter;
 use crate::search::action::CommandBindingDataSource;
