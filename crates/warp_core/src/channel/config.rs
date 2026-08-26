@@ -63,6 +63,16 @@ impl WarpServerConfig {
             iap_config: None,
         }
     }
+
+    pub fn offline() -> Self {
+        Self {
+            server_root_url: "http://127.0.0.1:0".into(),
+            rtc_server_url: "ws://127.0.0.1:0".into(),
+            session_sharing_server_url: None,
+            firebase_auth_api_key: "".into(),
+            iap_config: None,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -80,6 +90,13 @@ impl OzConfig {
     pub fn production() -> Self {
         Self {
             oz_root_url: "https://oz.warp.dev".into(),
+            workload_audience_url: None,
+        }
+    }
+
+    pub fn offline() -> Self {
+        Self {
+            oz_root_url: "http://127.0.0.1:0".into(),
             workload_audience_url: None,
         }
     }
@@ -169,3 +186,7 @@ pub struct McpOAuthLoopbackClientConfig {
     #[serde(default)]
     pub client_secret: Option<Cow<'static, str>>,
 }
+
+#[cfg(test)]
+#[path = "config_tests.rs"]
+mod tests;
