@@ -75,7 +75,7 @@ pub struct Listener {
 impl Listener {
     pub fn new(cloud_objects_client: Arc<dyn ObjectClient>, ctx: &mut ModelContext<Self>) -> Self {
         let (subscription_ready_tx, subscription_ready_rx) = async_channel::unbounded();
-        let mut listener = Self {
+        let listener = Self {
             cloud_objects_client,
             should_subscribe_to_updates: false,
             current_subscription_abort_handle: None,
@@ -112,13 +112,6 @@ impl Listener {
             Self::handle_user_workspaces_event,
         );
         ctx.subscribe_to_model(&CloudModel::handle(ctx), Self::handle_cloud_model_event);
-
-        // We need to do a one-time check of cloud objects when starting
-        // because the Cloud Model was initialized before this model and we could have populated
-        // its object cache with objects from sqlite.
-        if listener.has_non_welcome_cloud_objects(ctx) {
-            listener.start_listener(ctx);
-        }
 
         listener
     }

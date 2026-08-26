@@ -1,4 +1,3 @@
-mod collector;
 mod context;
 pub mod context_provider;
 mod events;
@@ -14,7 +13,6 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use chrono::Utc;
-pub use collector::*;
 pub use context::telemetry_context;
 pub use events::*;
 use futures::FutureExt;
@@ -41,11 +39,6 @@ fn rudder_event_file_path() -> PathBuf {
     warp_core::paths::secure_state_dir()
         .unwrap_or_else(warp_core::paths::state_dir)
         .join(RUDDER_TELEMETRY_EVENTS_FILE_NAME)
-}
-
-/// Removes all telemetry events from the app telemetry event queue.
-pub fn clear_event_queue() {
-    let _ = warpui::telemetry::flush_events();
 }
 
 pub struct TelemetryApi {

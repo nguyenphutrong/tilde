@@ -56,7 +56,7 @@ pub fn run() -> Result<()> {
         return warp::settings::dump_settings_schema(output_path.as_deref());
     }
 
-    warp::run_tui(None, Box::new(init))
+    warp::run_tui(Box::new(init))
 }
 
 fn init(ctx: &mut AppContext) {
