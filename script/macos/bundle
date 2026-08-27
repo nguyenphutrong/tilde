@@ -45,6 +45,11 @@ set -e
 # Determine the repository root directory
 WORKSPACE_ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
+TARGET_DIR="$(cargo metadata --no-deps --format-version 1 | jq -r .target_directory)"
+if [[ -z "$TARGET_DIR" || "$TARGET_DIR" == null ]]; then
+  TARGET_DIR="$WORKSPACE_ROOT_DIR/target"
+fi
+
 # This is used to set the minimum deployment target for mac
 # https://cmake.org/cmake/help/latest/envvar/MACOSX_DEPLOYMENT_TARGET.html
 # If unset, it uses the system one, but we want to build for older versions
@@ -437,7 +442,7 @@ elif [[ $RELEASE_CHANNEL = "oss" ]]; then
     FEATURES="release_bundle,extern_plist"
 fi
 
-OUT_DIR="target/$TARGET_PROFILE_DIR/bundle/osx"
+OUT_DIR="$TARGET_DIR/$TARGET_PROFILE_DIR/bundle/osx"
 DOCK_TILE_PLUGIN_DIR="target/$TARGET_PROFILE_DIR/WarpDockTilePlugin.docktileplugin"
 
 # Handle specific architecture targeting
@@ -446,11 +451,11 @@ if [[ -n "$TARGET_ARCH" ]]; then
     if [[ "$TARGET_ARCH" == "$INTEL_ARCH" ]]; then
         echo "Building specifically for $INTEL_TARGET"
         DEFAULT_TARGET="$INTEL_TARGET"
-        BUNDLE_DIR="target/$INTEL_TARGET/$TARGET_PROFILE_DIR/bundle/osx"
+        BUNDLE_DIR="$TARGET_DIR/$INTEL_TARGET/$TARGET_PROFILE_DIR/bundle/osx"
     elif [[ "$TARGET_ARCH" == "$ARM_ARCH" ]]; then
         echo "Building specifically for $ARM_TARGET"
         DEFAULT_TARGET="$ARM_TARGET"
-        BUNDLE_DIR="target/$ARM_TARGET/$TARGET_PROFILE_DIR/bundle/osx"
+        BUNDLE_DIR="$TARGET_DIR/$ARM_TARGET/$TARGET_PROFILE_DIR/bundle/osx"
     fi
 else
     # Auto-detect default target based on current architecture
@@ -458,12 +463,12 @@ else
         echo "Default target is $INTEL_TARGET"
         DEFAULT_TARGET="$INTEL_TARGET"
         ADDITIONAL_TARGET="$ARM_TARGET"
-        BUNDLE_DIR="target/$INTEL_TARGET/$TARGET_PROFILE_DIR/bundle/osx"
+        BUNDLE_DIR="$TARGET_DIR/$INTEL_TARGET/$TARGET_PROFILE_DIR/bundle/osx"
     elif [[ "$DEFAULT_ARCH" == *"$ARM_ARCH"* ]]; then
         echo "Default target is $ARM_TARGET"
         DEFAULT_TARGET="$ARM_TARGET"
         ADDITIONAL_TARGET="$INTEL_TARGET"
-        BUNDLE_DIR="target/$ARM_TARGET/$TARGET_PROFILE_DIR/bundle/osx"
+        BUNDLE_DIR="$TARGET_DIR/$ARM_TARGET/$TARGET_PROFILE_DIR/bundle/osx"
     fi
 fi
 
@@ -652,13 +657,13 @@ if [[ "$ARTIFACT" == "app" ]]; then
 
       echo "Adding rpath to both binaries for universal executable"
       "$WORKSPACE_ROOT_DIR/script/macos/add_framework_rpath" \
-        "target/$INTEL_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN" \
-        "target/$ARM_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN"
+        "$TARGET_DIR/$INTEL_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN" \
+        "$TARGET_DIR/$ARM_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN"
 
       echo "Building universal binary using lipo."
       lipo -create -output "$tmp_bundle_dir/$WARP_BIN" \
-          "target/$INTEL_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN" \
-          "target/$ARM_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN"
+          "$TARGET_DIR/$INTEL_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN" \
+          "$TARGET_DIR/$ARM_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN"
 
       # Compute the real absolute path to the dSYM file, factoring in symlinks.
       # Starting in Rust 1.56, the generated dSYMs are symlinks to files within the target/dep directory. For example,
@@ -666,10 +671,10 @@ if [[ "$ARTIFACT" == "app" ]]; then
       # would be located at dev.dSYM/Contents/Resources/DWARF/dev-080cf7e291fb066d.dSYM where dev.dSYM is symlink to
       # deps/dev-080cf7e291fb066d.dSYM. To fix this, parse out the actual name of the directory that the dSYM is
       # symlinked to, since this is also the name of file that contains the debug symbols within the dSYM.
-      INTEL_DSYM_NAME=$(basename "$(realpath target/$INTEL_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM)" .dSYM)
-      INTEL_DSYM_PATH="target/$INTEL_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM/Contents/Resources/DWARF/$INTEL_DSYM_NAME"
-      ARM_DSYM_NAME=$(basename "$(realpath target/$ARM_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM)" .dSYM)
-      ARM_DSYM_PATH="target/$ARM_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM/Contents/Resources/DWARF/$ARM_DSYM_NAME"
+      INTEL_DSYM_NAME=$(basename "$(realpath "$TARGET_DIR/$INTEL_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM")" .dSYM)
+      INTEL_DSYM_PATH="$TARGET_DIR/$INTEL_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM/Contents/Resources/DWARF/$INTEL_DSYM_NAME"
+      ARM_DSYM_NAME=$(basename "$(realpath "$TARGET_DIR/$ARM_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM")" .dSYM)
+      ARM_DSYM_PATH="$TARGET_DIR/$ARM_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM/Contents/Resources/DWARF/$ARM_DSYM_NAME"
       if [[ -e "$INTEL_DSYM_PATH" && -e "$ARM_DSYM_PATH" ]]; then
         echo "Building universal binary .dSYM using lipo and storing in $OUT_DIR/$WARP_BIN.dSYM"
 
@@ -680,9 +685,9 @@ if [[ "$ARTIFACT" == "app" ]]; then
 
       echo "Storing result in $BUNDLE_DIR, replacing $DEFAULT_TARGET binary with fat binary."
       mv "$tmp_bundle_dir/$WARP_BIN" "$BUNDLE_DIR/$WARP_APP_NAME.app/Contents/MacOS"
-  elif [[ -n "$TARGET_ARCH" && -e "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" ]]; then
+  elif [[ -n "$TARGET_ARCH" && -e "$TARGET_DIR/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" ]]; then
     echo "Copying .dSYM into $OUT_DIR/$WARP_BIN.dSYM"
-    cp -HR "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" "$OUT_DIR/"
+    cp -HR "$TARGET_DIR/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" "$OUT_DIR/"
   fi
 
   if [[ $RELEASE_CHANNEL != "oss" ]]; then
@@ -761,7 +766,7 @@ EOF
   fi
 
   # Store the built artifact locations for GitHub Actions outputs.
-  BINARY_PATH="target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN"
+  BINARY_PATH="$TARGET_DIR/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN"
   DMG_PATH="$OUT_DIR/$FINAL_DMG_NAME"
 elif [[ "$ARTIFACT" == "cli" || "$ARTIFACT" == "warpctrl" ]]; then
   if [[ $BUILD_BINARY == true ]]; then
@@ -788,7 +793,7 @@ elif [[ "$ARTIFACT" == "cli" || "$ARTIFACT" == "warpctrl" ]]; then
   fi
 
   echo "Copying binary into $OUT_DIR/$WARP_BIN"
-  cp "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN" "$OUT_DIR/$WARP_BIN"
+  cp "$TARGET_DIR/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN" "$OUT_DIR/$WARP_BIN"
 
   if [[ "$ARTIFACT" == "warpctrl" ]]; then
     if [[ ! ",$FEATURES," =~ ",warp_control_cli," ]]; then
@@ -802,9 +807,9 @@ elif [[ "$ARTIFACT" == "cli" || "$ARTIFACT" == "warpctrl" ]]; then
       "$WARP_BIN"
   fi
 
-  if [[ -n "$TARGET_ARCH" && -e "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" ]]; then
+  if [[ -n "$TARGET_ARCH" && -e "$TARGET_DIR/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" ]]; then
     echo "Copying .dSYM into $OUT_DIR/$WARP_BIN.dSYM"
-    cp -HR "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" "$OUT_DIR/"
+    cp -HR "$TARGET_DIR/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" "$OUT_DIR/"
   fi
 
   echo "Preparing CLI resources directory"
@@ -838,11 +843,11 @@ elif [[ "$ARTIFACT" == "tui" ]]; then
   fi
 
   echo "Copying binary into $OUT_DIR/$WARP_BIN"
-  cp "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN" "$OUT_DIR/$WARP_BIN"
+  cp "$TARGET_DIR/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN" "$OUT_DIR/$WARP_BIN"
 
-  if [[ -n "$TARGET_ARCH" && -e "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" ]]; then
+  if [[ -n "$TARGET_ARCH" && -e "$TARGET_DIR/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" ]]; then
     echo "Copying .dSYM into $OUT_DIR/$WARP_BIN.dSYM"
-    cp -HR "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" "$OUT_DIR/"
+    cp -HR "$TARGET_DIR/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" "$OUT_DIR/"
   fi
 
   # Ship bundled skills + settings schema next to the binary. The standalone TUI
@@ -951,6 +956,9 @@ elif [[ $CODESIGN = true ]]; then
     # https://developer.apple.com/documentation/security/customizing-the-notarization-workflow?language=objc#Staple-the-ticket-to-your-distribution
     STAPLE_TICKET=false
   fi
+elif [[ "$ARTIFACT" == app && "$RELEASE_CHANNEL" == oss ]]; then
+  echo "Ad-hoc signing unsigned OSS app..."
+  codesign --force --deep --options runtime --sign - "$BUNDLE_DIR/$WARP_APP_NAME.app" --entitlements script/Debug-Entitlements.plist
 fi
 
 ########################

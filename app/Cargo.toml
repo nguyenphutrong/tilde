@@ -863,6 +863,7 @@ identifier = "bytrong.app.tilde"
 name = "Tilde"
 resources = ["assets/onboarding"]
 icon = ["channels/oss/icon/no-padding/512x512.png", "channels/oss/icon/no-padding/icon.ico"]
+osx_url_schemes = ["tilde"]
 short_description = "A slim, AI-free terminal for local command-line workflows."
 
 [package.metadata.bundle.bin.stable]
