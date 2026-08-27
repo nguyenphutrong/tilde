@@ -198,29 +198,31 @@ impl InitialCursorState {
         // Start by clamping the cursor to the visible region of the grid, just
         // in case some bug causes it to end up in an invalid place.
         if cursor_point.row.0 >= grid.visible_rows() {
-            #[cfg(debug_assertions)]
-            report_error!(
-                "cursor should not be outside the bounds of the grid!",
-                extra: {
-                    "row" => %cursor_point.row,
-                    "col" => %cursor_point.col,
-                    "total_rows" => %grid.total_rows(),
-                    "columns" => %grid.columns()
-                }
-            );
+            if cfg!(debug_assertions) {
+                report_error!(
+                    "cursor should not be outside the bounds of the grid!",
+                    extra: {
+                        "row" => %cursor_point.row,
+                        "col" => %cursor_point.col,
+                        "total_rows" => %grid.total_rows(),
+                        "columns" => %grid.columns()
+                    }
+                );
+            }
             cursor_point.row.0 = grid.visible_rows() - 1;
         }
         if cursor_point.col >= grid.columns() {
-            #[cfg(debug_assertions)]
-            report_error!(
-                "cursor should not be outside the bounds of the grid!",
-                extra: {
-                    "row" => %cursor_point.row,
-                    "col" => %cursor_point.col,
-                    "total_rows" => %grid.total_rows(),
-                    "columns" => %grid.columns()
-                }
-            );
+            if cfg!(debug_assertions) {
+                report_error!(
+                    "cursor should not be outside the bounds of the grid!",
+                    extra: {
+                        "row" => %cursor_point.row,
+                        "col" => %cursor_point.col,
+                        "total_rows" => %grid.total_rows(),
+                        "columns" => %grid.columns()
+                    }
+                );
+            }
             cursor_point.col = grid.columns() - 1;
         }
 

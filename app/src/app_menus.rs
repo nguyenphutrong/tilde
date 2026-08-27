@@ -194,7 +194,7 @@ fn make_new_app_menu(ctx: &AppContext) -> Menu {
 }
 
 fn make_new_file_menu(ctx: &AppContext) -> Menu {
-    let mut file_menu_options = make_new_elements_menu_items(ctx);
+    let mut file_menu_options = make_new_elements_menu_items();
     file_menu_options.extend([
         MenuItem::Separator,
         updateable_custom_item_without_checkmark(CustomAction::CloseCurrentSession, ctx),
@@ -802,7 +802,7 @@ fn make_launch_config_menu_items(ctx: &mut AppContext) -> Vec<MenuItem> {
     launch_config_menu_items
 }
 
-fn make_new_elements_menu_items(ctx: &AppContext) -> Vec<MenuItem> {
+fn make_new_elements_menu_items() -> Vec<MenuItem> {
     let mut new_elements_menu = vec![
         MenuItem::Custom(CustomMenuItem::new(
             "New Window",

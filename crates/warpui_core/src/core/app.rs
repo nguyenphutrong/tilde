@@ -1756,6 +1756,7 @@ impl AppContext {
         &mut self,
         binding_validator: impl Fn(BindingLens) -> IsBindingValid + 'static,
     ) {
+        drop(binding_validator);
     }
 
     /// Sets a default binding validator that runs on _every_ binding that is registered by the
@@ -1778,6 +1779,7 @@ impl AppContext {
         &mut self,
         binding_validator: impl Fn(BindingLens) -> IsBindingValid + 'static,
     ) {
+        drop(binding_validator);
     }
 
     /// Runs through each registered binding validator, asserting that each matching binding is
