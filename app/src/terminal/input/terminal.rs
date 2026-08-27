@@ -1,15 +1,13 @@
 use warp_core::settings::Setting;
 use warpui::elements::{
-    Border, Clipped, Container, DropTarget, Element, Flex, Hoverable, ParentElement, SavePosition,
-    Stack,
+    Border, Container, DropTarget, Element, Flex, Hoverable, ParentElement, SavePosition, Stack,
 };
 use warpui::presenter::ChildView;
 use warpui::{AppContext, SingletonEntity};
 
 use super::common::{
     add_command_xray_overlay, add_input_suggestions_overlays, add_voltron_overlay,
-    add_workflow_info_overlay, should_show_terminal_input_message_bar,
-    wrap_input_with_terminal_padding_and_focus_handler,
+    add_workflow_info_overlay, wrap_input_with_terminal_padding_and_focus_handler,
 };
 use super::{Input, InputAction, InputDropTargetData};
 use crate::appearance::Appearance;
@@ -22,8 +20,7 @@ use crate::terminal::settings::TerminalSettings;
 use crate::terminal::view::TerminalAction;
 
 impl Input {
-    /// Renders the terminal mode input when `FeatureFlag::AgentView` is enabled and there is no
-    /// active agent view.
+    /// Renders the minimal terminal mode input, including the prompt and command editor.
     pub(super) fn render_terminal_input(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let menu_positioning = self.menu_positioning(app);
@@ -67,23 +64,6 @@ impl Input {
                 )
                 .finish(),
         );
-
-        if should_show_terminal_input_message_bar(&model, app) {
-            column.add_child(
-                Clipped::new(ChildView::new(&self.terminal_input_message_bar).finish()).finish(),
-            );
-        } else if !(matches!(input_mode, InputMode::PinnedToTop)
-            && self
-                .suggestions_mode_model
-                .as_ref(app)
-                .is_inline_menu_open())
-        {
-            column.add_child(
-                Container::new(Flex::row().finish())
-                    .with_margin_bottom(8.)
-                    .finish(),
-            );
-        }
 
         if matches!(input_mode, InputMode::PinnedToTop)
             && let Some(banner) = self.render_input_banner(appearance, app, input_mode, false)
@@ -200,7 +180,6 @@ impl Input {
                         } else {
                             None
                         },
-                        Some(ChildView::new(&self.agent_status_view).finish()),
                         Some(input),
                     ]
                     .into_iter()
@@ -211,7 +190,6 @@ impl Input {
                 column.add_children(
                     [
                         Some(input),
-                        Some(ChildView::new(&self.agent_status_view).finish()),
                         if hide_menu {
                             None
                         } else if is_slash_commands {
@@ -261,7 +239,7 @@ impl Input {
                     }
                 }
 
-                column.add_children([ChildView::new(&self.agent_status_view).finish(), input]);
+                column.add_child(input);
 
                 if !hide_menu {
                     if is_slash_commands && should_render_below {

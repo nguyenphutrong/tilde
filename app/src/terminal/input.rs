@@ -23,7 +23,6 @@ mod suggestions_mode_menu;
 pub mod suggestions_mode_model;
 mod terminal;
 mod terminal_message_bar;
-mod universal;
 pub mod user_query;
 
 use std::any::Any;
@@ -435,7 +434,7 @@ pub const INPUT_A11Y_LABEL: &str = "Command Input.";
 pub const INPUT_A11Y_HELPER: &str = "Input your shell command, press enter to execute. Press cmd-up to navigate to output of previously executed commands. Press cmd-l to re-focus command input.";
 pub const AI_COMMAND_SEARCH_HINT_TEXT: &str = "Type '#' for AI command suggestions";
 
-const AGENT_MODE_AI_DISABLED_AUTODETECTION_DISABLED_HINT_TEXT: &str = "Run commands";
+const TERMINAL_INPUT_HINT_TEXT: &str = "Run commands";
 
 // Rotating hint text options for new Agent Mode conversations
 const AGENT_MODE_HINT_OPTIONS: &[&str] = &[
@@ -6503,9 +6502,7 @@ impl Input {
             input_model.input_type(),
             input_model.should_run_input_autodetection(app),
         ) {
-            (InputType::Shell, false) => {
-                AGENT_MODE_AI_DISABLED_AUTODETECTION_DISABLED_HINT_TEXT.to_owned()
-            }
+            (InputType::Shell, false) => TERMINAL_INPUT_HINT_TEXT.to_owned(),
             (InputType::Shell, true) => {
                 // Ensure hint text is cached for new conversations
                 get_stable_agent_mode_hint_text(&mut self.cached_agent_mode_hint_text).to_owned()
@@ -6996,7 +6993,7 @@ impl Input {
     }
     fn cli_agent_rich_input_hint_text(&self, ctx: &ViewContext<Self>) -> Cow<'static, str> {
         if self.is_locked_in_shell_mode(ctx) {
-            return Cow::Borrowed(AGENT_MODE_AI_DISABLED_AUTODETECTION_DISABLED_HINT_TEXT);
+            return Cow::Borrowed(TERMINAL_INPUT_HINT_TEXT);
         }
 
         CLIAgentSessionsModel::as_ref(ctx)
@@ -7103,6 +7100,13 @@ impl Input {
                 editor.set_placeholder_text_with_prefix(format!("{command_name} "), hint_text, ctx);
             }
         });
+
+        if self.should_show_universal_developer_input(ctx) {
+            self.editor.update(ctx, |editor, ctx| {
+                editor.set_placeholder_text(TERMINAL_INPUT_HINT_TEXT, ctx);
+            });
+            return;
+        }
 
         // Now handle the default (empty prefix) placeholder
         if toggled_on && AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
@@ -16417,7 +16421,7 @@ impl View for Input {
         {
             self.render_terminal_input(app)
         } else if !FeatureFlag::AgentView.is_enabled() && is_universal_input {
-            self.render_universal_developer_input(app)
+            self.render_terminal_input(app)
         } else {
             self.render_classic_input(app)
         }

@@ -7516,6 +7516,49 @@ fn test_input_mode_setting_methods() {
     });
 }
 
+#[test]
+fn universal_input_keeps_terminal_command_placeholder() {
+    let _agent_view = FeatureFlag::AgentView.override_enabled(false);
+
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        InputSettings::handle(&app).update(&mut app, |input_settings, ctx| {
+            let _ = input_settings
+                .input_box_type
+                .set_value(InputBoxType::Universal, ctx);
+        });
+
+        let terminal = add_window_with_bootstrapped_terminal(
+            &mut app, None, /* history_file_commands */
+            None,
+        )
+        .await;
+        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
+
+        input.update(&mut app, |input, ctx| {
+            input.ai_input_model().update(ctx, |ai_input, ctx| {
+                ai_input.set_input_config(
+                    InputConfig {
+                        input_type: InputType::Shell,
+                        is_locked: true,
+                    },
+                    true,
+                    None,
+                    ctx,
+                );
+            });
+            input.set_zero_state_hint_text(ctx);
+        });
+
+        input.read(&app, |input, ctx| {
+            assert_eq!(
+                input.editor().as_ref(ctx).placeholder_text(""),
+                Some("Run commands")
+            );
+        });
+    });
+}
+
 fn run_input_mode_prefix_test(udi_enabled: bool, input_type: InputType) {
     let input_prefix = match input_type {
         InputType::Shell => super::TERMINAL_INPUT_PREFIX,
