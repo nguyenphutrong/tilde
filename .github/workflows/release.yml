@@ -87,7 +87,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          brew install create-dmg
+          brew install create-dmg protobuf
           test "$(create-dmg --version)" = "create-dmg 1.3.0"
           cargo install cargo-bundle --version 0.11.0 --locked
           test "$(cargo bundle --version)" = "cargo-bundle v0.11.0"
