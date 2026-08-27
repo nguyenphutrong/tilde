@@ -91,6 +91,8 @@ jobs:
           test "$(create-dmg --version)" = "create-dmg 1.3.0"
           cargo install cargo-bundle --version 0.11.0 --locked
           test "$(cargo bundle --version)" = "cargo-bundle v0.11.0"
+          ./script/install_cargo_release_deps --no-build-deps
+          test "$(cargo-about --version)" = "cargo-about 0.8.4"
 
       - name: Build unsigned Tilde DMG
         shell: bash
