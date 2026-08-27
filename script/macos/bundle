@@ -69,13 +69,14 @@ DEFAULT_ARCH="$(rustc --print cfg | grep target_arch)"
 # Function to clean up temporary DMG files
 cleanup_dmg_files() {
     local target_dir="$1"
+    local volume_name="${WARP_APP_NAME:-Tilde}"
     if [ -d "$target_dir" ]; then
         echo "Cleaning up temporary DMG files in $target_dir"
         find "$target_dir" -name "*.dmg" -type f -delete
         find "$target_dir" -name "rw.*.dmg" -type f -delete
     fi
     # Also check if any volumes are mounted and unmount them
-    hdiutil info | grep "/Volumes/Warp.*" | awk '{print $1}' | while read -r disk; do
+    hdiutil info | grep "/Volumes/$volume_name.*" | awk '{print $1}' | while read -r disk; do
         echo "Unmounting disk image: $disk"
         hdiutil detach "$disk" -force || true
     done
@@ -632,9 +633,11 @@ if [[ "$ARTIFACT" == "app" ]]; then
     </array>" "$BUNDLE_DIR"/$WARP_APP_NAME.app/Contents/Info.plist
   fi
 
-  # Temporary key that ChatGPT Desktop can use to determine if the latest version of Warp supports the ChatGPT integration.
-  # Once support has been rolled out for a sufficient amount of time we (and ChatGPT) can remove this.
-  plutil -insert SUPPORTS_CHAT_GPT_WORK_WITH_APPS -bool true "$BUNDLE_DIR"/$WARP_APP_NAME.app/Contents/Info.plist
+  if [[ $RELEASE_CHANNEL != "oss" ]]; then
+    # Temporary key that ChatGPT Desktop can use to determine if the latest version of Warp supports the ChatGPT integration.
+    # Once support has been rolled out for a sufficient amount of time we (and ChatGPT) can remove this.
+    plutil -insert SUPPORTS_CHAT_GPT_WORK_WITH_APPS -bool true "$BUNDLE_DIR"/$WARP_APP_NAME.app/Contents/Info.plist
+  fi
 
   # Add LSBackgroundOnly key and set it to false since we need a UI app
   plutil -insert LSBackgroundOnly -bool false "$BUNDLE_DIR"/$WARP_APP_NAME.app/Contents/Info.plist
@@ -972,10 +975,9 @@ if [[ "$ARTIFACT" = app ]]; then
     local source_folder="$1"
 
     local args=(
-      --volname Warp
+      --volname "$WARP_APP_NAME"
       # For --no-internet-enable, see https://github.com/create-dmg/create-dmg/issues/179
       --no-internet-enable
-      --background app/assets/resources/mac/warp_install_image.png
       --icon-size 128
       --window-size 700 500
       --format UDZO
@@ -988,6 +990,10 @@ if [[ "$ARTIFACT" = app ]]; then
       # See: https://developer.apple.com/documentation/macos-release-notes/macos-26_4-release-notes#External-Media
       --filesystem APFS
     )
+
+    if [[ $RELEASE_CHANNEL != "oss" ]]; then
+      args+=(--background app/assets/resources/mac/warp_install_image.png)
+    fi
 
     # Skip running an AppleScript to format the DMG contents if running in Namespace - this consistently times out.
     # See https://github.com/create-dmg/create-dmg/issues/72

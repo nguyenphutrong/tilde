@@ -1,0 +1,265 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (must match the Tilde app version)
+        required: true
+        default: v0.1.0
+        type: string
+      confirmation:
+        description: Type "release-v0.1.0" to create the prerelease
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and validate macOS arm64
+    runs-on: macos-15
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    outputs:
+      commit_sha: ${{ steps.source.outputs.commit_sha }}
+    env:
+      CARGO_BUILD_JOBS: 1
+      CARGO_INCREMENTAL: 0
+      CARGO_TERM_COLOR: always
+      VERSION: ${{ inputs.version }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      WARP_SKIP_COMMON_SKILLS_INSTALL: 1
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          ref: ${{ github.sha }}
+          lfs: true
+          persist-credentials: false
+
+      - name: Validate release request
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/master" ]] || {
+            echo "Releases must be dispatched from master, not $GITHUB_REF" >&2
+            exit 1
+          }
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "Version must use vMAJOR.MINOR.PATCH format" >&2
+            exit 1
+          }
+          [[ "$CONFIRMATION" == "release-$VERSION" ]] || {
+            echo "Confirmation must be release-$VERSION" >&2
+            exit 1
+          }
+
+          app_version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "warp") | .version')"
+          [[ -n "$app_version" && "$app_version" != "null" ]] || {
+            echo "Could not determine the Tilde app version" >&2
+            exit 1
+          }
+          [[ "$VERSION" == "v$app_version" ]] || {
+            echo "Requested $VERSION does not match app version v$app_version" >&2
+            exit 1
+          }
+          [[ "$VERSION" == "v0.1.0" ]] || {
+            echo "This initial release workflow only permits v0.1.0" >&2
+            exit 1
+          }
+
+          test "$(uname -m)" = arm64
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@401aff9a7a08acb9d27b64936a90db81024cff97 # v2.8.2
+        with:
+          shared-key: release-macos-arm64
+
+      - name: Install packaging tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install create-dmg
+          test "$(create-dmg --version)" = "create-dmg 1.3.0"
+          cargo install cargo-bundle --version 0.11.0 --locked
+          test "$(cargo bundle --version)" = "cargo-bundle v0.11.0"
+
+      - name: Build unsigned Tilde DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./script/macos/bundle \
+            --channel oss \
+            --arch aarch64 \
+            --nosign \
+            --release-tag "$VERSION" \
+            --dmg-name-suffix "$VERSION-macos-arm64"
+
+      - name: Validate and stage release artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          target_dir="$(cargo metadata --no-deps --format-version 1 | jq -r .target_directory)"
+          source_dmg="$target_dir/release-lto/bundle/osx/Tilde-$VERSION-macos-arm64.dmg"
+          release_dir="$RUNNER_TEMP/tilde-release"
+          mount_point="$RUNNER_TEMP/tilde-dmg"
+          mkdir -p "$release_dir" "$mount_point"
+          cp "$source_dmg" "$release_dir/"
+
+          dmg="$release_dir/Tilde-$VERSION-macos-arm64.dmg"
+          hdiutil attach -readonly -nobrowse -mountpoint "$mount_point" "$dmg"
+          trap 'hdiutil detach "$mount_point" >/dev/null 2>&1 || true' EXIT
+
+          app="$mount_point/Tilde.app"
+          plist="$app/Contents/Info.plist"
+          executable="$app/Contents/MacOS/tilde"
+          test -d "$app"
+          test -x "$executable"
+          test "$(plutil -extract CFBundleIdentifier raw -o - "$plist")" = bytrong.app.tilde
+          test "$(plutil -extract CFBundleName raw -o - "$plist")" = Tilde
+          test "$(plutil -extract CFBundleDisplayName raw -o - "$plist")" = Tilde
+          test "$(plutil -extract CFBundleExecutable raw -o - "$plist")" = tilde
+          test "$(plutil -extract CFBundleShortVersionString raw -o - "$plist")" = "${VERSION#v}"
+          test "$(plutil -extract CFBundleVersion raw -o - "$plist")" = "${VERSION#v}"
+          test "$(plutil -extract CFBundleURLTypes.0.CFBundleURLSchemes.0 raw -o - "$plist")" = tilde
+          if plutil -extract SUPPORTS_CHAT_GPT_WORK_WITH_APPS raw -o - "$plist" >/dev/null 2>&1; then
+            echo "OSS bundle contains the upstream ChatGPT capability key" >&2
+            exit 1
+          fi
+          if plutil -convert xml1 -o - "$plist" | grep -Eiq 'warp|warp://'; then
+            echo "OSS bundle Info.plist contains upstream branding" >&2
+            exit 1
+          fi
+          test "$(diskutil info -plist "$mount_point" | plutil -extract VolumeName raw -o - -)" = Tilde
+
+          test "$(lipo -archs "$executable")" = arm64
+          file "$executable" | grep -q 'Mach-O 64-bit executable arm64'
+          codesign --verify --deep --strict --verbose=2 "$app"
+          signature_info="$(codesign -dv --verbose=4 "$app" 2>&1)"
+          grep -q '^Identifier=bytrong.app.tilde$' <<< "$signature_info"
+          grep -q '^Signature=adhoc$' <<< "$signature_info"
+          grep -q '^TeamIdentifier=not set$' <<< "$signature_info"
+
+          critical_values="$({
+            basename "$dmg"
+            diskutil info -plist "$mount_point" | plutil -extract VolumeName raw -o - -
+            plutil -extract CFBundleIdentifier raw -o - "$plist"
+            plutil -extract CFBundleName raw -o - "$plist"
+            plutil -extract CFBundleDisplayName raw -o - "$plist"
+            plutil -extract CFBundleExecutable raw -o - "$plist"
+            plutil -extract CFBundleURLTypes json -o - "$plist"
+          })"
+          if grep -Eiq 'warp|warp://' <<< "$critical_values"; then
+            echo "Release filename or critical bundle identity contains upstream branding" >&2
+            printf '%s\n' "$critical_values" >&2
+            exit 1
+          fi
+
+          hdiutil detach "$mount_point"
+          trap - EXIT
+
+          (
+            cd "$release_dir"
+            shasum -a 256 "$(basename "$dmg")" > "Tilde-$VERSION-macos-arm64.sha256"
+          )
+          cp LICENSE-AGPL NOTICE "$release_dir/"
+          cat > "$release_dir/release-notes.md" <<'EOF'
+          Tilde is an independent, terminal-only application distributed under the GNU Affero General Public License v3.0.
+
+          This prerelease supports macOS on Apple Silicon (arm64) only. It is ad-hoc signed, not signed with an Apple Developer ID, and not notarized because this repository has no Tilde-owned signing credentials. macOS Gatekeeper will therefore warn or block the app on first launch. Verify the downloaded SHA-256 checksum before using Finder's **Open** command from the context menu to approve it.
+
+          Linux, Windows, and Intel macOS artifacts are not included in this release.
+          EOF
+
+      - name: Upload validated release files
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: tilde-${{ inputs.version }}-macos-arm64
+          path: |
+            ${{ runner.temp }}/tilde-release/Tilde-${{ inputs.version }}-macos-arm64.dmg
+            ${{ runner.temp }}/tilde-release/Tilde-${{ inputs.version }}-macos-arm64.sha256
+            ${{ runner.temp }}/tilde-release/LICENSE-AGPL
+            ${{ runner.temp }}/tilde-release/NOTICE
+            ${{ runner.temp }}/tilde-release/release-notes.md
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Create GitHub prerelease
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # Required to create the release tag, prerelease, and assets.
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      TARGET_SHA: ${{ needs.build.outputs.commit_sha }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Download validated release files
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: tilde-${{ inputs.version }}-macos-arm64
+          path: release
+
+      - name: Verify checksum and release target
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            cd release
+            shasum -a 256 -c "Tilde-$VERSION-macos-arm64.sha256"
+          )
+
+          master_sha="$(gh api "repos/$REPOSITORY/git/ref/heads/master" --jq .object.sha)"
+          test "$master_sha" = "$TARGET_SHA" || {
+            echo "origin/master moved from release commit $TARGET_SHA to $master_sha" >&2
+            exit 1
+          }
+
+          assert_missing() {
+            local endpoint="$1"
+            local description="$2"
+            local output
+            local status
+            set +e
+            output="$(gh api "$endpoint" 2>&1)"
+            status=$?
+            set -e
+            if [[ $status -eq 0 ]]; then
+              echo "$description already exists; refusing to overwrite it" >&2
+              exit 1
+            fi
+            if ! grep -q 'HTTP 404' <<< "$output"; then
+              echo "Could not safely establish that $description is absent" >&2
+              printf '%s\n' "$output" >&2
+              exit 1
+            fi
+          }
+
+          assert_missing "repos/$REPOSITORY/git/ref/tags/$VERSION" "tag $VERSION"
+          assert_missing "repos/$REPOSITORY/releases/tags/$VERSION" "release $VERSION"
+
+      - name: Create GitHub prerelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$VERSION" \
+            --repo "$REPOSITORY" \
+            --target "$TARGET_SHA" \
+            --title "Tilde $VERSION" \
+            --notes-file release/release-notes.md \
+            --prerelease \
+            "release/Tilde-$VERSION-macos-arm64.dmg" \
+            "release/Tilde-$VERSION-macos-arm64.sha256" \
+            "release/LICENSE-AGPL" \
+            "release/NOTICE"
