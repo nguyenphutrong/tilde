@@ -90,6 +90,12 @@ fn hide_title_bar_search_bar_in_vertical_tabs_uses_vertical_tabs_path() {
 fn header_toolbar_chip_selection_default_contains_code_review() {
     let config = HeaderToolbarChipSelection::Default;
     assert!(config.contains_item(&HeaderToolbarItemKind::CodeReview));
+    assert!(!config.contains_item(&HeaderToolbarItemKind::AgentManagement));
+    assert!(!config.contains_item(&HeaderToolbarItemKind::NotificationsMailbox));
+    assert!(!HeaderToolbarItemKind::all_items().contains(&HeaderToolbarItemKind::AgentManagement));
+    assert!(
+        !HeaderToolbarItemKind::all_items().contains(&HeaderToolbarItemKind::NotificationsMailbox)
+    );
 }
 
 #[test]

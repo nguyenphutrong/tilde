@@ -7,7 +7,6 @@ use std::sync::Arc;
 use pathfinder_color::ColorU;
 #[cfg(not(target_family = "wasm"))]
 use settings::Setting as _;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::color::contrast::{
     MinimumAllowedContrast, foreground_color_with_minimum_contrast,
@@ -17,8 +16,7 @@ use warp_core::ui::theme;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
     ChildView, Clipped, Container, CornerRadius, CrossAxisAlignment, Fill, Flex, MainAxisAlignment,
-    MainAxisSize, ParentElement, Radius, Rect, Shrinkable, SizeConstraintCondition,
-    SizeConstraintSwitch,
+    MainAxisSize, ParentElement, Radius, Rect, Shrinkable,
 };
 use warpui::ui_components::components::UiComponentStyles;
 use warpui::ui_components::segmented_control::{
@@ -37,15 +35,12 @@ use crate::ai::blocklist::prompt::prompt_alert::{PromptAlertEvent, PromptAlertVi
 use crate::ai::blocklist::{
     BlocklistAIHistoryEvent, BlocklistAIInputModel, InputConfig, InputType,
 };
-use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
-use crate::ai::llms::LLMPreferences;
-use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::network::NetworkStatus;
 #[cfg(not(target_family = "wasm"))]
 use crate::search::ai_context_menu::view::AIContextMenu;
+use crate::settings::AISettings;
 #[cfg(not(target_family = "wasm"))]
 use crate::settings::InputSettings;
-use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::settings_view::SettingsSection;
 use crate::terminal::input::MenuPositioningProvider;
 use crate::terminal::keys::TerminalKeybindings;
@@ -53,11 +48,7 @@ use crate::terminal::model::block::BlockMetadata;
 #[cfg(not(target_family = "wasm"))]
 use crate::terminal::model::session::SessionType;
 use crate::terminal::model::session::Sessions;
-use crate::terminal::profile_model_selector::{
-    ProfileModelSelector, ProfileModelSelectorEvent, calculate_max_profile_name_width,
-    calculate_scaled_font_size,
-};
-use crate::terminal::session_settings::{SessionSettings, SessionSettingsChangedEvent};
+use crate::terminal::profile_model_selector::{ProfileModelSelector, ProfileModelSelectorEvent};
 use crate::terminal::shared_session::permissions_manager::SessionPermissionsManager;
 use crate::terminal::view::ambient_agent::AmbientAgentViewModel;
 use crate::ui_components::icons::Icon;
@@ -189,48 +180,6 @@ impl AtContextMenuDisabledReason {
 const AT_CONTEXT_TOOLTIP: &str = "Attach context";
 
 const BLURRED_OPACITY: Opacity = 50;
-
-// Threshold calculation that estimates the width needed for the profile/model selector
-// This is used for determining whether the selector should be rendered as full or compact
-fn calculate_profile_model_selector_threshold(
-    terminal_view_id: EntityId,
-    appearance: &Appearance,
-    ctx: &AppContext,
-) -> f32 {
-    let font_size = appearance.monospace_font_size();
-    let has_multiple_profiles = AIExecutionProfilesModel::as_ref(ctx).has_multiple_profiles();
-
-    // base_constant represents a constant width for padding in the UDI.
-    // We estimate the width of the remaining UDI elements with a scaling factor multiplied by font size.
-    // We consider both profile name and model name lengths since they are variable width.
-    let base_constant = 50.0;
-
-    // Calculate text width using em_width for accurate character width
-    let scaled_font_size = calculate_scaled_font_size(appearance);
-    let em_width = ctx
-        .font_cache()
-        .em_width(appearance.monospace_font_family(), scaled_font_size);
-
-    let llm_preferences = LLMPreferences::as_ref(ctx);
-    let active_llm = llm_preferences.get_active_base_model(ctx, Some(terminal_view_id));
-    let model_name_char_count = active_llm.menu_display_name().chars().count() as f32;
-    let model_text_width = model_name_char_count * em_width;
-
-    if has_multiple_profiles {
-        let profile_name_char_count = AIExecutionProfilesModel::as_ref(ctx)
-            .active_profile(Some(terminal_view_id), ctx)
-            .data()
-            .display_name()
-            .chars()
-            .count();
-        let profile_text_width = (profile_name_char_count as f32 * em_width)
-            .min(calculate_max_profile_name_width(appearance));
-
-        font_size * 20.0 + profile_text_width + model_text_width
-    } else {
-        20.0 * font_size + base_constant + model_text_width
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputToggleMode {
@@ -432,19 +381,8 @@ impl UniversalDeveloperInputButtonBar {
             me.handle_profile_model_selector_event(event, ctx);
         });
 
-        // Create segmented control options based on auto-detection setting
-        let ai_settings = AISettings::as_ref(ctx);
-        let is_autodetection_enabled = ai_settings.is_ai_autodetection_enabled(ctx);
-
-        let mut options = vec![InputToggleMode::Terminal, InputToggleMode::AgentMode];
-
-        let mut default_option = input_model.as_ref(ctx).into();
-        if is_autodetection_enabled {
-            options.push(InputToggleMode::AutoDetection);
-        } else if default_option == InputToggleMode::AutoDetection {
-            // Don't set the default to auto-detection if it's not enabled.
-            default_option = InputToggleMode::Terminal;
-        }
+        let options = vec![InputToggleMode::Terminal];
+        let default_option = InputToggleMode::Terminal;
 
         let cached_ui_state = Rc::new(RefCell::new(CachedUIState {
             is_input_empty: true,
@@ -497,30 +435,7 @@ impl UniversalDeveloperInputButtonBar {
             ctx.notify();
         });
 
-        ctx.subscribe_to_model(&AISettings::handle(ctx), |me, ai_settings, event, ctx| {
-            // Re-render when AI settings change (like voice input enabled/disabled)
-            // Also update segmented control options when auto-detection setting changes
-            if let AISettingsChangedEvent::AIAutoDetectionEnabled { .. } = event {
-                let is_autodection_enabled =
-                    ai_settings.as_ref(ctx).is_ai_autodetection_enabled(ctx);
-                me.segmented_control.update(ctx, |segmented_control, ctx| {
-                    if is_autodection_enabled {
-                        segmented_control.update_options(
-                            vec![
-                                InputToggleMode::Terminal,
-                                InputToggleMode::AgentMode,
-                                InputToggleMode::AutoDetection,
-                            ],
-                            ctx,
-                        );
-                    } else {
-                        segmented_control.update_options(
-                            vec![InputToggleMode::Terminal, InputToggleMode::AgentMode],
-                            ctx,
-                        );
-                    }
-                });
-            }
+        ctx.subscribe_to_model(&AISettings::handle(ctx), |_, _, _, ctx| {
             ctx.notify();
         });
 
@@ -539,17 +454,6 @@ impl UniversalDeveloperInputButtonBar {
         });
         ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |_, _, _, ctx| {
             ctx.notify()
-        });
-
-        ctx.subscribe_to_model(&SessionSettings::handle(ctx), |_, _, event, ctx| {
-            if let SessionSettingsChangedEvent::ShowModelSelectorsInPrompt { .. } = event {
-                ctx.notify();
-            }
-        });
-
-        // Subscribe to AIExecutionProfilesModel to potentially show/hide the profile selector button when profiles are added/removed
-        ctx.subscribe_to_model(&AIExecutionProfilesModel::handle(ctx), |_, _, _, ctx| {
-            ctx.notify();
         });
 
         ctx.subscribe_to_model(
@@ -574,13 +478,12 @@ impl UniversalDeveloperInputButtonBar {
             },
         );
 
-        ctx.subscribe_to_model(&input_model, move |me, input_model, event, ctx| {
+        ctx.subscribe_to_model(&input_model, move |me, _, event, ctx| {
             if !event.did_update_input_config() {
                 return;
             }
-            let input_mode = InputToggleMode::from(input_model.as_ref(ctx));
             me.segmented_control.update(ctx, |control, ctx| {
-                control.set_selected_option(input_mode, ctx);
+                control.set_selected_option(InputToggleMode::Terminal, ctx);
             });
             me.notify_and_notify_children(ctx);
         });
@@ -811,7 +714,7 @@ impl View for UniversalDeveloperInputButtonBar {
             .finish()
         };
 
-        let build_buttons = |model_selector_element: Box<dyn warpui::Element>| {
+        let build_buttons = || {
             // Create a horizontal layout with buttons arranged in a row
             let mut buttons = Flex::row()
                 .with_main_axis_size(MainAxisSize::Max)
@@ -843,14 +746,6 @@ impl View for UniversalDeveloperInputButtonBar {
                 buttons = buttons.with_child(ChildView::new(&self.file_button).finish());
             }
 
-            let show_model_selector = FeatureFlag::ProfilesDesignRevamp.is_enabled()
-                || *SessionSettings::as_ref(app).show_model_selectors_in_prompt;
-            if show_model_selector {
-                buttons = buttons
-                    .with_child(create_divider())
-                    .with_child(model_selector_element);
-            }
-
             if !self.prompt_alert.as_ref(app).is_no_alert() {
                 buttons = buttons.with_child(
                     Shrinkable::new(
@@ -864,22 +759,7 @@ impl View for UniversalDeveloperInputButtonBar {
             buttons.finish()
         };
 
-        let compact_threshold =
-            calculate_profile_model_selector_threshold(self.terminal_view_id, appearance, app);
-        let content = SizeConstraintSwitch::new(
-            // We only need to add left padding to the full profile model selector because the
-            // compact selector icons follow the UDI button styling with ~4px margin horizontally.
-            build_buttons(
-                Container::new(ChildView::new(&self.profile_model_selector_full).finish())
-                    .with_padding_left(4.0)
-                    .finish(),
-            ),
-            vec![(
-                SizeConstraintCondition::WidthLessThan(compact_threshold),
-                build_buttons(ChildView::new(&self.profile_model_selector_compact).finish()),
-            )],
-        )
-        .finish();
+        let content = build_buttons();
 
         Container::new(Clipped::new(content).finish())
             .with_padding_bottom(12.0)

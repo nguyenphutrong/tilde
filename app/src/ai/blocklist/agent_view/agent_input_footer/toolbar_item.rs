@@ -175,6 +175,7 @@ impl AgentToolbarItemKind {
     /// handles runtime conditions that depend on user settings or workspace state.
     pub fn is_available(&self, app: &warpui::AppContext) -> bool {
         match self {
+            Self::ModelSelector => false,
             Self::HandoffToCloud => AISettings::as_ref(app).is_cloud_handoff_enabled(app),
             // Matches the gating on every other project explorer entry point, so the chip
             // cannot open a tool view the rest of the app hides. See
@@ -218,7 +219,6 @@ impl AgentToolbarItemKind {
         let mut items = vec![
             Self::ContextChip(ContextChipKind::AgentPlanAndTodoList),
             Self::ContextWindowUsage,
-            Self::ModelSelector,
         ];
         if FeatureFlag::CreatingSharedSessions.is_enabled()
             && FeatureFlag::HOARemoteControl.is_enabled()
@@ -243,7 +243,6 @@ impl AgentToolbarItemKind {
             .map(Self::ContextChip)
             .collect();
         items.extend([
-            Self::ModelSelector,
             Self::NLDToggle,
             Self::VoiceInput,
             Self::FileAttach,
