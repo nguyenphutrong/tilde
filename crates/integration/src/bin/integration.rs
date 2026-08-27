@@ -328,8 +328,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_ask_warp_ai_keybinding_for_selected_block);
     register_test!(test_create_folder_from_command_palette);
 
-    register_test!(test_tab_behavior_setting);
-
     register_test!(test_private_public_settings_routing_with_flag_enabled);
     register_test!(test_private_settings_preloaded_and_not_leaked_to_toml);
 
@@ -418,16 +416,10 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_settings_error_banner_on_reload_with_invalid_value);
 
     // Settings sidebar navigation and search
-    register_test!(test_settings_mouse_navigation_through_umbrella);
-    register_test!(test_settings_keyboard_navigation_down_into_collapsed_umbrella);
-    register_test!(test_settings_keyboard_navigation_up_into_collapsed_umbrella);
-    register_test!(test_settings_keyboard_navigation_after_manual_collapse);
-    register_test!(test_settings_search_filters_top_level_pages);
-    register_test!(test_settings_search_filters_subpages);
-    register_test!(test_settings_search_subpage_still_renders_content);
-    register_test!(test_settings_search_clear_restores_umbrella_state);
-    register_test!(test_settings_search_preserved_on_sidebar_click);
-    register_test!(test_settings_agent_mcp_servers_renders_standalone_page);
+    register_test!(test_settings_mouse_navigation);
+    register_test!(test_settings_keyboard_navigation);
+    register_test!(test_settings_search_filters_pages);
+    register_test!(test_settings_search_clear_restores_pages);
 
     register_test!(test_middle_click_paste);
 

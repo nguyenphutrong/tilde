@@ -330,7 +330,6 @@ pub enum TerminalAction {
     AttemptLoginGatedFeature,
     StartFileDropTarget,
     StopFileDropTarget,
-    OpenTeamSettingsPage,
     SetMarkedText {
         marked_text: UserInput<String>,
         selected_range: Range<usize>,
@@ -369,15 +368,12 @@ pub enum TerminalAction {
     IndexProjectSpeedbump,
     AddProjectAtCurrentDirectory,
     OpenProjectRulesPane,
-    OpenViewMCPPane,
-    OpenAddMCPPane,
     OpenAddRulePane,
     OpenRulesPane,
     OpenEditSkillPane {
         skill_reference: SkillReference,
     },
     OpenAddPromptPane,
-    OpenBillingAndUsagePane,
     OpenConversationsPalette,
     PickRepoToOpen,
     OpenFilesPalette {
@@ -665,7 +661,6 @@ impl fmt::Debug for TerminalAction {
             RunNativeShellCompletions { buffer_text, .. } => {
                 write!(f, "RunNativeShellCompletions({buffer_text:?})")
             }
-            OpenTeamSettingsPage => write!(f, "OpenTeamSettingsPage"),
             SetMarkedText {
                 marked_text,
                 selected_range,
@@ -701,13 +696,10 @@ impl fmt::Debug for TerminalAction {
             IndexProjectSpeedbump => write!(f, "IndexProject"),
             AddProjectAtCurrentDirectory => write!(f, "AddProjectAtCurrentDirectory"),
             OpenProjectRulesPane => write!(f, "OpenProjectRulesPane"),
-            OpenViewMCPPane => write!(f, "OpenViewMCPPane"),
-            OpenAddMCPPane => write!(f, "OpenAddMCPPane"),
             OpenAddRulePane => write!(f, "OpenAddRulePane"),
             OpenRulesPane => write!(f, "OpenRulesPane"),
             OpenEditSkillPane { .. } => write!(f, "OpenEditSkillPane"),
             OpenAddPromptPane => write!(f, "OpenAddPromptPane"),
-            OpenBillingAndUsagePane => write!(f, "OpenBillingAndUsagePane"),
             OpenConversationsPalette => write!(f, "OpenConversationsPalette"),
             PickRepoToOpen => write!(f, "PickRepoToOpen"),
             OpenFilesPalette { .. } => write!(f, "OpenFilesPalette"),

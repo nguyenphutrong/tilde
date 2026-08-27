@@ -734,43 +734,18 @@ fn test_parse_tab_path_bare_tilde() {
 // -- warp://settings deeplink parsing ----------------------------------------
 
 #[test]
-fn test_settings_widget_deeplink_target() {
-    assert_eq!(
-        settings_widget_deeplink_target("global_hotkey").map(|(section, _)| section),
-        Some(SettingsSection::Features),
-    );
-    assert_eq!(
-        settings_widget_deeplink_target("custom_router").map(|(section, _)| section),
-        Some(SettingsSection::WarpAgent),
-    );
-    #[cfg(not(target_family = "wasm"))]
-    assert_eq!(
-        settings_widget_deeplink_target("cli_agents").map(|(section, _)| section),
-        Some(SettingsSection::ThirdPartyCLIAgents),
-    );
-    // Unknown / empty slugs are not linkable (allowlist only).
-    assert!(settings_widget_deeplink_target("not_a_widget").is_none());
-    assert!(settings_widget_deeplink_target("").is_none());
-}
-
-#[test]
 fn test_settings_section_for_simple_subpage() {
-    assert_eq!(
-        settings_section_for_simple_subpage("appearance"),
-        Some(SettingsSection::Appearance),
-    );
-    assert_eq!(
-        settings_section_for_simple_subpage("billing_and_usage"),
-        Some(SettingsSection::BillingAndUsage),
-    );
-    assert_eq!(
-        settings_section_for_simple_subpage("platform"),
-        Some(SettingsSection::WarpCloudAgentAPIKeys),
-    );
-    assert_eq!(
-        settings_section_for_simple_subpage("warp_agent"),
-        Some(SettingsSection::WarpAgent),
-    );
+    for (path, section) in [
+        ("about", SettingsSection::About),
+        ("appearance", SettingsSection::Appearance),
+        ("keybindings", SettingsSection::Keybindings),
+        ("scripting", SettingsSection::Scripting),
+        ("warpify", SettingsSection::Warpify),
+    ] {
+        assert_eq!(settings_section_for_simple_subpage(path), Some(section));
+    }
+    assert!(settings_section_for_simple_subpage("billing_and_usage").is_none());
+    assert!(settings_section_for_simple_subpage("warp_agent").is_none());
     assert!(settings_section_for_simple_subpage("not_a_subpage").is_none());
 }
 
@@ -802,14 +777,6 @@ fn test_url_reports_checkout_success() {
     ))
     .unwrap();
     assert!(!url_reports_checkout_success(&failed));
-
-    // The flag is not tied to the auth host: an older confirmation page can
-    // still send it on the settings deeplink.
-    let on_settings = Url::parse(&format!(
-        "{scheme}://settings/billing_and_usage?checkoutSuccessful=true"
-    ))
-    .unwrap();
-    assert!(url_reports_checkout_success(&on_settings));
 }
 
 // Regression coverage for issue #9005: shell scripts opened via `file://` should run,

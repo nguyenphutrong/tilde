@@ -16,14 +16,12 @@ use warp_editor::render::element::VerticalExpansionBehavior;
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::new_scrollable::{NewScrollable, ScrollableAppearance, SingleAxisConfig};
 use warpui::elements::{
-    Align, Border, ChildAnchor, ChildView, Clipped, ClippedScrollStateHandle, ConstrainedBox,
-    Container, CornerRadius, CrossAxisAlignment, Dismiss, Empty, Expanded, Flex, MainAxisSize,
-    MouseStateHandle, OffsetPositioning, ParentElement, PositionedElementAnchor,
-    PositionedElementOffsetBounds, Radius, ScrollbarWidth, SelectableArea, SelectionHandle, Stack,
-    Text,
+    Border, ChildAnchor, ChildView, Clipped, ClippedScrollStateHandle, ConstrainedBox, Container,
+    CornerRadius, CrossAxisAlignment, Dismiss, Empty, Flex, MainAxisSize, MouseStateHandle,
+    OffsetPositioning, ParentElement, PositionedElementAnchor, PositionedElementOffsetBounds,
+    Radius, ScrollbarWidth, SelectableArea, SelectionHandle, Stack, Text,
 };
 use warpui::keymap::{Context, EditableBinding, FixedBinding, Keystroke};
-use warpui::ui_components::components::UiComponent as _;
 use warpui::{
     AppContext, Element, Entity, EntityId, EventContext, ModelHandle, SingletonEntity,
     TypedActionView, UpdateView, View, ViewContext, ViewHandle,
@@ -261,7 +259,6 @@ pub enum RequestedCommandViewEvent {
     TextSelected,
     CopiedEmptyText,
     EditorFocused,
-    OpenActiveAgentProfileEditor,
 }
 
 #[derive(Debug, Clone)]
@@ -274,7 +271,6 @@ pub enum RequestedCommandViewAction {
     CloseEditMode,
     FocusEditor,
     ToggleExpanded,
-    OpenActiveAgentProfileEditor,
     SelectText,
     /// Toggle the expanded/collapsed state of an object or array node in the
     /// MCP request or response JSON tree.
@@ -343,7 +339,6 @@ pub struct RequestedCommandView {
     citation_state_handles: HashMap<AIAgentCitation, MouseStateHandle>,
 
     autoexecute_readonly_commands_speedbump_checkbox_handle: MouseStateHandle,
-    manage_autonomy_settings_link_handle: MouseStateHandle,
 
     // Selection support for MCP tool call detail text
     mcp_content_selection_handle: SelectionHandle,
@@ -385,7 +380,6 @@ impl RequestedCommandView {
         action_model: &ModelHandle<BlocklistAIActionModel>,
         terminal_model: Arc<FairMutex<TerminalModel>>,
         autonomy_setting_speedbump: AutonomySettingSpeedbump,
-        manage_autonomy_settings_link_handle: MouseStateHandle,
         ai_block_view_id: EntityId,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
@@ -612,7 +606,6 @@ impl RequestedCommandView {
             derived_from_citations: Default::default(),
             citation_state_handles: Default::default(),
             autoexecute_readonly_commands_speedbump_checkbox_handle: Default::default(),
-            manage_autonomy_settings_link_handle,
             block_model,
             action_model: action_model.clone(),
             position_id_prefix,
@@ -860,7 +853,6 @@ impl RequestedCommandView {
                     AIBlockAction::ToggleAutoexecuteReadonlyCommandsSpeedbumpCheckbox,
                     self.autoexecute_readonly_commands_speedbump_checkbox_handle
                         .clone(),
-                    self.manage_autonomy_settings_link_handle.clone(),
                     app,
                 ))
             }
@@ -872,19 +864,13 @@ impl RequestedCommandView {
                 },
             ) if show_for_action_id == &self.action_id => {
                 *shown.lock() = true;
-                Some(Self::render_profile_autoexecution_info_footer(
-                    self.manage_autonomy_settings_link_handle.clone(),
-                    app,
-                ))
+                Some(Self::render_profile_autoexecution_info_footer(app))
             }
             _ => None,
         }
     }
 
-    fn render_profile_autoexecution_info_footer(
-        settings_link_handle: MouseStateHandle,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
+    fn render_profile_autoexecution_info_footer(app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
 
@@ -918,30 +904,6 @@ impl RequestedCommandView {
                     )
                     .with_color(blended_colors::text_sub(theme, theme.surface_1()))
                     .with_selectable(false)
-                    .finish(),
-                )
-                .with_child(
-                    Expanded::new(
-                        1.,
-                        Align::new(
-                            appearance
-                                .ui_builder()
-                                .link(
-                                    "Manage command execution setting".into(),
-                                    None,
-                                    Some(Box::new(move |ctx| {
-                                        ctx.dispatch_typed_action(
-                                            RequestedCommandViewAction::OpenActiveAgentProfileEditor,
-                                        );
-                                    })),
-                                    settings_link_handle,
-                                )
-                                .build()
-                                .finish(),
-                        )
-                        .right()
-                        .finish(),
-                    )
                     .finish(),
                 )
                 .finish(),
@@ -2075,9 +2037,6 @@ impl TypedActionView for RequestedCommandView {
             }
             RequestedCommandViewAction::ToggleExpanded => {
                 self.set_is_header_expanded(!self.is_header_expanded, ctx)
-            }
-            RequestedCommandViewAction::OpenActiveAgentProfileEditor => {
-                ctx.emit(RequestedCommandViewEvent::OpenActiveAgentProfileEditor)
             }
             RequestedCommandViewAction::SelectText => {
                 ctx.emit(RequestedCommandViewEvent::TextSelected);

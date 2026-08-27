@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
+use settings::Setting as _;
 use warpui::integration::{AssertionOutcome, TestStep};
 use warpui::{Event, SingletonEntity, async_assert};
 
@@ -29,6 +30,7 @@ use crate::integration_testing::view_getters::{
 use crate::settings::PrivacySettings;
 use crate::terminal::input::InputSuggestionsMode;
 use crate::terminal::model::terminal_model::BlockIndex;
+use crate::terminal::safe_mode_settings::SafeModeSettings;
 use crate::terminal::shell::ShellType;
 
 pub fn wait_until_bootstrapped_single_pane_for_tab(tab_index: usize) -> TestStep {
@@ -41,6 +43,23 @@ pub fn initialize_secret_regexes() -> TestStep {
             let privacy_settings = PrivacySettings::handle(app);
             privacy_settings.update(app, |me, ctx| {
                 me.initialize_default_regexes_once(ctx);
+            });
+        },
+    )
+}
+
+pub fn set_secret_redaction(enabled: bool, hide_secrets: bool) -> TestStep {
+    new_step_with_default_assertions("Set secret redaction behavior").with_action(
+        move |app, _, _| {
+            SafeModeSettings::handle(app).update(app, |settings, ctx| {
+                settings
+                    .safe_mode_enabled
+                    .set_value(enabled, ctx)
+                    .expect("should set secret redaction");
+                settings
+                    .hide_secrets_in_block_list
+                    .set_value(hide_secrets, ctx)
+                    .expect("should set secret display behavior");
             });
         },
     )

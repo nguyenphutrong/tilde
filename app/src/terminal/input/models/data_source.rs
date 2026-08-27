@@ -8,14 +8,12 @@ use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
     ConstrainedBox, Container, CornerRadius, FormattedTextElement, Highlight, HighlightedHyperlink,
-    MouseStateHandle, Radius, Text,
+    Radius, Text,
 };
 use warpui::fonts::{Properties, Style, Weight};
 use warpui::keymap::Keystroke;
-use warpui::platform::{Cursor, OperatingSystem};
+use warpui::platform::OperatingSystem;
 use warpui::text_layout::ClipConfig;
-use warpui::ui_components::button::ButtonVariant;
-use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
     AppContext, Element, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity as _,
 };
@@ -28,8 +26,8 @@ use super::model_spec_scores::{
 use crate::ai::custom_model_routers::is_custom_router_id;
 use crate::ai::execution_profiles::model_menu_items::is_auto;
 use crate::ai::llms::{
-    ByoKeySource, DisableReason, LLMId, LLMInfo, LLMPreferences, LLMProvider, LLMSpec,
-    ModelIconFlags, byo_key_source_for_model, is_model_allowed_for_scope, model_leading_icon,
+    ByoKeySource, DisableReason, LLMId, LLMInfo, LLMPreferences, LLMSpec, ModelIconFlags,
+    byo_key_source_for_model, is_model_allowed_for_scope, model_leading_icon,
     should_show_bedrock_icon_for_model,
     should_show_gemini_enterprise_agent_platform_icon_for_model, should_show_key_icon_for_model,
 };
@@ -38,7 +36,6 @@ use crate::search::data_source::{Query, QueryFilter, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::search::result_renderer::ItemHighlightState;
 use crate::search::{SearchItem, SyncDataSource};
-use crate::settings_view::SettingsSection;
 use crate::terminal::input::inline_menu::{
     DetailsRenderConfig, InlineMenuAction, InlineMenuMessageArgs, InlineMenuType,
     default_navigation_message_items, styles as inline_styles,
@@ -350,7 +347,6 @@ impl Entity for ModelSelectorDataSource {
 struct ModelSearchItem {
     id: LLMId,
     upgrade_url: String,
-    provider: LLMProvider,
     spec: Option<LLMSpec>,
     leading_icon: Icon,
     credential_icon: Option<Icon>,
@@ -366,7 +362,6 @@ struct ModelSearchItem {
     is_using_gemini_enterprise_agent_platform: bool,
     name_match_result: Option<FuzzyMatchResult>,
     score: OrderedFloat<f64>,
-    manage_api_key_mouse_state: MouseStateHandle,
     reasoning_level: Option<String>,
     discount_percentage: Option<f32>,
 }
@@ -401,7 +396,6 @@ impl ModelSearchItem {
         Self {
             id: llm.id.clone(),
             upgrade_url: upgrade_url.to_owned(),
-            provider: llm.provider,
             spec: llm.spec.clone(),
             leading_icon,
             credential_icon,
@@ -416,7 +410,6 @@ impl ModelSearchItem {
             is_using_gemini_enterprise_agent_platform,
             name_match_result: choice.name_match_result,
             score: choice.score,
-            manage_api_key_mouse_state: Default::default(),
             reasoning_level: llm.reasoning_level(),
             discount_percentage: llm.discount_percentage,
         }
@@ -618,40 +611,6 @@ impl SearchItem for ModelSearchItem {
             || self.is_using_gemini_enterprise_agent_platform
             || self.byo_key_source.is_some();
         let cost_row = if uses_external_inference {
-            let search_query = if self.is_using_bedrock {
-                "bedrock"
-            } else if self.is_using_gemini_enterprise_agent_platform {
-                "gemini enterprise"
-            } else {
-                "api"
-            }
-            .to_string();
-            let manage_button = appearance
-                .ui_builder()
-                .button(
-                    ButtonVariant::Outlined,
-                    self.manage_api_key_mouse_state.clone(),
-                )
-                .with_text_label("Manage".to_string())
-                .with_style(UiComponentStyles {
-                    height: Some(24.),
-                    padding: Some(Coords {
-                        top: 2.,
-                        bottom: 2.,
-                        left: 4.,
-                        right: 4.,
-                    }),
-                    ..Default::default()
-                })
-                .with_cursor(Some(Cursor::PointingHand))
-                .build()
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPageWithSearch {
-                        search_query: search_query.clone(),
-                        section: Some(SettingsSection::WarpAgent),
-                    });
-                })
-                .finish();
             CostRow::BilledToProvider {
                 label: if self.is_auto
                     && (self.is_using_bedrock || self.is_using_gemini_enterprise_agent_platform)
@@ -666,7 +625,6 @@ impl SearchItem for ModelSearchItem {
                 } else {
                     "Inference via API key"
                 },
-                manage_button: Container::new(manage_button).finish(),
             }
         } else {
             CostRow::Bar {
@@ -695,29 +653,12 @@ impl SearchItem for ModelSearchItem {
 
             // Show a BYOK option when the user's tier supports it and the provider
             // is one that accepts user-supplied API keys.
-            let byok_available = UserWorkspaces::as_ref(app).is_byo_api_key_enabled(app)
-                && matches!(
-                    self.provider,
-                    LLMProvider::OpenAI | LLMProvider::Anthropic | LLMProvider::Google
-                );
-
-            let mut text_fragments = vec![
+            let text_fragments = vec![
                 FormattedTextFragment::plain_text(format!(
                     "{display_name} is not available for free users. "
                 )),
                 FormattedTextFragment::hyperlink("Upgrade", self.upgrade_url.clone()),
             ];
-
-            if byok_available {
-                text_fragments.push(FormattedTextFragment::plain_text(" or ".to_string()));
-                text_fragments.push(FormattedTextFragment::hyperlink_action(
-                    "bring your own key",
-                    WorkspaceAction::ShowSettingsPageWithSearch {
-                        search_query: "api".to_string(),
-                        section: Some(SettingsSection::WarpAgent),
-                    },
-                ));
-            }
 
             let upgrade_text = FormattedTextElement::new(
                 FormattedText::new([FormattedTextLine::Line(text_fragments)]),

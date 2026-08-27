@@ -121,7 +121,6 @@ use crate::send_telemetry_from_ctx;
 #[cfg(feature = "local_fs")]
 use crate::server::telemetry::CodePanelsFileOpenEntrypoint;
 use crate::settings::{AISettings, CodeSettings};
-use crate::settings_view::SettingsSection;
 use crate::terminal::cli_agent::{
     build_selection_line_range_prompt, build_selection_substring_prompt,
 };
@@ -822,11 +821,6 @@ impl CodeReviewView {
                         let _ = server.manual_start(ctx);
                     });
                 }
-            }
-            CodeFooterViewEvent::ManageServers => {
-                ctx.dispatch_typed_action(&WorkspaceAction::ShowSettingsPage(
-                    SettingsSection::EditorAndCodeReview,
-                ));
             }
             CodeFooterViewEvent::RestartServer { server } => {
                 server.update(ctx, |server, ctx| {

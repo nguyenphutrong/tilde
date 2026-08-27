@@ -319,7 +319,6 @@ pub enum WorkspaceAction {
         source: PaletteSource,
     },
     ShowUpgrade,
-    ShowReferralSettingsPage,
     JoinSlack,
     ViewUserDocs,
     ViewLatestChangelog,
@@ -545,7 +544,6 @@ pub enum WorkspaceAction {
         query: String,
     },
     OpenAIFactCollection,
-    OpenMCPServerCollection,
     /// Open the Environment Management pane in Create mode.
     OpenEnvironmentManagementPane,
     ToggleAIDocumentPane {
@@ -584,10 +582,6 @@ pub enum WorkspaceAction {
         workflow_source: WorkflowSource,
         workflow_selection_source: WorkflowSelectionSource,
         argument_override: Option<HashMap<String, String>>,
-    },
-    ScrollToSettingsWidget {
-        page: SettingsSection,
-        widget_id: &'static str,
     },
     /// Navigate to an existing AI conversation, focusing on its terminal view.
     ///
@@ -756,12 +750,6 @@ pub enum WorkspaceAction {
     /// Reset the Warp Agent CLI launch modal dismissed state (for debugging)
     #[cfg(debug_assertions)]
     ResetAgentCliLaunchModalState,
-    /// Open the Feature Intro Modal (for debugging)
-    #[cfg(debug_assertions)]
-    OpenFeatureIntroModal,
-    /// Reset the feature intro seen state (for debugging)
-    #[cfg(debug_assertions)]
-    ResetFeatureIntroModalState,
     /// Open the auto-handoff sleep modal (for debugging)
     #[cfg(debug_assertions)]
     OpenAutoHandoffSleepModal,
@@ -839,8 +827,6 @@ pub enum WorkspaceAction {
     StartAgentOnboardingTutorial(OnboardingTutorial),
     ShowSessionConfigModal,
     DismissSessionConfigTabConfigChip,
-    /// Dismiss the non-blocking feature-intro popover without requiring it to hold focus.
-    DismissFeatureIntroModal,
     /// Start the HOA onboarding flow (for debugging)
     #[cfg(debug_assertions)]
     ShowHoaOnboardingFlow,
@@ -1003,7 +989,6 @@ impl WorkspaceAction {
             | AddWindow
             | AddWindowWithShell { .. }
             | CloseWindow
-            | ScrollToSettingsWidget { .. }
             | NewTabInAgentMode { .. }
             | NewPaneInAgentMode { .. }
             | FixInAgentMode { .. }
@@ -1040,7 +1025,6 @@ impl WorkspaceAction {
             | OpenPalette { .. }
             | TogglePalette { mode: _, source: _ }
             | ShowUpgrade
-            | ShowReferralSettingsPage
             | JoinSlack
             | ViewUserDocs
             | ViewLatestChangelog
@@ -1166,7 +1150,6 @@ impl WorkspaceAction {
             | TabHoverWidthStart { .. }
             | TabHoverWidthEnd
             | OpenAIFactCollection
-            | OpenMCPServerCollection
             | FocusTerminalViewInWorkspace { .. }
             | FocusPane(..)
             | ShiftSelectTabRange { .. }
@@ -1202,7 +1185,6 @@ impl WorkspaceAction {
             | StartAgentOnboardingTutorial(_)
             | ShowSessionConfigModal
             | DismissSessionConfigTabConfigChip
-            | DismissFeatureIntroModal
             | SaveCurrentTabAsNewConfig(_)
             | SyncTrafficLights
             | OpenTabConfigErrorFile { .. }
@@ -1235,8 +1217,6 @@ impl WorkspaceAction {
             | ResetOrchestrationLaunchModalState
             | OpenAgentCliLaunchModal
             | ResetAgentCliLaunchModalState
-            | OpenFeatureIntroModal
-            | ResetFeatureIntroModalState
             | OpenAutoHandoffSleepModal
             | ResetAutoHandoffSleepModalState
             | TriggerAutoHandoffToCloud

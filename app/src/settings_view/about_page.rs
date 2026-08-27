@@ -124,14 +124,6 @@ impl SettingsPageMeta for AboutPageView {
     fn update_filter(&mut self, query: &str, ctx: &mut ViewContext<Self>) -> MatchData {
         self.page.update_filter(query, ctx)
     }
-
-    fn scroll_to_widget(&mut self, widget_id: &'static str) {
-        self.page.scroll_to_widget(widget_id)
-    }
-
-    fn clear_highlighted_widget(&mut self) {
-        self.page.clear_highlighted_widget();
-    }
 }
 
 impl From<ViewHandle<AboutPageView>> for SettingsPageViewHandle {

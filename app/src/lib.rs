@@ -299,7 +299,6 @@ use crate::session_management::{RunningSessionSummary, SessionNavigationData};
 use crate::settings::cloud_preferences_syncer::initialize_cloud_preferences_syncer;
 use crate::settings::manager::SettingsManager;
 use crate::settings::{AISettings, AccessibilitySettings, ScrollSettings, SelectionSettings};
-use crate::settings_view::DisplayCount;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::suggestions::ignored_suggestions_model::IgnoredSuggestionsModel;
 use crate::system::SystemStats;
@@ -1512,14 +1511,6 @@ pub(crate) fn initialize_app(
         GPUState::handle(ctx).update(ctx, |gpu_state, ctx| {
             gpu_state.set_has_lower_power_gpu(warpui::rendering::is_low_power_gpu_available(), ctx);
         });
-
-        for window_id in ctx.window_ids().collect_vec() {
-            SettingsPaneManager::handle(ctx)
-                .read(ctx, |model, _| model.settings_view(window_id))
-                .update(ctx, |settings, ctx| {
-                    settings.refresh_preferred_graphics_backend_dropdown(ctx);
-                })
-        }
     });
 
     #[cfg(enable_crash_recovery)]
@@ -1635,9 +1626,6 @@ pub(crate) fn initialize_app(
     tab_configs::params_modal::init(ctx);
     context_chips::display_menu::init(ctx);
     context_chips::node_version_popup::init(ctx);
-
-    let display_count = ctx.windows().display_count();
-    ctx.add_singleton_model(|_| DisplayCount(display_count));
 
     ctx.add_singleton_model(|_| RelaunchModel::new());
     ctx.add_singleton_model(|_| ChangelogModel::new(server_api.clone()));
@@ -2101,12 +2089,6 @@ pub(crate) fn app_callbacks(
                     .value()
                     .clone(),
             );
-
-            let new_display_count = ctx.windows().display_count();
-            DisplayCount::handle(ctx).update(ctx, |display_count, ctx| {
-                display_count.0 = new_display_count;
-                ctx.notify();
-            });
         })),
         on_cpu_awakened: Some(Box::new(move |ctx| {
             SystemStats::handle(ctx).update(ctx, move |system, ctx| {

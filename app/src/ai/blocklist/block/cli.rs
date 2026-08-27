@@ -5,7 +5,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use lazy_static::lazy_static;
-use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use parking_lot::{FairMutex, RwLock};
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
@@ -23,11 +22,10 @@ use warpui::elements::new_scrollable::SingleAxisConfig;
 use warpui::elements::{
     Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ConstrainedBox, Container,
     CornerRadius, CrossAxisAlignment, DragBarSide, DropShadow, Empty, Expanded, Fill, Flex,
-    FormattedTextElement, Highlight, HighlightedHyperlink, Hoverable, MainAxisAlignment,
-    MainAxisSize, MouseStateHandle, NewScrollable, OffsetPositioning, ParentElement,
-    PositionedElementAnchor, PositionedElementOffsetBounds, Radius, Resizable,
-    ResizableStateHandle, SavePosition, SelectableArea, SelectionHandle, Shrinkable,
-    SizeConstraintCondition, SizeConstraintSwitch, Stack, Text, resizable_state_handle,
+    Highlight, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle, NewScrollable,
+    OffsetPositioning, ParentElement, PositionedElementAnchor, PositionedElementOffsetBounds,
+    Radius, Resizable, ResizableStateHandle, SavePosition, SelectableArea, SelectionHandle,
+    Shrinkable, SizeConstraintCondition, SizeConstraintSwitch, Stack, Text, resizable_state_handle,
 };
 use warpui::fonts::{Properties, Style, Weight};
 use warpui::keymap::{EditableBinding, Keystroke};
@@ -78,7 +76,6 @@ use crate::editor::InteractionState;
 use crate::menu::{Event as MenuEvent, Menu, MenuItemFields, MenuVariant};
 use crate::server::telemetry::TelemetryEvent;
 use crate::settings::AISettings;
-use crate::settings_view::SettingsSection;
 use crate::terminal::input::SET_INPUT_MODE_TERMINAL_ACTION_NAME;
 use crate::terminal::model::block::BlockId;
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
@@ -94,7 +91,6 @@ use crate::view_components::compactible_action_button::{
     CompactibleActionButton, RenderCompactibleActionButton, render_compact_and_regular_button_rows,
 };
 use crate::view_components::compactible_split_action_button::CompactibleSplitActionButton;
-use crate::workspace::WorkspaceAction;
 use crate::{BlocklistAIHistoryModel, ToastStack, send_telemetry_from_ctx};
 const MENU_WIDTH: f32 = 200.0;
 const MAX_HEIGHT: f32 = 320.0;
@@ -175,7 +171,6 @@ pub fn init(app: &mut AppContext) {
 
 #[derive(Default)]
 struct StateHandles {
-    invalid_api_key_button_handle: MouseStateHandle,
     subscribe_button_handle: MouseStateHandle,
     debug_copy_button_handle: MouseStateHandle,
     submit_issue_button_handle: MouseStateHandle,
@@ -183,7 +178,6 @@ struct StateHandles {
     output_selection_handle: SelectionHandle,
     action_selection_handle: SelectionHandle,
     speedbump_checkbox_handle: MouseStateHandle,
-    ai_settings_link: HighlightedHyperlink,
     output_scroll_state: ClippedScrollStateHandle,
     action_scroll_state: ClippedScrollStateHandle,
     input_scroll_state: ClippedScrollStateHandle,
@@ -1216,9 +1210,6 @@ impl View for CLISubagentView {
                     FailedOutputProps {
                         error,
                         is_ai_input_enabled: false,
-                        invalid_api_key_button_handle: &self
-                            .state_handles
-                            .invalid_api_key_button_handle,
                         subscribe_button_handle: &self.state_handles.subscribe_button_handle,
                         aws_bedrock_credentials_error_view: None,
                         gemini_enterprise_credentials_error_view: None,
@@ -1343,7 +1334,6 @@ impl View for CLISubagentView {
                                 .speedbump_checkbox_handle,
                             speedbump_checkbox_action:
                                 CLISubagentAction::ToggleAlwaysAllowWriteToPty,
-                            ai_settings_link: &self.state_handles.ai_settings_link,
                         }),
                     },
                     app,
@@ -1384,7 +1374,6 @@ impl View for CLISubagentView {
                                 .speedbump_checkbox_handle,
                             speedbump_checkbox_action:
                                 CLISubagentAction::ToggleAlwaysAllowReadFiles,
-                            ai_settings_link: &self.state_handles.ai_settings_link,
                         }),
                 },
                 app,
@@ -1840,7 +1829,6 @@ struct PermissionsSpeedbumpProps<'a> {
     always_allow_checked: bool,
     speedbump_checkbox_handle: &'a MouseStateHandle,
     speedbump_checkbox_action: CLISubagentAction,
-    ai_settings_link: &'a HighlightedHyperlink,
 }
 
 fn render_permissions_speedbump(
@@ -1850,7 +1838,6 @@ fn render_permissions_speedbump(
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
     let font_size = appearance.monospace_font_size() - 2.;
-    let font_family = appearance.ui_font_family();
     let font_color = internal_colors::neutral_6(theme);
 
     let checkbox = appearance
@@ -1882,24 +1869,6 @@ fn render_permissions_speedbump(
         .build()
         .finish();
 
-    let formatted_text = FormattedTextElement::new(
-        FormattedText::new([FormattedTextLine::Line(vec![
-            FormattedTextFragment::hyperlink("Manage Agent permissions", "Settings > AI"),
-        ])]),
-        font_size,
-        font_family,
-        font_family,
-        font_color,
-        props.ai_settings_link.clone(),
-    )
-    .with_hyperlink_font_color(blended_colors::accent_fg_strong(theme).into())
-    .register_default_click_handlers(|_, ctx, _| {
-        ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPage(
-            SettingsSection::WarpAgent,
-        ));
-    })
-    .finish();
-
     Container::new(
         Flex::row()
             .with_main_axis_size(MainAxisSize::Max)
@@ -1916,7 +1885,6 @@ fn render_permissions_speedbump(
                 )
                 .finish(),
             )
-            .with_child(Shrinkable::new(1.0, formatted_text).finish())
             .finish(),
     )
     .with_vertical_padding(8.)

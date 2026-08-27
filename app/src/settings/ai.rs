@@ -2077,9 +2077,6 @@ define_settings_group!(AISettings, settings: [
     }
 
     // Whether Oz should add attribution (co-author line) to commit messages and PRs.
-    // This is the user-level preference; it may be overridden by the window's team's
-    // `enable_warp_attribution` AdminEnablementSetting (see
-    // `UserWorkspaces::get_agent_attribution_setting`).
     agent_attribution_enabled: AgentAttributionEnabled {
         type: bool,
         default: true,
@@ -2138,20 +2135,6 @@ define_settings_group!(AISettings, settings: [
         private: true,
     }
 
-    // Not a user-visible setting - it tracks which one-time feature-intro popups the
-    // user has already seen, keyed by the feature-intro id (see `FEATURE_INTROS`).
-    //
-    // We model it as a globally-synced setting (not respecting the user's sync setting)
-    // so each feature is announced at most once per user, regardless of how many devices
-    // they use. A feature is considered seen when its id is present and mapped to `true`.
-    seen_feature_intro_ids: SeenFeatureIntroIds {
-        type: HashMap<String, bool>,
-        default: HashMap::default(),
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::No),
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    }
 ]);
 
 impl AISettings {
@@ -2667,25 +2650,6 @@ impl AISettings {
             self.cli_agent_footer_enabled_commands
                 .set_value(ToolbarCommandMap::new(map), ctx)
         );
-    }
-
-    /// Whether the feature-intro popover with the given id key has been seen.
-    pub fn is_feature_intro_seen(&self, key: &str) -> bool {
-        self.seen_feature_intro_ids
-            .get(key)
-            .copied()
-            .unwrap_or(false)
-    }
-
-    /// Records that the feature-intro popover with the given id key has been seen,
-    /// so it is never shown again. No-op if already recorded.
-    pub fn mark_feature_intro_seen(&mut self, key: &str, ctx: &mut ModelContext<Self>) {
-        if self.is_feature_intro_seen(key) {
-            return;
-        }
-        let mut map = self.seen_feature_intro_ids.clone();
-        map.insert(key.to_owned(), true);
-        report_if_error!(self.seen_feature_intro_ids.set_value(map, ctx));
     }
 
     /// Whether the plugin install chip was dismissed for the given agent/host.

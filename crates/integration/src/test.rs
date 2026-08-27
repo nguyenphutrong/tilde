@@ -95,9 +95,7 @@ use version_compare::Cmp;
 pub use video_recording::*;
 use warp::appearance::Appearance;
 use warp::features::FeatureFlag;
-use warp::integration_testing::assertions::{
-    assert_binding_display_string, go_offline, go_online, join_a_workspace,
-};
+use warp::integration_testing::assertions::{go_offline, go_online, join_a_workspace};
 use warp::integration_testing::block::{
     BlockPosition, LinePosition, assert_block_visible, assert_bottom_of_block_approx_at,
     assert_num_blocks_in_model,
@@ -115,9 +113,7 @@ use warp::integration_testing::navigation_palette::{
     RecentSession, check_recency, navigate_to_other_session_step, open_navigation_palette_step,
 };
 use warp::integration_testing::pane_group::assert_focused_pane_index;
-use warp::integration_testing::settings::{
-    assert_theme_chooser_contains, set_window_custom_size, toggle_setting,
-};
+use warp::integration_testing::settings::{assert_theme_chooser_contains, set_window_custom_size};
 use warp::integration_testing::step::{
     assert_no_pending_model_events, new_step_with_default_assertions,
     new_step_with_default_assertions_for_pane,
@@ -160,11 +156,9 @@ use warp::integration_testing::window::{
 use warp::integration_testing::workspace::assert_tab_count;
 use warp::integration_testing::{self, view_of_type};
 use warp::pane_group::AGENT_MODE_PANE_DEFAULT_MINIMUM_WIDTH;
-use warp::settings::{
-    CompletionsOpenWhileTyping, CtrlTabBehavior, INPUT_MODE, MonospaceFontSize, TabBehavior,
-};
+use warp::settings::{CompletionsOpenWhileTyping, CtrlTabBehavior, INPUT_MODE, MonospaceFontSize};
 use warp::settings_view::keybindings::KeybindingsView;
-use warp::settings_view::{FeaturesPageAction, SettingsAction, SettingsSection, SettingsView};
+use warp::settings_view::{SettingsSection, SettingsView};
 use warp::terminal::alt_screen_reporting::MouseReportingEnabled;
 use warp::terminal::available_shells::AvailableShells;
 use warp::terminal::block_list_viewport::{InputMode, ScrollLines, ScrollPosition};
@@ -191,8 +185,8 @@ use warp::{AgentModeEntrypoint, cmd_or_ctrl_shift};
 use warpui_core::event::KeyState;
 use warpui_core::integration::{AssertionOutcome, StepData, TestStep};
 use warpui_core::keymap::{Keystroke, PerPlatformKeystroke, Trigger};
+use warpui_core::platform::TerminationMode;
 use warpui_core::platform::keyboard::KeyCode;
-use warpui_core::platform::{OperatingSystem, TerminationMode};
 use warpui_core::units::Lines;
 use warpui_core::windowing::WindowManager;
 use warpui_core::{
@@ -2151,18 +2145,24 @@ pub fn test_ctrl_tab_session_switching() -> Builder {
             .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
             .with_step(execute_echo(0))
             .with_step(
-                toggle_setting(SettingsAction::FeaturesPageToggle(
-                    FeaturesPageAction::SetCtrlTabBehavior(CtrlTabBehavior::CycleMostRecentSession),
-                ))
-                .add_assertion(|app, _| {
-                    let ctrl_tab_behavior = KeysSettings::handle(app)
-                        .read(app, |keys_settings, _| *keys_settings.ctrl_tab_behavior);
-                    async_assert!(
-                        matches!(ctrl_tab_behavior, CtrlTabBehavior::CycleMostRecentSession),
-                        "Ctrl-Tab behavior should be set to CycleMostLeastRecentSession"
-                    )
-                })
-                .add_assertion(save_active_window_id("first_window_id")),
+                TestStep::new("Set Ctrl-Tab behavior")
+                    .with_action(|app, _, _| {
+                        KeysSettings::handle(app).update(app, |keys_settings, ctx| {
+                            keys_settings
+                                .ctrl_tab_behavior
+                                .set_value(CtrlTabBehavior::CycleMostRecentSession, ctx)
+                                .expect("should set Ctrl-Tab behavior");
+                        });
+                    })
+                    .add_assertion(|app, _| {
+                        let ctrl_tab_behavior = KeysSettings::handle(app)
+                            .read(app, |keys_settings, _| *keys_settings.ctrl_tab_behavior);
+                        async_assert!(
+                            matches!(ctrl_tab_behavior, CtrlTabBehavior::CycleMostRecentSession),
+                            "Ctrl-Tab behavior should be set to CycleMostLeastRecentSession"
+                        )
+                    })
+                    .add_assertion(save_active_window_id("first_window_id")),
             );
 
         for i in 1..5 {
@@ -6836,42 +6836,6 @@ pub fn test_create_folder_from_command_palette() -> Builder {
             open_command_palette_and_run_action("Create a New Personal Folder")
                 .add_assertion(assert_warp_drive_is_open()),
         )
-}
-
-pub fn test_tab_behavior_setting() -> Builder {
-    let completions_binding_name = "input:open_completion_suggestions";
-    let autosuggestions_binding_name = "editor_view:insert_autosuggestion";
-
-    let expected_completion_binding_name = if OperatingSystem::get().is_mac() {
-        "⌃Space"
-    } else {
-        "Ctrl Space"
-    };
-
-    new_builder()
-        .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(toggle_setting(SettingsAction::FeaturesPageToggle(
-            FeaturesPageAction::SetTabBehavior(TabBehavior::Autosuggestions),
-        )))
-        .with_step(assert_binding_display_string(
-            autosuggestions_binding_name,
-            Some("Tab"),
-        ))
-        .with_step(assert_binding_display_string(
-            completions_binding_name,
-            Some(expected_completion_binding_name),
-        ))
-        .with_step(toggle_setting(SettingsAction::FeaturesPageToggle(
-            FeaturesPageAction::SetTabBehavior(TabBehavior::Completions),
-        )))
-        .with_step(assert_binding_display_string(
-            autosuggestions_binding_name,
-            None,
-        ))
-        .with_step(assert_binding_display_string(
-            completions_binding_name,
-            Some("Tab"),
-        ))
 }
 
 pub fn test_context_chips_prompt_at_bootstrap() -> Builder {

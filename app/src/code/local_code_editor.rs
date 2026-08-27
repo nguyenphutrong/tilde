@@ -1471,8 +1471,7 @@ impl LocalCodeEditorView {
                 }
                 CodeFooterViewEvent::RestartAllServers { .. }
                 | CodeFooterViewEvent::StopAllServers { .. }
-                | CodeFooterViewEvent::StartAllServers { .. }
-                | CodeFooterViewEvent::ManageServers => {}
+                | CodeFooterViewEvent::StartAllServers { .. } => {}
             });
 
             // Subscribe to PersistedWorkspace events for LSP installation completion

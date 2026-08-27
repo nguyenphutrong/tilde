@@ -1,7 +1,30 @@
 use warp_graphql::billing::{
     AddonCreditsOption, OveragesPricing, PlanPricing, PricingInfo, StripeSubscriptionPlan,
 };
-use warpui::{Entity, ModelContext, SingletonEntity};
+use warpui::elements::{Container, CornerRadius, Empty, Radius, Text};
+use warpui::{Element, Entity, ModelContext, SingletonEntity};
+
+use crate::appearance::Appearance;
+use crate::themes::theme::Fill;
+
+pub fn create_discount_badge(discount: u32, appearance: &Appearance) -> Box<dyn Element> {
+    if discount == 0 {
+        return Empty::new().finish();
+    }
+
+    let theme = appearance.theme();
+    let background: Fill = theme.terminal_colors().normal.green.into();
+
+    Container::new(
+        Text::new_inline(format!("{discount}% off"), appearance.ui_font_family(), 10.)
+            .with_color(theme.main_text_color(background).into())
+            .finish(),
+    )
+    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
+    .with_background(background)
+    .with_uniform_padding(4.)
+    .finish()
+}
 
 /// A global model for maintaining pricing information from the server.
 #[derive(Debug)]
@@ -35,15 +58,6 @@ impl PricingInfoModel {
             .plans
             .iter()
             .find(|p| &p.plan == plan)
-    }
-
-    /// Returns the pricing data for all known plans, or an empty slice if
-    /// pricing information has not yet been fetched from the server.
-    pub fn plans(&self) -> &[PlanPricing] {
-        self.pricing_info
-            .as_ref()
-            .map(|info| info.plans.as_slice())
-            .unwrap_or(&[])
     }
 
     /// Returns the overage cost in dollars (converted from cents).

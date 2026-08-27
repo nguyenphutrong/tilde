@@ -55,10 +55,10 @@ use crate::prompt::editor_modal::OpenSource as PromptEditorOpenSource;
 use crate::server::telemetry::{InputUXChangeOrigin, TelemetryEvent};
 use crate::settings::app_icon::{AppIcon, AppIconSettings, ShowDockIconState};
 use crate::settings::{
-    AIFontName, AISettings, AppEditorSettings, CodeSettings, CursorBlink, CursorBlinkEnabled,
-    CursorDisplayType, DEFAULT_MONOSPACE_FONT_NAME, EnforceMinimumContrast, FocusPaneOnHover,
-    FontSettings, FontSettingsChangedEvent, GPUSettings, InputBoxType, InputModeSettings,
-    InputModeState, InputSettings, InputSettingsChangedEvent, MonospaceFontName, PaneSettings,
+    AppEditorSettings, CursorBlink, CursorBlinkEnabled, CursorDisplayType,
+    DEFAULT_MONOSPACE_FONT_NAME, EnforceMinimumContrast, FocusPaneOnHover, FontSettings,
+    FontSettingsChangedEvent, GPUSettings, InputBoxType, InputModeSettings, InputModeState,
+    InputSettings, InputSettingsChangedEvent, MonospaceFontName, PaneSettings,
     ShouldDimInactivePanes, ThemeSettings, UseSystemTheme, UseThinStrokes, active_theme_kind,
     respect_system_theme,
 };
@@ -83,8 +83,8 @@ use crate::util::bindings;
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme};
 use crate::view_components::{Dropdown, DropdownItem, FilterableDropdown};
 use crate::window_settings::{
-    BackgroundBlurRadius, BackgroundBlurTexture, BackgroundOpacity, LeftPanelVisibilityAcrossTabs,
-    OpenWindowsAtCustomSize, WindowSettings, WindowSettingsChangedEvent, ZoomLevel,
+    BackgroundBlurRadius, BackgroundBlurTexture, BackgroundOpacity, OpenWindowsAtCustomSize,
+    WindowSettings, WindowSettingsChangedEvent, ZoomLevel,
 };
 use crate::workspace::WorkspaceAction;
 use crate::workspace::header_toolbar_editor::HeaderToolbarInlineEditor;
@@ -113,12 +113,8 @@ const INPUT_MODE_DROPDOWN_WIDTH: f32 = 225.;
 const MIN_NEW_WINDOW_ROWS_OR_COLS: u16 = 5;
 const MAX_NEW_WINDOW_ROWS_OR_COLS: u16 = 2000;
 
-fn default_font_label(is_ai_font: bool) -> String {
-    if is_ai_font {
-        format!("{} (default)", AIFontName::default_value())
-    } else {
-        format!("{} (default)", MonospaceFontName::default_value())
-    }
+fn default_font_label() -> String {
+    format!("{} (default)", MonospaceFontName::default_value())
 }
 
 pub fn init_actions_from_parent_view<T: Action + Clone>(
@@ -472,7 +468,6 @@ pub enum AppearancePageAction {
     OpacitySliderDragged(f32),
     BlurSliderDragged(f32),
     SetFontFamily(String),
-    SetAIFontFamily(String),
     SetThinStrokes(ThinStrokes),
     SetInputMode {
         new_mode: InputMode,
@@ -504,9 +499,6 @@ pub enum AppearancePageAction {
     ToggleLigatureRendering,
     ToggleBlurTexture,
     ToggleLeftPanelVisibility,
-    ToggleToolsPanelProjectExplorer,
-    ToggleToolsPanelGlobalSearch,
-    ToggleToolsPanelConversationHistory,
     SetEnforceMinimumContrast(EnforceMinimumContrast),
     OpenUrl(String),
     ToggleFocusPaneOnHover,
@@ -532,7 +524,6 @@ pub struct AppearanceSettingsPageView {
     font_size_editor: ViewHandle<EditorView>,
     line_height_editor: ViewHandle<EditorView>,
     notebook_font_size_editor: ViewHandle<EditorView>,
-    ai_font_family_dropdown: ViewHandle<FilterableDropdown<AppearancePageAction>>,
     new_window_columns_editor: ViewHandle<EditorView>,
     valid_new_window_columns: bool,
     new_window_rows_editor: ViewHandle<EditorView>,
@@ -598,16 +589,6 @@ impl TypedActionView for AppearanceSettingsPageView {
             SetOpacity(value) => self.set_opacity(*value, true, ctx),
             SetBlur(value) => self.set_blur(*value, true, ctx),
             SetFontFamily(name) => self.set_font_family(name, ctx),
-            SetAIFontFamily(name) => {
-                self.set_ai_font_family(name, ctx);
-                FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
-                    report_if_error!(
-                        font_settings
-                            .match_ai_font_to_terminal_font
-                            .set_value(false, ctx)
-                    );
-                });
-            }
             SetThinStrokes(value) => self.set_thin_strokes(value, ctx),
             SetEnforceMinimumContrast(value) => {
                 FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
@@ -632,30 +613,6 @@ impl TypedActionView for AppearanceSettingsPageView {
             ToggleDimInactivePanes => self.toggle_dim_inactive_panes(ctx),
             ToggleBlurTexture => self.toggle_blur_texture(ctx),
             ToggleLeftPanelVisibility => self.toggle_left_panel_visibility(ctx),
-            ToggleToolsPanelProjectExplorer => {
-                CodeSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(settings.show_project_explorer.toggle_and_save_value(ctx));
-                });
-                // The Appearance page does not subscribe to these settings
-                // groups, so notify explicitly to refresh the switch state.
-                ctx.notify();
-            }
-            ToggleToolsPanelGlobalSearch => {
-                CodeSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(settings.show_global_search.toggle_and_save_value(ctx));
-                });
-                ctx.notify();
-            }
-            ToggleToolsPanelConversationHistory => {
-                AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(
-                        settings
-                            .show_conversation_history
-                            .toggle_and_save_value(ctx)
-                    );
-                });
-                ctx.notify();
-            }
             SetInputMode {
                 new_mode,
                 from_binding,
@@ -1092,18 +1049,7 @@ impl AppearanceSettingsPageView {
             dropdown.set_menu_width(FONT_FAMILY_DROPDOWN_WIDTH, ctx);
 
             // Initialize dropdown with the default font in case system fonts failed to load.
-            dropdown.add_items(vec![Self::default_font_item(ctx, false)], ctx);
-            dropdown.set_selected_by_index(0, ctx);
-            dropdown
-        });
-
-        let ai_font_family_dropdown = ctx.add_typed_action_view(|ctx| {
-            let mut dropdown = FilterableDropdown::new(ctx);
-            dropdown.set_top_bar_max_width(FONT_FAMILY_DROPDOWN_WIDTH);
-            dropdown.set_menu_width(FONT_FAMILY_DROPDOWN_WIDTH, ctx);
-
-            // Initialize dropdown with the default font in case system fonts failed to load.
-            dropdown.add_items(vec![Self::default_font_item(ctx, true)], ctx);
+            dropdown.add_items(vec![Self::default_font_item(ctx)], ctx);
             dropdown.set_selected_by_index(0, ctx);
             dropdown
         });
@@ -1300,7 +1246,6 @@ impl AppearanceSettingsPageView {
             page: Self::build_page(ctx),
             window_id: ctx.window_id(),
             local_only_icon_tooltip_states: Default::default(),
-            ai_font_family_dropdown,
             notebook_font_size_editor,
             font_size_editor,
             line_height_editor,
@@ -1576,25 +1521,14 @@ impl AppearanceSettingsPageView {
         self.context_chips = Self::get_context_chip_renderers(ctx);
     }
 
-    fn default_font_item<V>(
-        ctx: &mut ViewContext<V>,
-        is_ai_font: bool,
-    ) -> DropdownItem<AppearancePageAction>
+    fn default_font_item<V>(ctx: &mut ViewContext<V>) -> DropdownItem<AppearancePageAction>
     where
         V: View,
     {
-        let font_name = if is_ai_font {
-            AIFontName::default_value()
-        } else {
-            MonospaceFontName::default_value()
-        };
+        let font_name = MonospaceFontName::default_value();
         let mut initial_dropdown_item = DropdownItem::new(
-            default_font_label(is_ai_font),
-            if is_ai_font {
-                AppearancePageAction::SetAIFontFamily(font_name.clone())
-            } else {
-                AppearancePageAction::SetFontFamily(font_name.clone())
-            },
+            default_font_label(),
+            AppearancePageAction::SetFontFamily(font_name.clone()),
         );
 
         // If we're on a non-Linux platform, render the dropdown item in the
@@ -1984,7 +1918,6 @@ impl AppearanceSettingsPageView {
 
     fn update_font_dropdown(&mut self, ctx: &mut ViewContext<Self>) {
         let monospace_font_family = Appearance::as_ref(ctx).monospace_font_family();
-        let ai_font_family = Appearance::as_ref(ctx).ai_font_family();
 
         self.font_family_dropdown.update(ctx, |dropdown, ctx| {
             // Get the family name of the current monospace font.
@@ -2041,70 +1974,12 @@ impl AppearanceSettingsPageView {
             // Sort the font names by alphabetical order.
             items.sort_by(|a, b| a.display_text.cmp(&b.display_text));
             // Prepend the default item
-            items.insert(0, Self::default_font_item(ctx, false));
+            items.insert(0, Self::default_font_item(ctx));
             dropdown.set_items(items, ctx);
 
             if !font_name.is_empty() {
                 let label = if font_name == MonospaceFontName::default_value() {
-                    &default_font_label(false)
-                } else {
-                    &font_name
-                };
-                dropdown.set_selected_by_name(label, ctx);
-            }
-        });
-
-        self.ai_font_family_dropdown.update(ctx, |dropdown, ctx| {
-            // Get the family name of the current agent mode font.
-            // We check the font_cache for the current agent mode family.
-            // We also make sure that
-            // - If the current family is in our available_families map,
-            //   we update its entry to ensure it has the correct family_id
-            // - Otherwise, we add a new entry for the current agent mode family
-            let font_name = ctx.font_cache().load_family_name_from_id(ai_font_family);
-
-            if let Some(font_name) = &font_name {
-                self.available_families
-                    .entry(font_name.clone())
-                    .and_modify(|entry| entry.0 = Some(ai_font_family))
-                    .or_insert((Some(ai_font_family), FontType::Any));
-            }
-            let font_name = font_name.unwrap_or_default();
-
-            let mut items = self
-                .available_families
-                .iter()
-                .filter_map(|(name, (family, _font_type))| {
-                    if name == &AIFontName::default_value() {
-                        return None;
-                    }
-
-                    let name_move = name.clone();
-                    let mut dropdown =
-                        DropdownItem::new(name, AppearancePageAction::SetAIFontFamily(name_move));
-
-                    // If we're on a non-Linux platform, render the dropdown item in the
-                    // actual font.  We currently don't do this on Linux because
-                    // pre-loading all of the fonts is too expensive.
-                    if cfg!(not(any(target_os = "linux", target_os = "freebsd")))
-                        && let Some(family_id) = family
-                    {
-                        dropdown = dropdown.with_font_override(*family_id)
-                    }
-
-                    Some(dropdown)
-                })
-                .collect::<Vec<_>>();
-
-            // Sort the font names by alphabetical order.
-            items.sort_by(|a, b| a.display_text.cmp(&b.display_text));
-            // Prepend the default item
-            items.insert(0, Self::default_font_item(ctx, true));
-            dropdown.set_items(items, ctx);
-
-            if !font_name.is_empty() {
-                let label = if font_name == AIFontName::default_value() {
-                    &default_font_label(true)
+                    &default_font_label()
                 } else {
                     &font_name
                 };
@@ -2169,17 +2044,8 @@ impl AppearanceSettingsPageView {
             );
             if *font_settings.match_ai_font_to_terminal_font.value() {
                 let font_name = font_settings.monospace_font_name.value().clone();
-                self.ai_font_family_dropdown.update(ctx, |dropdown, ctx| {
-                    dropdown.clear_filter(ctx);
-                });
                 report_if_error!(font_settings.ai_font_name.set_value(font_name, ctx))
             }
-        });
-    }
-
-    pub fn set_ai_font_family(&mut self, name: &str, ctx: &mut ViewContext<Self>) {
-        FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
-            report_if_error!(font_settings.ai_font_name.set_value(name.to_string(), ctx))
         });
     }
 
@@ -3459,175 +3325,6 @@ impl SettingsWidget for WindowBlurTextureWidget {
     }
 }
 
-#[derive(Default)]
-struct ToolsPanelStateScopeWidget {
-    switch_state: SwitchStateHandle,
-}
-
-impl SettingsWidget for ToolsPanelStateScopeWidget {
-    type View = AppearanceSettingsPageView;
-
-    fn search_terms(&self) -> &str {
-        "left tools panel open closed across tabs file tree project explorer global search warp drive conversation list"
-    }
-
-    fn render(
-        &self,
-        view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let window_settings = WindowSettings::as_ref(app);
-        let is_enabled = *window_settings.left_panel_visibility_across_tabs;
-
-        render_body_item::<AppearancePageAction>(
-            "Tools panel visibility is consistent across tabs".to_string(),
-            None,
-            LocalOnlyIconState::for_setting(
-                LeftPanelVisibilityAcrossTabs::storage_key(),
-                LeftPanelVisibilityAcrossTabs::sync_to_cloud(),
-                &mut view.local_only_icon_tooltip_states.borrow_mut(),
-                app,
-            ),
-            ToggleState::Enabled,
-            appearance,
-            appearance
-                .ui_builder()
-                .switch(self.switch_state.clone())
-                .check(is_enabled)
-                .build()
-                .on_click(|evt_ctx, _app, _v2f| {
-                    evt_ctx.dispatch_typed_action(AppearancePageAction::ToggleLeftPanelVisibility);
-                })
-                .finish(),
-            None,
-        )
-    }
-}
-
-/// Tools panel tab-visibility toggles. Each mirrors an onboarding tools-panel
-/// chip and points at the same backing setting so Settings and onboarding stay
-/// in sync; toggling live-updates the tools panel via `Workspace`'s settings
-/// subscriptions.
-#[derive(Default)]
-struct ToolsPanelProjectExplorerWidget {
-    switch_state: SwitchStateHandle,
-}
-
-impl SettingsWidget for ToolsPanelProjectExplorerWidget {
-    type View = AppearanceSettingsPageView;
-
-    fn search_terms(&self) -> &str {
-        "tools panel tabs file explorer project explorer file tree left panel visibility"
-    }
-
-    fn render(
-        &self,
-        _view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        render_body_item::<AppearancePageAction>(
-            "Project explorer".to_string(),
-            None,
-            LocalOnlyIconState::Hidden,
-            ToggleState::Enabled,
-            appearance,
-            appearance
-                .ui_builder()
-                .switch(self.switch_state.clone())
-                .check(*CodeSettings::as_ref(app).show_project_explorer)
-                .build()
-                .on_click(|evt_ctx, _app, _v2f| {
-                    evt_ctx.dispatch_typed_action(
-                        AppearancePageAction::ToggleToolsPanelProjectExplorer,
-                    );
-                })
-                .finish(),
-            Some("Show the project explorer / file tree tab in the tools panel.".to_string()),
-        )
-    }
-}
-
-#[derive(Default)]
-struct ToolsPanelConversationHistoryWidget {
-    switch_state: SwitchStateHandle,
-}
-
-impl SettingsWidget for ToolsPanelConversationHistoryWidget {
-    type View = AppearanceSettingsPageView;
-
-    fn search_terms(&self) -> &str {
-        "tools panel tabs conversation history agent conversations left panel visibility"
-    }
-
-    fn render(
-        &self,
-        _view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        render_body_item::<AppearancePageAction>(
-            "Agent conversations".to_string(),
-            None,
-            LocalOnlyIconState::Hidden,
-            ToggleState::Enabled,
-            appearance,
-            appearance
-                .ui_builder()
-                .switch(self.switch_state.clone())
-                .check(*AISettings::as_ref(app).show_conversation_history)
-                .build()
-                .on_click(|evt_ctx, _app, _v2f| {
-                    evt_ctx.dispatch_typed_action(
-                        AppearancePageAction::ToggleToolsPanelConversationHistory,
-                    );
-                })
-                .finish(),
-            Some("Show the agent conversation history tab in the tools panel.".to_string()),
-        )
-    }
-}
-
-#[derive(Default)]
-struct ToolsPanelGlobalSearchWidget {
-    switch_state: SwitchStateHandle,
-}
-
-impl SettingsWidget for ToolsPanelGlobalSearchWidget {
-    type View = AppearanceSettingsPageView;
-
-    fn search_terms(&self) -> &str {
-        "tools panel tabs global file search left panel visibility"
-    }
-
-    fn render(
-        &self,
-        _view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        render_body_item::<AppearancePageAction>(
-            "Global search".to_string(),
-            None,
-            LocalOnlyIconState::Hidden,
-            ToggleState::Enabled,
-            appearance,
-            appearance
-                .ui_builder()
-                .switch(self.switch_state.clone())
-                .check(*CodeSettings::as_ref(app).show_global_search)
-                .build()
-                .on_click(|evt_ctx, _app, _v2f| {
-                    evt_ctx
-                        .dispatch_typed_action(AppearancePageAction::ToggleToolsPanelGlobalSearch);
-                })
-                .finish(),
-            Some("Show the global file search tab in the tools panel.".to_string()),
-        )
-    }
-}
-
 struct InputTypeWidget {
     radio_buttons_states: Vec<MouseStateHandle>,
 }
@@ -4037,75 +3734,6 @@ impl SettingsWidget for ShowBlockDividersWidget {
                 .finish(),
             None,
         )
-    }
-}
-
-#[derive(Default)]
-struct AIFontWidget {
-    checkbox_state: MouseStateHandle,
-}
-
-impl SettingsWidget for AIFontWidget {
-    type View = AppearanceSettingsPageView;
-
-    fn search_terms(&self) -> &str {
-        "text agent ai font family font size monospace"
-    }
-
-    fn render(
-        &self,
-        view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let font_settings = FontSettings::as_ref(app);
-        let mut ai_font_row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
-        let mut ai_font = Flex::column();
-        ai_font.add_child(render_body_item_label::<AppearancePageAction>(
-            "Agent font".to_string(),
-            None,
-            None,
-            LocalOnlyIconState::for_setting(
-                AIFontName::storage_key(),
-                AIFontName::sync_to_cloud(),
-                &mut view.local_only_icon_tooltip_states.borrow_mut(),
-                app,
-            ),
-            ToggleState::Enabled,
-            appearance,
-        ));
-        ai_font.add_child(
-            Container::new(ChildView::new(&view.ai_font_family_dropdown).finish())
-                .with_margin_bottom(10.)
-                .finish(),
-        );
-
-        ai_font_row
-            .add_child(Shrinkable::new(1., Align::new(ai_font.finish()).left().finish()).finish());
-        ai_font_row.add_child(
-            appearance
-                .ui_builder()
-                .checkbox(self.checkbox_state.clone(), None)
-                .check(*font_settings.match_ai_font_to_terminal_font)
-                .build()
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(
-                        AppearancePageAction::ToggleMatchAIToTerminalFontFamily,
-                    )
-                })
-                .finish(),
-        );
-        ai_font_row.add_child(
-            appearance
-                .ui_builder()
-                .span("Match terminal".to_string())
-                .build()
-                .with_margin_left(2.)
-                .with_margin_right(16.)
-                .finish(),
-        );
-
-        ai_font_row.finish()
     }
 }
 
@@ -5488,14 +5116,6 @@ impl SettingsPageMeta for AppearanceSettingsPageView {
 
     fn update_filter(&mut self, query: &str, ctx: &mut ViewContext<Self>) -> MatchData {
         self.page.update_filter(query, ctx)
-    }
-
-    fn scroll_to_widget(&mut self, widget_id: &'static str) {
-        self.page.scroll_to_widget(widget_id)
-    }
-
-    fn clear_highlighted_widget(&mut self) {
-        self.page.clear_highlighted_widget();
     }
 }
 

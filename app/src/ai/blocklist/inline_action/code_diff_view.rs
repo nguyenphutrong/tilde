@@ -12,7 +12,6 @@ use anyhow::Result;
 use futures::FutureExt;
 use futures::future::BoxFuture;
 use lazy_static::lazy_static;
-use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_geometry::vector::vec2f;
 use rand::distributions::Alphanumeric;
 use rand::{Rng as _, thread_rng};
@@ -33,11 +32,10 @@ use warpui::elements::new_scrollable::{ScrollableAppearance, SingleAxisConfig};
 use warpui::elements::{
     Align, Border, ChildAnchor, ChildView, Clipped, ClippedScrollStateHandle, ConstrainedBox,
     Container, CornerRadius, CrossAxisAlignment, DispatchEventResult, Empty, EventHandler, Flex,
-    FormattedTextElement, HighlightedHyperlink, Hoverable, MainAxisAlignment, MainAxisSize,
-    MouseStateHandle, NewScrollable, OffsetPositioning, ParentAnchor, ParentElement,
-    ParentOffsetBounds, PositionedElementAnchor, PositionedElementOffsetBounds, Radius,
-    SavePosition, ScrollTarget, ScrollToPositionMode, ScrollbarWidth, Shrinkable,
-    SizeConstraintCondition, SizeConstraintSwitch, Stack, Text,
+    Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle, NewScrollable, OffsetPositioning,
+    ParentAnchor, ParentElement, ParentOffsetBounds, PositionedElementAnchor,
+    PositionedElementOffsetBounds, Radius, SavePosition, ScrollTarget, ScrollToPositionMode,
+    ScrollbarWidth, Shrinkable, SizeConstraintCondition, SizeConstraintSwitch, Stack, Text,
 };
 use warpui::keymap::{EditableBinding, FixedBinding, Keystroke};
 use warpui::platform::{Cursor, OperatingSystem};
@@ -208,7 +206,6 @@ struct CodeDiffViewMouseStates {
     show_hide_button: MouseStateHandle,
     scroll_icon_button: MouseStateHandle,
     passive_code_suggestion_checkbox: MouseStateHandle,
-    ai_settings_link_highlight_index: HighlightedHyperlink,
     skill_button_handle: MouseStateHandle,
     stats_badge_button: MouseStateHandle,
     mcp_config_button_handle: MouseStateHandle,
@@ -229,7 +226,6 @@ pub enum CodeDiffViewEvent {
     EditorFocused,
     Blur,
     DisplayModeChanged,
-    OpenSettings,
     CancelPassive,
     ViewDetails,
     ContinuePassiveCodeDiffWithAgent {
@@ -308,7 +304,6 @@ pub enum CodeDiffViewAction {
     SelectFile(Direction),
     ScrollToExpand,
     ToggleCodeSuggestions,
-    OpenSettings,
     ToggleAcceptMenu,
     OpenCodeReviewPane,
     RevertChanges,
@@ -2306,7 +2301,6 @@ impl CodeDiffView {
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let font_color = theme.sub_text_color(theme.background()).into_solid();
-        let font_family = appearance.ui_font_family();
         let font_size = 12.;
 
         let checked = AISettings::as_ref(app).is_code_suggestions_enabled(app);
@@ -2343,27 +2337,6 @@ impl CodeDiffView {
             .build()
             .finish();
 
-        let formatted_text = FormattedTextElement::new(
-            FormattedText::new([FormattedTextLine::Line(vec![
-                FormattedTextFragment::hyperlink(
-                    "Manage suggested code banner settings",
-                    "Settings > AI",
-                ),
-            ])]),
-            font_size,
-            font_family,
-            font_family,
-            font_color,
-            self.button_mouse_states
-                .ai_settings_link_highlight_index
-                .clone(),
-        )
-        .with_hyperlink_font_color(blended_colors::accent_fg_strong(theme).into())
-        .register_default_click_handlers(|_, ctx, _| {
-            ctx.dispatch_typed_action(CodeDiffViewAction::OpenSettings);
-        })
-        .finish();
-
         let mut container = Container::new(
             Flex::row()
                 .with_main_axis_size(MainAxisSize::Max)
@@ -2375,7 +2348,6 @@ impl CodeDiffView {
                         .with_children([checkbox, checkbox_text])
                         .finish(),
                 )
-                .with_child(formatted_text)
                 .finish(),
         )
         .with_horizontal_padding(INLINE_ACTION_HORIZONTAL_PADDING)
@@ -2652,9 +2624,6 @@ impl TypedActionView for CodeDiffView {
                         ctx
                     );
                 }
-            }
-            CodeDiffViewAction::OpenSettings => {
-                ctx.emit(CodeDiffViewEvent::OpenSettings);
             }
             CodeDiffViewAction::OpenCodeReviewPane => {
                 self.code_review_button.update(ctx, |_, ctx| {

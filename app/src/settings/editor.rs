@@ -110,24 +110,6 @@ impl CodeEditorLineNumberMode {
     }
 }
 
-#[derive(Clone, Copy, Default, Debug, Serialize, Deserialize, PartialEq)]
-pub enum TabBehavior {
-    #[default]
-    Completions,
-    Autosuggestions,
-    UserDefined,
-}
-
-impl TabBehavior {
-    pub fn dropdown_item_label(&self) -> &'static str {
-        match self {
-            TabBehavior::Completions => "Open completions menu",
-            TabBehavior::Autosuggestions => "Accept autosuggestion",
-            TabBehavior::UserDefined => "User defined",
-        }
-    }
-}
-
 /// This enum is used to enforce options in the dropdown for selecting a separator with the Warp prompt.
 /// Note that these separators are added at the END of the Warp prompt (used in the case of same line prompt).
 #[derive(

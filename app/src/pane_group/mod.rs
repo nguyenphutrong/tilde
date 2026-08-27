@@ -63,7 +63,6 @@ use crate::ai::blocklist::suggested_agent_mode_workflow_modal::SuggestedAgentMod
 use crate::ai::blocklist::suggested_rule_modal::SuggestedRuleAndId;
 use crate::ai::blocklist::{BlocklistAIHistoryModel, InputConfig, SerializedBlockListItem};
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel, AIDocumentVersion};
-use crate::ai::execution_profiles::ExecutionProfileId;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::llms::LLMId;
 use crate::ai::restored_conversations::RestoredAgentConversations;
@@ -118,7 +117,6 @@ use crate::server::telemetry::{
 use crate::session_management::SessionNavigationData;
 use crate::settings::{AISettings, DefaultSessionMode, PaneSettings};
 use crate::settings_view::SettingsSection;
-use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
 use crate::shell_indicator::ShellIndicatorType;
 use crate::terminal::available_shells::{AvailableShell, AvailableShells};
 #[cfg(not(target_family = "wasm"))]
@@ -695,9 +693,6 @@ pub enum Event {
     OpenThemeChooser,
     InvalidatedActiveConversation,
     OpenConversationHistory,
-    OpenMCPSettingsPage {
-        page: Option<MCPServersSettingsPage>,
-    },
     OpenAddPromptPane {
         /// The initial prompt body content.
         initial_content: Option<String>,
@@ -727,9 +722,6 @@ pub enum Event {
     #[cfg(feature = "local_fs")]
     FileDeleted {
         path: PathBuf,
-    },
-    OpenAgentProfileEditor {
-        profile_id: ExecutionProfileId,
     },
     RepoChanged,
     AttachPathAsContext {
@@ -2750,7 +2742,7 @@ impl PaneGroup {
                 if let Some(pane) = self.focused_pane_content(ctx) {
                     pane.focus(ctx);
                 }
-                ctx.emit(Event::OpenSettings(SettingsSection::Teams));
+                ctx.dispatch_typed_action(&WorkspaceAction::ShowUpgrade);
                 ctx.notify();
 
                 send_telemetry_from_ctx!(TelemetryEvent::SharedSessionModalUpgradePressed, ctx);

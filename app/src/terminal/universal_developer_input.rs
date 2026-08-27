@@ -542,11 +542,6 @@ impl UniversalDeveloperInputButtonBar {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            ProfileModelSelectorEvent::OpenSettings(settings_section) => {
-                ctx.emit(UniversalDeveloperInputButtonBarEvent::OpenSettings(
-                    *settings_section,
-                ));
-            }
             ProfileModelSelectorEvent::MenuVisibilityChanged { open } => {
                 if *open {
                     // When model selector menu opens, close other overlays

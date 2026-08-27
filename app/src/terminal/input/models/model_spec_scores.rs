@@ -1,8 +1,8 @@
 use pathfinder_color::ColorU;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
-    Border, ConstrainedBox, Container, CornerRadius, Expanded, Flex, MainAxisAlignment,
-    MainAxisSize, ParentElement as _, Percentage, Radius, Rect, Stack, Text,
+    Border, ConstrainedBox, Container, CornerRadius, Expanded, Flex, MainAxisSize,
+    ParentElement as _, Percentage, Radius, Rect, Stack, Text,
 };
 use warpui::prelude::{Align, CrossAxisAlignment};
 use warpui::text_layout::ClipConfig;
@@ -25,13 +25,8 @@ pub const CUSTOM_MODEL_ROUTER_TITLE: &str = "Custom Model Router";
 pub const CUSTOM_MODEL_ROUTER_DESCRIPTION: &str = "Routes each request to a concrete model based on your routing rules, rather than using a single fixed model.";
 
 pub enum CostRow {
-    Bar {
-        value: Option<f32>,
-    },
-    BilledToProvider {
-        label: &'static str,
-        manage_button: Box<dyn Element>,
-    },
+    Bar { value: Option<f32> },
+    BilledToProvider { label: &'static str },
 }
 
 pub struct ModelSpecScoresLayout {
@@ -71,16 +66,10 @@ pub fn render_model_spec_scores(
                 app,
             ));
         }
-        CostRow::BilledToProvider {
-            label,
-            manage_button,
-        } => {
+        CostRow::BilledToProvider { label } => {
             rows.push(render_score_row(
                 "Cost",
-                ScoreRowKind::BilledToProvider {
-                    label,
-                    manage_button,
-                },
+                ScoreRowKind::BilledToProvider { label },
                 layout.bg_bar_color,
                 app,
             ));
@@ -94,13 +83,8 @@ pub fn render_model_spec_scores(
 }
 
 enum ScoreRowKind {
-    Bar {
-        value: Option<f32>,
-    },
-    BilledToProvider {
-        label: &'static str,
-        manage_button: Box<dyn Element>,
-    },
+    Bar { value: Option<f32> },
+    BilledToProvider { label: &'static str },
 }
 
 fn render_score_row(
@@ -189,20 +173,7 @@ fn render_score_row(
             )
             .finish()
         }
-        ScoreRowKind::BilledToProvider {
-            label,
-            manage_button,
-        } => Expanded::new(
-            1.,
-            Flex::row()
-                .with_main_axis_size(MainAxisSize::Max)
-                .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(render_provider_label(label, appearance))
-                .with_child(Container::new(manage_button).with_margin_left(8.).finish())
-                .finish(),
-        )
-        .finish(),
+        ScoreRowKind::BilledToProvider { label } => render_provider_label(label, appearance),
     };
 
     Flex::row()

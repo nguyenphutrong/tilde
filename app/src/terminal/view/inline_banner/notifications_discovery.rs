@@ -16,7 +16,6 @@ pub enum NotificationsDiscoveryBannerAction {
     LearnMore,
     Troubleshoot,
     TurnOn(NotificationsTrigger),
-    Configure,
     Close,
 }
 
@@ -25,7 +24,6 @@ pub struct NotificationsDiscoveryBannerMouseStates {
     pub learn_more: MouseStateHandle,
     pub troubleshoot: MouseStateHandle,
     pub turn_on: MouseStateHandle,
-    pub configure: MouseStateHandle,
     pub close: MouseStateHandle,
 }
 
@@ -72,14 +70,8 @@ pub fn render_inline_notifications_discovery_banner(
     };
 
     let (title, buttons) = match notifications_mode {
-        NotificationsMode::Dismissed => (
-            "We won't show this banner again, but you can always go to Settings to enable notifications.",
-            vec![],
-        ),
-        NotificationsMode::Disabled => (
-            "Notifications were turned off, but you can always go to Settings to enable notifications.",
-            vec![],
-        ),
+        NotificationsMode::Dismissed => ("We won't show this banner again.", vec![]),
+        NotificationsMode::Disabled => ("Notifications were turned off.", vec![]),
         NotificationsMode::Unset => (
             trigger.discovery_banner_copy(),
             vec![
@@ -123,25 +115,7 @@ pub fn render_inline_notifications_discovery_banner(
                 ),
             };
 
-            (
-                title,
-                vec![
-                    docs_button,
-                    InlineBannerTextButton {
-                        text: "Configure notifications".to_string(),
-                        text_color: active_ui_text_color,
-                        button_state: InlineBannerButtonState {
-                            on_click_event: TerminalAction::NotificationsDiscoveryBanner(
-                                NotificationsDiscoveryBannerAction::Configure,
-                            ),
-                            mouse_state_handle: state.mouse_states.configure.clone(),
-                        },
-                        font: Default::default(),
-                        position_id: None,
-                        variant: InlineBannerTextButtonVariant::Secondary,
-                    },
-                ],
-            )
+            (title, vec![docs_button])
         }
     };
 

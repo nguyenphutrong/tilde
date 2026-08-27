@@ -72,9 +72,7 @@ pub enum DrivePanelEvent {
     },
     OpenSearch,
     OpenSharedObjectsCreationDeniedModal(DriveObjectType, ServerId),
-    OpenTeamSettingsPage,
     OpenAIFactCollection,
-    OpenMCPServerCollection,
     OpenImportModal {
         owner: Owner,
         initial_folder_id: Option<SyncId>,
@@ -244,9 +242,6 @@ impl DrivePanel {
             DriveIndexEvent::OpenAIFactCollection => {
                 self.open_ai_fact_collection_pane(ctx);
             }
-            DriveIndexEvent::OpenMCPServerCollection => {
-                self.open_mcp_server_collection_pane(ctx);
-            }
             DriveIndexEvent::OpenWorkflowInPane {
                 cloud_object_type_and_id,
                 open_mode,
@@ -296,9 +291,6 @@ impl DrivePanel {
             #[cfg(not(feature = "local_fs"))]
             DriveIndexEvent::ExportObject(_cloud_object_type_and_id) => {
                 // No-op when no local filesystem.
-            }
-            DriveIndexEvent::OpenTeamSettingsPage => {
-                ctx.emit(DrivePanelEvent::OpenTeamSettingsPage)
             }
             DriveIndexEvent::RunObject(id) => {
                 let cloud_model = CloudModel::as_ref(ctx);
@@ -596,10 +588,6 @@ impl DrivePanel {
 
     pub fn open_ai_fact_collection_pane(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.emit(DrivePanelEvent::OpenAIFactCollection);
-    }
-
-    pub fn open_mcp_server_collection_pane(&mut self, ctx: &mut ViewContext<Self>) {
-        ctx.emit(DrivePanelEvent::OpenMCPServerCollection);
     }
 
     /// Recomputes and initializes the section states for the WD Index. This is needed after

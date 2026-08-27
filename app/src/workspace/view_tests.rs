@@ -63,7 +63,6 @@ use crate::server::sync_queue::SyncQueue;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings::PrivacySettings;
 use crate::settings::cloud_preferences_syncer::CloudPreferencesSyncer;
-use crate::settings_view::DisplayCount;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::suggestions::ignored_suggestions_model::IgnoredSuggestionsModel;
 use crate::system::SystemStats;
@@ -117,7 +116,6 @@ pub(crate) fn initialize_app(app: &mut App) {
     app.add_singleton_model(Listener::mock);
     app.add_singleton_model(|_| Appearance::mock());
     app.add_singleton_model(AppearanceManager::new);
-    app.add_singleton_model(|_| DisplayCount::mock());
     app.add_singleton_model(PrivacySettings::mock);
     app.add_singleton_model(|_| KeybindingChangedNotifier::new());
     app.add_singleton_model(|_ctx| RelaunchModel::new());

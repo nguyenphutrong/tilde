@@ -30,11 +30,10 @@ use crate::ai::request_usage_model::{
 use crate::auth::AuthStateProvider;
 use crate::features::FeatureFlag;
 use crate::menu::MenuItemFields;
-use crate::pricing::{PricingInfoModel, PricingInfoModelEvent};
+use crate::pricing::{PricingInfoModel, PricingInfoModelEvent, create_discount_badge};
 use crate::send_telemetry_from_ctx;
 use crate::server::ids::ServerId;
 use crate::server::telemetry::{OutOfCreditsBannerAction, TelemetryEvent};
-use crate::settings_view::create_discount_badge;
 use crate::view_components::{Dropdown, DropdownAction};
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 
@@ -955,7 +954,7 @@ impl BuyCreditsBanner {
 
 #[derive(Clone, Debug)]
 pub enum BuyCreditsBannerEvent {
-    OpenBillingAndUsage,
+    OpenBillingPortal { team_uid: ServerId },
     RefocusInput,
     OpenAutoReloadModal { purchased_credits: i32 },
     ShowAutoReloadError { error_message: &'static str },
@@ -1039,7 +1038,11 @@ impl warpui::TypedActionView for BuyCreditsBanner {
                 ctx.notify();
             }
             Action::ManageBilling => {
-                ctx.emit(BuyCreditsBannerEvent::OpenBillingAndUsage);
+                if let Some(team) =
+                    UserWorkspaces::as_ref(ctx).team_for_view_handle(&self.view_handle, ctx)
+                {
+                    ctx.emit(BuyCreditsBannerEvent::OpenBillingPortal { team_uid: team.uid });
+                }
                 self.should_display_banner = false;
                 AIRequestUsageModel::handle(ctx).update(ctx, |model, ctx| {
                     model.dismiss_buy_credits_banner(ctx);

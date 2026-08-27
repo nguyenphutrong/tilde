@@ -2,7 +2,6 @@ use std::fmt::Debug;
 use std::path::PathBuf;
 
 use ai::project_context::model::{ProjectContextModel, ProjectContextModelEvent};
-use markdown_parser::weight::CustomWeight;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use warp_core::ui::appearance::{Appearance, AppearanceEvent};
 use warp_core::ui::theme::color::internal_colors;
@@ -55,9 +54,7 @@ const ZERO_STATE_TEXT_PROJECT: &str =
     "Once you generate a WARP.md rules file for a project, it will appear here.";
 
 const DISABLED_BANNER_TEXT: &str =
-    "Your rules are disabled and won't be used as context in sessions. You can ";
-const DISABLED_BANNER_LINK_TEXT: &str = "turn it back on";
-const DISABLED_BANNER_TEXT_2: &str = " anytime.";
+    "Your rules are disabled and won't be used as context in sessions.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuleScope {
@@ -69,7 +66,6 @@ pub enum RuleScope {
 pub enum RuleViewEvent {
     AddRule,
     Edit(SyncId),
-    OpenSettings,
     OpenFile(LocalOrRemotePath),
     InitializeProject(PathBuf),
 }
@@ -79,7 +75,6 @@ pub enum RuleViewAction {
     AddRule,
     InitializeProject,
     Edit(SyncId),
-    OpenSettings,
     SelectScope(RuleScope),
     OpenFile(LocalOrRemotePath),
 }
@@ -601,15 +596,10 @@ impl RuleView {
     }
 
     fn render_disabled_banner(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let mut link = FormattedTextFragment::hyperlink(DISABLED_BANNER_LINK_TEXT, "Settings > AI");
-        link.styles.weight = Some(CustomWeight::Bold);
-
         let formatted_text = FormattedTextElement::new(
-            FormattedText::new([FormattedTextLine::Line(vec![
-                FormattedTextFragment::bold(DISABLED_BANNER_TEXT),
-                link,
-                FormattedTextFragment::bold(DISABLED_BANNER_TEXT_2),
-            ])]),
+            FormattedText::new([FormattedTextLine::Line(vec![FormattedTextFragment::bold(
+                DISABLED_BANNER_TEXT,
+            )])]),
             style::SUBTEXT_FONT_SIZE,
             appearance.ui_font_family(),
             appearance.ui_font_family(),
@@ -619,10 +609,7 @@ impl RuleView {
                 .into(),
             self.disabled_banner_highlight_index.clone(),
         )
-        .with_hyperlink_font_color(internal_colors::accent_fg_strong(appearance.theme()).into())
-        .register_default_click_handlers(|_, ctx, _| {
-            ctx.dispatch_typed_action(RuleViewAction::OpenSettings);
-        });
+        .with_hyperlink_font_color(internal_colors::accent_fg_strong(appearance.theme()).into());
 
         Container::new(
             Flex::row()
@@ -987,9 +974,6 @@ impl TypedActionView for RuleView {
             }
             RuleViewAction::Edit(sync_id) => {
                 ctx.emit(RuleViewEvent::Edit(*sync_id));
-            }
-            RuleViewAction::OpenSettings => {
-                ctx.emit(RuleViewEvent::OpenSettings);
             }
             RuleViewAction::SelectScope(scope) => {
                 self.select_scope(*scope, ctx);

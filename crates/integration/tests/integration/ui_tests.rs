@@ -192,8 +192,6 @@ integration_tests! {
 
     test_create_folder_from_command_palette,
 
-    test_tab_behavior_setting,
-
     test_private_public_settings_routing_with_flag_enabled,
     test_private_settings_preloaded_and_not_leaked_to_toml,
     test_history_command_is_linked_to_local_workflow,

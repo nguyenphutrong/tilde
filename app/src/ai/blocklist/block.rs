@@ -180,7 +180,6 @@ use crate::settings::{
     InputModeSettings, InputModeSettingsChangedEvent, InputSettings,
     OrchestrationMessageDisplayMode,
 };
-use crate::settings_view::SettingsSection;
 use crate::terminal::find::TerminalFindModel;
 use crate::terminal::model::BlockId;
 use crate::terminal::model::secrets::RichContentSecretTooltipInfo;
@@ -465,10 +464,6 @@ pub(super) struct AIBlockStateHandles {
     autoread_files_speedbump_checkbox_handle: MouseStateHandle,
     codebase_search_speedbump_option_handles: Vec<MouseStateHandle>,
     codebase_search_speedbump_radio_button_handle: RadioButtonStateHandle,
-    manage_autonomy_settings_link_handle: MouseStateHandle,
-
-    ask_user_question_speedbump_settings_link_handle: MouseStateHandle,
-
     /// Mouse state handles for rating the AI block.
     thumbs_up_handle: MouseStateHandle,
     thumbs_down_handle: MouseStateHandle,
@@ -483,9 +478,6 @@ pub(super) struct AIBlockStateHandles {
     debug_copy_button_handle: MouseStateHandle,
     /// Mouse state handle for the submit issue button
     submit_issue_button_handle: MouseStateHandle,
-
-    /// Mouse state handle for the invalid API key button
-    invalid_api_key_button_handle: MouseStateHandle,
 
     /// Mouse state handle for the Subscribe button shown on the out-of-credits error
     subscribe_button_handle: MouseStateHandle,
@@ -3327,9 +3319,6 @@ impl AIBlock {
                 CodeDiffViewEvent::DisplayModeChanged => {
                     ctx.notify();
                 }
-                CodeDiffViewEvent::OpenSettings => {
-                    ctx.emit(AIBlockEvent::OpenSettings);
-                }
                 CodeDiffViewEvent::CancelPassive => {
                     ctx.emit(AIBlockEvent::DismissedPassiveBlock);
                 }
@@ -3532,9 +3521,6 @@ impl AIBlock {
                         &self.action_model,
                         self.terminal_model.clone(),
                         self.autonomy_setting_speedbump.clone(),
-                        self.state_handles
-                            .manage_autonomy_settings_link_handle
-                            .clone(),
                         self.view_id,
                         ctx,
                     );
@@ -3628,9 +3614,6 @@ impl AIBlock {
                 // Actions within the editor should clear all other text selections
                 self.clear_other_selections(Some(view.id()), ctx.window_id(), ctx);
             }
-            RequestedCommandViewEvent::OpenActiveAgentProfileEditor => {
-                ctx.emit(AIBlockEvent::OpenActiveAgentProfileEditor);
-            }
         }
     }
 
@@ -3683,9 +3666,6 @@ impl AIBlock {
                         &self.action_model,
                         self.terminal_model.clone(),
                         self.autonomy_setting_speedbump.clone(),
-                        self.state_handles
-                            .manage_autonomy_settings_link_handle
-                            .clone(),
                         self.view_id,
                         ctx,
                     );
@@ -3748,9 +3728,6 @@ impl AIBlock {
             // There's nothing to do here for MCP tool calls; their expanded state
             // doesn't change the blocklist like it does for requested commands.
             RequestedCommandViewEvent::UpdatedExpansionState { .. } => {}
-            RequestedCommandViewEvent::OpenActiveAgentProfileEditor => {
-                ctx.emit(AIBlockEvent::OpenActiveAgentProfileEditor);
-            }
         }
     }
 
@@ -3815,10 +3792,6 @@ impl AIBlock {
                 if action_id == view.as_ref(ctx).action_id()
         );
         if speedbump_matches {
-            let settings_link_handle = self
-                .state_handles
-                .ask_user_question_speedbump_settings_link_handle
-                .clone();
             if let AutonomySettingSpeedbump::ShouldShowForAskUserQuestion { shown, .. } =
                 &self.autonomy_setting_speedbump
             {
@@ -3826,7 +3799,6 @@ impl AIBlock {
             }
             let terminal_view_id = self.terminal_view_id;
             view.update(ctx, |view, ctx| {
-                view.set_speedbump_settings_link(Some(settings_link_handle), ctx);
                 view.init_speedbump_dropdown(ctx);
                 view.refresh_speedbump_dropdown_selection(terminal_view_id, ctx);
             });
@@ -4167,14 +4139,6 @@ impl AIBlock {
             AwsBedrockCredentialsErrorEvent::RunLoginCommand => {
                 ctx.emit(AIBlockEvent::RunAwsLoginCommand);
             }
-            AwsBedrockCredentialsErrorEvent::ConfigureLoginCommand => {
-                // Defer so Workspace is not opened while AIBlock is still mid-subscription.
-                // Synchronous dispatch here can panic with "Circular view update".
-                ctx.dispatch_typed_action_deferred(WorkspaceAction::ShowSettingsPageWithSearch {
-                    search_query: "aws bedrock".to_string(),
-                    section: Some(SettingsSection::WarpAgent),
-                });
-            }
         });
 
         self.aws_bedrock_credentials_error_view = Some(view);
@@ -4208,14 +4172,6 @@ impl AIBlock {
                         crate::ai::geap_credentials::force_refresh_geap_credentials(manager, ctx);
                     });
                 }
-            }
-            GeminiEnterpriseCredentialsErrorEvent::OpenSettings => {
-                // Defer so Workspace is not opened while AIBlock is still mid-subscription.
-                // Synchronous dispatch here can panic with "Circular view update".
-                ctx.dispatch_typed_action_deferred(WorkspaceAction::ShowSettingsPageWithSearch {
-                    search_query: "gemini enterprise".to_string(),
-                    section: Some(SettingsSection::WarpAgent),
-                });
             }
         });
 
@@ -4432,9 +4388,6 @@ impl AIBlock {
             }
             SuggestedUnitTestsEvent::Blur => {
                 ctx.emit(AIBlockEvent::FocusTerminal);
-            }
-            SuggestedUnitTestsEvent::OpenSettings => {
-                ctx.emit(AIBlockEvent::OpenSettings);
             }
         }
     }
@@ -6229,7 +6182,6 @@ pub enum AIBlockEvent {
     /// the point-based model selection, so this signal is required.
     SelectionChanged,
     CopiedEmptyText,
-    OpenSettings,
     #[cfg(feature = "local_fs")]
     OpenCodeInWarp {
         source: CodeSource,
@@ -6249,7 +6201,6 @@ pub enum AIBlockEvent {
         document_version: AIDocumentVersion,
         is_auto_open: bool,
     },
-    OpenActiveAgentProfileEditor,
     /// Run the configured AWS auth refresh command to fix expired Bedrock credentials
     RunAwsLoginCommand,
     /// Emitted when a passive code diff has loaded its diffs and is ready to display.
@@ -6398,8 +6349,6 @@ pub enum AIBlockAction {
     },
     /// Run the configured AWS auth refresh command to fix expired Bedrock credentials
     RunAwsLoginCommand,
-    /// Open settings to configure the AWS auth refresh command
-    ConfigureAwsLoginCommand,
     /// Open the screenshot lightbox for a UseComputer action.
     ViewScreenshot {
         action_id: AIAgentActionId,
@@ -6978,12 +6927,6 @@ impl TypedActionView for AIBlock {
                     let current = *settings.aws_bedrock_auto_login.value();
                     let new_value = !current;
                     report_if_error!(settings.aws_bedrock_auto_login.set_value(new_value, ctx));
-                });
-            }
-            AIBlockAction::ConfigureAwsLoginCommand => {
-                ctx.dispatch_typed_action(&WorkspaceAction::ShowSettingsPageWithSearch {
-                    search_query: "aws bedrock".to_string(),
-                    section: Some(SettingsSection::WarpAgent),
                 });
             }
             AIBlockAction::ToggleImportedCommentCollapsed {

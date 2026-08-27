@@ -273,8 +273,6 @@ use crate::ai::blocklist::{
 use crate::ai::conversation_details_panel::ConversationDetailsPanelEvent;
 use crate::ai::conversation_utils;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel, AIDocumentVersion};
-use crate::ai::execution_profiles::ExecutionProfileId;
-use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
 use crate::ai::llms::{LLMId, LLMModelHost, LLMPreferences};
 use crate::ai::loading::shimmering_warp_loading_text;
@@ -367,7 +365,6 @@ use crate::settings::{
     PrivacySettingsSnapshot, SelectionSettings, VimBannerSettings,
 };
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
-use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
 use crate::settings_view::{SettingsSection, flags};
 use crate::shell_indicator::ShellIndicatorType;
 use crate::terminal::alias::{AliasedCommand, check_for_alias_async};
@@ -1927,9 +1924,6 @@ pub enum Event {
 
     OpenThemeChooser,
     OpenConversationHistory,
-    OpenMCPSettingsPage {
-        page: Option<MCPServersSettingsPage>,
-    },
     OpenAddRulePane,
     OpenRulesPane,
     OpenAddPromptPane {
@@ -1963,9 +1957,6 @@ pub enum Event {
         force_open: bool,
     },
     SlowBootstrap,
-    OpenAgentProfileEditor {
-        profile_id: ExecutionProfileId,
-    },
     OpenAutoReloadModal {
         purchased_credits: i32,
     },
@@ -10580,9 +10571,6 @@ impl TerminalView {
                 }
                 ctx.notify();
             }
-            CodebaseIndexSpeedbumpBannerAction::ViewStatus => {
-                ctx.emit(Event::OpenSettings(SettingsSection::CodeIndexing));
-            }
             CodebaseIndexSpeedbumpBannerAction::DismissForever => {
                 AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
                     if let Err(e) = ai_settings
@@ -14221,9 +14209,6 @@ impl TerminalView {
                     });
                     // Clicking this button doesn't mark the step as running, so we don't need to
                     // register anything to mark the step as complete.
-                }
-                InitProjectModelEvent::ViewCodebaseContextStatus => {
-                    ctx.emit(Event::OpenSettings(SettingsSection::CodeIndexing));
                 }
                 InitProjectModelEvent::LanguageServerInstalledAndEnabled => {
                     #[cfg(feature = "local_fs")]
@@ -20796,9 +20781,6 @@ impl TerminalView {
             } => {
                 self.handle_usage_footer_toggled(block.id(), *conversation_id, *is_expanded, ctx);
             }
-            AIBlockEvent::OpenSettings => {
-                ctx.emit(Event::OpenSettings(SettingsSection::WarpAgent));
-            }
             #[cfg(feature = "local_fs")]
             AIBlockEvent::OpenCodeInWarp { source, layout } => {
                 ctx.emit(Event::OpenCodeInWarp {
@@ -20854,13 +20836,6 @@ impl TerminalView {
                     document_id: *document_id,
                     document_version: *document_version,
                     is_auto_open: *is_auto_open,
-                });
-            }
-            AIBlockEvent::OpenActiveAgentProfileEditor => {
-                let profiles_model = AIExecutionProfilesModel::as_ref(ctx);
-                let active_profile = profiles_model.active_profile(Some(self.view_id), ctx);
-                ctx.emit(Event::OpenAgentProfileEditor {
-                    profile_id: active_profile.id().clone(),
                 });
             }
             AIBlockEvent::OpenThemeChooser => {
@@ -22097,12 +22072,6 @@ impl TerminalView {
             }
             InputEvent::OpenProjectRulesPane => {
                 self.handle_action(&TerminalAction::OpenProjectRulesPane, ctx);
-            }
-            InputEvent::OpenViewMCPPane => {
-                self.handle_action(&TerminalAction::OpenViewMCPPane, ctx);
-            }
-            InputEvent::OpenAddMCPPane => {
-                self.handle_action(&TerminalAction::OpenAddMCPPane, ctx);
             }
             InputEvent::OpenEnvironmentManagementPane => {
                 self.open_environment_management_pane(ctx);
@@ -25649,9 +25618,6 @@ impl TerminalView {
                 );
                 ctx.notify();
             }
-            Configure => {
-                ctx.emit(Event::OpenSettings(SettingsSection::Features));
-            }
             Close => {
                 // Update settings to mark notifications as dismissed to prevent banner from showing again
                 let current_settings = SessionSettings::as_ref(ctx).notifications.value().clone();
@@ -26825,7 +26791,6 @@ impl TypedActionView for TerminalView {
             | StartFileDropTarget
             | StopFileDropTarget
             | RunNativeShellCompletions { .. }
-            | OpenTeamSettingsPage
             | HideTelemetryBannerPermanently
             | GenerateCodebaseIndex
             | LoadAgentModeConversation
@@ -26840,9 +26805,6 @@ impl TypedActionView for TerminalView {
             | OpenProjectRulesPane
             | InitProject
             | IndexProjectSpeedbump
-            | OpenViewMCPPane
-            | OpenAddMCPPane
-            | OpenBillingAndUsagePane
             | OpenAddRulePane
             | OpenRulesPane
             | OpenEditSkillPane { .. }
@@ -27465,9 +27427,6 @@ impl TypedActionView for TerminalView {
                     results_tx: results_tx.clone(),
                 });
             }
-            OpenTeamSettingsPage => {
-                ctx.emit(Event::OpenSettings(SettingsSection::Teams));
-            }
             SetMarkedText {
                 marked_text,
                 selected_range,
@@ -27776,19 +27735,6 @@ impl TypedActionView for TerminalView {
                             .value(),
                     });
                 }
-            }
-            OpenViewMCPPane => {
-                ctx.emit(Event::OpenMCPSettingsPage {
-                    page: Some(MCPServersSettingsPage::List),
-                });
-            }
-            OpenAddMCPPane => {
-                ctx.emit(Event::OpenMCPSettingsPage {
-                    page: Some(MCPServersSettingsPage::Edit { item_id: None }),
-                });
-            }
-            OpenBillingAndUsagePane => {
-                ctx.emit(Event::OpenSettings(SettingsSection::BillingAndUsage));
             }
             OpenAddRulePane => {
                 ctx.emit(Event::OpenAddRulePane);

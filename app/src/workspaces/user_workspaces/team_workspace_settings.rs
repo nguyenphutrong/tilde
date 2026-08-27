@@ -23,9 +23,7 @@ use crate::server::ids::ServerId;
 use crate::settings::AgentModeCommandExecutionPredicate;
 use crate::workspaces::gql_convert::ToAgentModeCommandExecutionPredicates;
 use crate::workspaces::team::Team;
-use crate::workspaces::workspace::{
-    AdminEnablementSetting, AiAutonomySettings, TeamByoSettings, Workspace,
-};
+use crate::workspaces::workspace::{AiAutonomySettings, TeamByoSettings, Workspace};
 
 mod sealed {
     pub trait Sealed {}
@@ -334,21 +332,6 @@ impl UserWorkspaces {
             |team| team.settings.default_host_slug.as_deref(),
             |workspace| workspace.settings.default_host_slug.as_deref(),
             None,
-        )
-    }
-
-    /// The agent attribution policy for `scope`'s team: `Enable` and `Disable` lock the user's
-    /// attribution toggle, `RespectUserSetting` leaves it editable. See
-    /// [`Self::scoped_or_workspace_setting`] for the no-team fallback.
-    pub(crate) fn get_agent_attribution_setting<S: TeamScope + ?Sized>(
-        &self,
-        scope: &S,
-    ) -> AdminEnablementSetting {
-        self.scoped_or_workspace_setting(
-            scope,
-            |team| team.settings.enable_warp_attribution.clone(),
-            |workspace| workspace.settings.enable_warp_attribution.clone(),
-            AdminEnablementSetting::default(),
         )
     }
 

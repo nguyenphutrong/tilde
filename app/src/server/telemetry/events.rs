@@ -56,7 +56,6 @@ use crate::server::ids::{ObjectUid, ServerId};
 use crate::settings::AgentModeCodingPermissionsType;
 use crate::settings::import::config::ParsedTerminalSetting;
 use crate::settings::import::model::TerminalType;
-use crate::settings_view::TeamsInviteOption;
 use crate::tab::TabTelemetryAction;
 use crate::terminal::ShareBlockType;
 use crate::terminal::block_list_viewport::InputMode;
@@ -1510,7 +1509,6 @@ pub enum TelemetryEvent {
     DeletedWorkflow,
     DeletedNotebook,
     ToggleApprovalsModal,
-    ChangedInviteViewOption(TeamsInviteOption),
     SendEmailInvites,
     SetLineHeight {
         new_value: f32,
@@ -4049,7 +4047,6 @@ impl TelemetryEvent {
             | TelemetryEvent::DeletedWorkflow
             | TelemetryEvent::DeletedNotebook
             | TelemetryEvent::ToggleApprovalsModal
-            | TelemetryEvent::ChangedInviteViewOption(_)
             | TelemetryEvent::SendEmailInvites
             | TelemetryEvent::ResourceCenterOpened
             | TelemetryEvent::ResourceCenterTipsCompleted
@@ -4831,7 +4828,6 @@ impl TelemetryEvent {
             | TelemetryEvent::DeletedWorkflow
             | TelemetryEvent::DeletedNotebook
             | TelemetryEvent::ToggleApprovalsModal
-            | TelemetryEvent::ChangedInviteViewOption(_)
             | TelemetryEvent::SendEmailInvites
             | TelemetryEvent::SetLineHeight { .. }
             | TelemetryEvent::ResourceCenterOpened
@@ -5370,7 +5366,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::DeletedWorkflow => EnablementState::Always,
             Self::DeletedNotebook => EnablementState::Always,
             Self::ToggleApprovalsModal => EnablementState::Always,
-            Self::ChangedInviteViewOption => EnablementState::Always,
             Self::SendEmailInvites => EnablementState::Always,
             Self::SetLineHeight => EnablementState::Always,
             Self::ResourceCenterOpened => EnablementState::Always,
@@ -5981,7 +5976,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::DeletedWorkflow => "Deleted Workflow",
             Self::DeletedNotebook => "Deleted Notebook",
             Self::ToggleApprovalsModal => "Toggle Approvals Modal",
-            Self::ChangedInviteViewOption => "Changed invite view option",
             Self::SendEmailInvites => "Sent email invites",
             Self::TierLimitHit => "Tier Limit Hit",
             Self::SharedObjectLimitHitBannerViewPlansButtonClicked => {
@@ -6449,7 +6443,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::DeletedWorkflow => "Deleted workflow from Warp Drive team",
             Self::DeletedNotebook => "Deleted notebook from Warp Drive team",
             Self::ToggleApprovalsModal => "Opened or closed teams modal",
-            Self::ChangedInviteViewOption => "Toggled between link and invite for invite",
             Self::SendEmailInvites => "Sent email invites for Warp Drive team",
             Self::SetLineHeight => "Set line height through Settings -> Appearance",
             Self::ResourceCenterOpened => "Opened Resource Center pane",

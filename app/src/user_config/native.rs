@@ -65,9 +65,8 @@ impl super::WarpConfig {
         if FeatureFlag::CustomModelRouters.is_enabled() {
             let _ = ctx.spawn(
                 async move { load_model_configs(&custom_model_routers_dir()) },
-                |me, (models, errors), ctx| {
+                |me, (models, _), ctx| {
                     me.custom_model_routers = models;
-                    me.custom_model_router_errors = errors;
                     ctx.emit(WarpConfigUpdateEvent::ModelConfigs);
                     // Don't emit ModelConfigErrors on startup — like tab configs,
                     // the error toast should only appear when the user saves a
@@ -150,7 +149,6 @@ impl super::WarpConfig {
                 async move { load_model_configs(&dir_path) },
                 |me, (models, errors), ctx| {
                     me.custom_model_routers = models;
-                    me.custom_model_router_errors = errors.clone();
                     ctx.emit(WarpConfigUpdateEvent::ModelConfigs);
                     if !errors.is_empty() {
                         ctx.emit(WarpConfigUpdateEvent::ModelConfigErrors(errors));
@@ -202,15 +200,6 @@ impl super::WarpConfig {
         std::fs::write(&path, yaml)
             .map_err(|e| anyhow::anyhow!("could not write router file: {e}"))?;
         Ok(path)
-    }
-
-    /// Deletes a custom model router file from disk.
-    /// The filesystem watcher in [`Self::handle_warp_managed_paths_event`] will
-    /// pick up the deletion and reload `custom_model_routers`.
-    #[cfg(feature = "local_fs")]
-    pub fn delete_custom_model_router(source_path: &std::path::Path) -> anyhow::Result<()> {
-        std::fs::remove_file(source_path)
-            .map_err(|e| anyhow::anyhow!("could not delete router file: {e}"))
     }
 
     /// This method takes a file name candidate (appends .yaml if missing) and a LaunchConfig as

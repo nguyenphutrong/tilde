@@ -11,6 +11,7 @@ pub use ::ai::agent::{
 pub use ai::agent::action::{RunAgentsAgentRunConfig, RunAgentsExecutionMode, RunAgentsRequest};
 pub use ai::agent::orchestration_config::{OrchestrationConfig, OrchestrationConfigStatus};
 pub use repo_metadata::repositories::RepoDetectionSource;
+use thousands::Separable as _;
 #[cfg(feature = "voice_input")]
 pub use voice_input::{
     StartListeningError, VoiceInput, VoiceInputLifecycle, VoiceInputLifecycleState,
@@ -282,11 +283,20 @@ pub use crate::workspaces::user_workspaces::{
 pub use crate::workspaces::workspace::{AiCreditsUsageAndCostType, UsageVisibilityGranularity};
 
 pub fn format_usage_cost_cents(cents: i64) -> String {
-    crate::settings_view::format_cost_cents(cents)
+    let dollars = cents / 100;
+    let remainder = (cents.abs() % 100) as u8;
+    if dollars < 0 {
+        format!(
+            "-${}.{remainder:02}",
+            dollars.unsigned_abs().separate_with_commas()
+        )
+    } else {
+        format!("${}.{remainder:02}", dollars.separate_with_commas())
+    }
 }
 
 pub fn format_usage_credits(credits: i64) -> String {
-    crate::settings_view::format_credits(credits)
+    credits.separate_with_commas()
 }
 
 /// Builds the live-shell completion context used to parse TUI input for NLD.

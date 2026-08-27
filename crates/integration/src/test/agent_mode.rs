@@ -333,8 +333,6 @@ T This is a dummy title
         });
 
     if is_copy_on_select {
-        // For some reason, dispatching FeaturesPageAction::ToggleCopyOnSelect using the toggle_setting fn
-        // doesn't work because the action doesn't get processed.
         builder = builder.with_step(
             new_step_with_default_assertions("Enable copy on select").add_assertion(|app, _| {
                 SelectionSettings::handle(app).update(app, |settings, ctx| {

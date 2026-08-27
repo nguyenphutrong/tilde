@@ -16,7 +16,6 @@ use crate::ai::credit_availability::{AICreditAvailability, AICreditDenialReason}
 use crate::auth::AuthStateProvider;
 use crate::network::NetworkStatus;
 use crate::server::ids::ServerId;
-use crate::settings_view::SettingsSection;
 use crate::ui_components::icons::Icon;
 use crate::workspace::WorkspaceAction;
 use crate::workspaces::user_workspaces::UserWorkspaces;
@@ -44,14 +43,12 @@ const NON_ADMIN_ASK_ADMIN_TO_INCREASE_OVERAGES_TEXT: &str =
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PromptAlertAction {
     SignUpClickedForAnonymousUser,
-    OpenSettingsClicked,
     ManageBillingClicked { team_uid: ServerId },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PromptAlertEvent {
     SignupAnonymousUser,
-    OpenBillingAndUsagePage,
     OpenBillingPortal { team_uid: ServerId },
 }
 
@@ -324,7 +321,9 @@ impl PromptAlertView {
                     text_fragments.push(FormattedTextFragment::plain_text("  "));
                     text_fragments.push(FormattedTextFragment::hyperlink_action(
                         OVERAGES_TOGGLEABLE_BUT_NOT_ENABLED_ACTION_TEXT,
-                        PromptAlertAction::OpenSettingsClicked,
+                        PromptAlertAction::ManageBillingClicked {
+                            team_uid: current_team.map(|team| team.uid).unwrap_or_default(),
+                        },
                     ));
                 } else {
                     text_fragments.push(FormattedTextFragment::plain_text(
@@ -337,7 +336,9 @@ impl PromptAlertView {
                     text_fragments.push(FormattedTextFragment::plain_text("  "));
                     text_fragments.push(FormattedTextFragment::hyperlink_action(
                         MONTHLY_OVERAGES_SPEND_LIMIT_REACHED_ACTION_TEXT,
-                        PromptAlertAction::OpenSettingsClicked,
+                        PromptAlertAction::ManageBillingClicked {
+                            team_uid: current_team.map(|team| team.uid).unwrap_or_default(),
+                        },
                     ));
                 } else {
                     text_fragments.push(FormattedTextFragment::plain_text(
@@ -380,16 +381,6 @@ impl PromptAlertView {
                             UPGRADE_TEXT
                         };
                     text_fragments.push(FormattedTextFragment::hyperlink(label, upgrade_url));
-                }
-                if UserWorkspaces::as_ref(app).is_byo_api_key_enabled(app) {
-                    text_fragments.push(FormattedTextFragment::plain_text(" or "));
-                    text_fragments.push(FormattedTextFragment::hyperlink_action(
-                        "use your own API keys",
-                        WorkspaceAction::ShowSettingsPageWithSearch {
-                            search_query: "api".to_string(),
-                            section: Some(SettingsSection::WarpAgent),
-                        },
-                    ));
                 }
             }
             PromptAlertState::NoAlert => {}
@@ -448,11 +439,11 @@ impl View for PromptAlertView {
                     | PromptAlertState::MonthlyOveragesSpendLimitReached
             );
 
-        if suggest_buy_credits {
+        if suggest_buy_credits && let Some(team) = current_team {
             text_fragments.push(FormattedTextFragment::plain_text("  "));
             text_fragments.push(FormattedTextFragment::hyperlink_action(
-                "Add credits",
-                WorkspaceAction::ShowSettingsPage(SettingsSection::BillingAndUsage),
+                "Manage billing",
+                PromptAlertAction::ManageBillingClicked { team_uid: team.uid },
             ));
         } else {
             self.action_hyperlink(&state, &mut text_fragments, app);
@@ -521,9 +512,6 @@ impl TypedActionView for PromptAlertView {
         match action {
             PromptAlertAction::SignUpClickedForAnonymousUser => {
                 ctx.emit(PromptAlertEvent::SignupAnonymousUser);
-            }
-            PromptAlertAction::OpenSettingsClicked => {
-                ctx.emit(PromptAlertEvent::OpenBillingAndUsagePage);
             }
             PromptAlertAction::ManageBillingClicked { team_uid } => {
                 ctx.emit(PromptAlertEvent::OpenBillingPortal {

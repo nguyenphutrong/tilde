@@ -19,9 +19,7 @@ use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
 use crate::auth::AuthStateProvider;
-use crate::settings_view::SettingsSection;
 use crate::ui_components::blended_colors;
-use crate::workspace::WorkspaceAction;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const MODAL_WIDTH: f32 = 480.;
@@ -30,15 +28,12 @@ const PANEL_PADDING: f32 = 24.;
 const CLOSE_BUTTON_DIAMETER: f32 = 20.;
 
 const NOTICE_TITLE_TEXT: &str = "Warp is no longer providing inference on the free plan.";
-const NOTICE_BODY_TEXT: &str = "To keep using Warp's AI features, please upgrade to a paid plan, \
-     bring your own API key or endpoint, or log in with your Grok subscription.";
+const NOTICE_BODY_TEXT: &str = "To keep using Warp's AI features, please upgrade to a paid plan.";
 const NOTICE_BONUS_CREDITS_TEXT: &str = "If you have any unused bonus credits, AI will keep \
      working until these run out.";
 
 const PROMPT_SUGGESTIONS_TITLE_TEXT: &str = "How to use AI features in Warp";
-const PROMPT_SUGGESTIONS_BODY_TEXT: &str = "To use AI features in Warp, subscribe to a paid plan, \
-     add an API key (OpenAI, Anthropic, or Google), add a custom inference endpoint (OpenRouter, \
-     LiteLLM), or log in using your SuperGrok subscription.";
+const PROMPT_SUGGESTIONS_BODY_TEXT: &str = "To use AI features in Warp, subscribe to a paid plan.";
 
 /// Which surface opened the modal. Selects the copy and disambiguates telemetry;
 /// the layout and CTAs are identical across variants.
@@ -96,7 +91,6 @@ pub fn init(app: &mut AppContext) {
 #[derive(Clone, Debug)]
 pub enum FreeAiRemovalModalAction {
     Close,
-    SetUpByok,
     Upgrade,
 }
 
@@ -108,7 +102,6 @@ pub enum FreeAiRemovalModalEvent {
 #[derive(Default)]
 struct StateHandles {
     close_button: MouseStateHandle,
-    byok_button: MouseStateHandle,
     upgrade_button: MouseStateHandle,
 }
 
@@ -141,25 +134,6 @@ impl FreeAiRemovalModal {
     }
 
     fn render_buttons(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let byok_button = appearance
-            .ui_builder()
-            .button(
-                ButtonVariant::Secondary,
-                self.state_handles.byok_button.clone(),
-            )
-            .with_style(UiComponentStyles {
-                font_size: Some(14.),
-                height: Some(32.),
-                ..Default::default()
-            })
-            .with_centered_text_label("Bring your own AI".to_string())
-            .build()
-            .with_cursor(Cursor::PointingHand)
-            .on_click(|ctx, _, _| {
-                ctx.dispatch_typed_action(FreeAiRemovalModalAction::SetUpByok);
-            })
-            .finish();
-
         let upgrade_button = appearance
             .ui_builder()
             .button(
@@ -184,7 +158,6 @@ impl FreeAiRemovalModal {
             .with_main_axis_alignment(MainAxisAlignment::End)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_spacing(8.)
-            .with_child(byok_button)
             .with_child(upgrade_button)
             .finish()
     }
@@ -308,22 +281,6 @@ impl TypedActionView for FreeAiRemovalModal {
                 );
                 ctx.emit(FreeAiRemovalModalEvent::Close);
             }
-            FreeAiRemovalModalAction::SetUpByok => {
-                send_telemetry_from_ctx!(
-                    FreeAiRemovalModalTelemetryEvent::CtaClicked {
-                        variant: self.variant,
-                        cta: FreeAiRemovalModalCta::SetUpByok,
-                    },
-                    ctx
-                );
-                // Deferred so the close-driven refocus below doesn't steal focus from
-                // the settings page this opens.
-                ctx.dispatch_typed_action_deferred(WorkspaceAction::ShowSettingsPageWithSearch {
-                    search_query: "api".to_string(),
-                    section: Some(SettingsSection::WarpAgent),
-                });
-                ctx.emit(FreeAiRemovalModalEvent::Close);
-            }
             FreeAiRemovalModalAction::Upgrade => {
                 send_telemetry_from_ctx!(
                     FreeAiRemovalModalTelemetryEvent::CtaClicked {
@@ -342,14 +299,12 @@ impl TypedActionView for FreeAiRemovalModal {
 
 #[derive(Debug, Clone, Copy)]
 pub enum FreeAiRemovalModalCta {
-    SetUpByok,
     Upgrade,
 }
 
 impl FreeAiRemovalModalCta {
     fn as_str(&self) -> &'static str {
         match self {
-            Self::SetUpByok => "set_up_byok",
             Self::Upgrade => "upgrade",
         }
     }

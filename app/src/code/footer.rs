@@ -63,7 +63,6 @@ struct WorkspaceMouseStates {
     restart_all: MouseStateHandle,
     stop_all: MouseStateHandle,
     start_all: MouseStateHandle,
-    manage_servers: MouseStateHandle,
 }
 
 /// Determines the operating mode of the footer.
@@ -153,8 +152,6 @@ pub enum CodeFooterViewAction {
     StopAllServers,
     #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     StartAllServers,
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
-    ManageServers,
 }
 
 enum LSPServerRenderStatus {
@@ -1082,10 +1079,6 @@ impl CodeFooterView {
                 appearance,
             ));
         }
-        col.add_child(Self::render_manage_servers_menu_item(
-            mouse_states,
-            appearance,
-        ));
 
         Self::wrap_menu_in_dismiss(col, appearance)
     }
@@ -1348,28 +1341,6 @@ impl CodeFooterView {
                 "Start all servers"
             },
             CodeFooterViewAction::StartAllServers,
-        )
-    }
-
-    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
-    fn render_manage_servers_menu_item(
-        mouse_states: &WorkspaceMouseStates,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
-        let theme = appearance.theme();
-        let background = theme.surface_2();
-        let text_color: ColorU = theme.main_text_color(background).into();
-
-        Self::render_menu_item(
-            appearance,
-            mouse_states.manage_servers.clone(),
-            move || {
-                Icon::Gear
-                    .to_warpui_icon(ThemeFill::Solid(text_color))
-                    .finish()
-            },
-            "Manage servers",
-            CodeFooterViewAction::ManageServers,
         )
     }
 
@@ -1700,7 +1671,6 @@ pub enum CodeFooterViewEvent {
     StartAllServers {
         servers: Vec<ModelHandle<LspServerModel>>,
     },
-    ManageServers,
 }
 
 impl Entity for CodeFooterView {
@@ -1974,11 +1944,6 @@ impl TypedActionView for CodeFooterView {
                 self.is_lsp_menu_open = false;
                 let live = self.live_servers(ctx);
                 ctx.emit(CodeFooterViewEvent::StartAllServers { servers: live });
-                ctx.notify();
-            }
-            CodeFooterViewAction::ManageServers => {
-                self.is_lsp_menu_open = false;
-                ctx.emit(CodeFooterViewEvent::ManageServers);
                 ctx.notify();
             }
         }
