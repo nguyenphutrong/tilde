@@ -29,6 +29,8 @@ mod pipeline;
 pub(crate) mod snapshot;
 #[cfg(feature = "local_fs")]
 pub(crate) mod touched_repos;
+#[cfg(feature = "local_fs")]
+pub(crate) mod upload;
 
 #[cfg(feature = "local_fs")]
 #[cfg_attr(not(feature = "tui"), allow(unused_imports))]

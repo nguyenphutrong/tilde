@@ -1147,9 +1147,7 @@ impl BlocklistAIHistoryModel {
             .is_some_and(|c| c.is_exchange_hidden(exchange_id))
     }
 
-    /// Test-only, crate-visible wrapper around [`Self::update_conversation_for_new_request_input`]
-    /// so tests outside this module (e.g. `agent_sdk::driver_tests`) can attach an in-flight
-    /// request to a conversation without widening that method's production visibility.
+    /// Test-only, crate-visible wrapper around [`Self::update_conversation_for_new_request_input`].
     #[cfg(test)]
     pub(crate) fn update_conversation_for_new_request_input_for_test(
         &mut self,

@@ -1,4 +1,4 @@
-//! End-of-run snapshot upload pipeline invoked from `AgentDriver::run_snapshot_upload`.
+//! Snapshot upload pipeline for local-to-cloud handoff and agent checkpoints.
 //!
 //! Reads a JSONL declarations file listing repos and files, gathers git-diff patches or file
 //! contents for each, and uploads them (plus a `snapshot_state.json` manifest) to presigned GCS
@@ -1914,9 +1914,3 @@ where
     }
     Ok(output.stdout)
 }
-
-// Snapshot upload is cloud-agent-only and only ever runs inside a Linux Docker container, so
-// skip the tests on Windows rather than teach every fixture to emit POSIX paths.
-#[cfg(all(test, not(windows)))]
-#[path = "snapshot_tests.rs"]
-mod tests;

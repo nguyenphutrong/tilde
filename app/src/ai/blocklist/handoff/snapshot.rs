@@ -7,8 +7,8 @@ use remote_server::proto::UploadHandoffSnapshotResponse;
 use warp_util::standardized_path::StandardizedPath;
 use warpui::{SingletonEntity, ViewContext};
 
-use crate::ai::agent_sdk::driver::upload_snapshot_for_handoff;
 use crate::ai::blocklist::handoff::touched_repos::{TouchedWorkspace, derive_touched_workspace};
+use crate::ai::blocklist::handoff::upload::upload_snapshot_for_handoff;
 use crate::remote_server::manager::RemoteServerManager;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::ai::{AIClient, InitialSnapshotToken};

@@ -690,10 +690,6 @@ pub enum ConversationDetailsPanelAction {
 #[derive(Debug)]
 enum DetailsPanelLocalContinuationInfo {
     Conversation(AIConversationId),
-    ThirdPartyTask {
-        task_id: AmbientAgentTaskId,
-        harness: AIAgentHarness,
-    },
 }
 
 pub fn init(app: &mut AppContext) {
@@ -919,18 +915,6 @@ impl ConversationDetailsPanel {
                 }
 
                 match self.data.harness {
-                    Some(Harness::Claude) => {
-                        Some(DetailsPanelLocalContinuationInfo::ThirdPartyTask {
-                            task_id: *task_id.as_ref()?,
-                            harness: AIAgentHarness::ClaudeCode,
-                        })
-                    }
-                    Some(Harness::Codex) => {
-                        Some(DetailsPanelLocalContinuationInfo::ThirdPartyTask {
-                            task_id: *task_id.as_ref()?,
-                            harness: AIAgentHarness::Codex,
-                        })
-                    }
                     Some(Harness::Oz) | None => {
                         let server_token =
                             ServerConversationToken::new(conversation_id.as_ref()?.clone());
@@ -938,7 +922,13 @@ impl ConversationDetailsPanel {
                             .find_conversation_id_by_server_token(&server_token)
                             .map(DetailsPanelLocalContinuationInfo::Conversation)
                     }
-                    Some(Harness::Gemini | Harness::OpenCode | Harness::Unknown) => None,
+                    Some(
+                        Harness::Claude
+                        | Harness::Codex
+                        | Harness::Gemini
+                        | Harness::OpenCode
+                        | Harness::Unknown,
+                    ) => None,
                 }
             }
         }
@@ -2567,21 +2557,11 @@ impl TypedActionView for ConversationDetailsPanel {
                         AgentManagementTelemetryEvent::DetailsPanelContinueLocally,
                         ctx
                     );
-                    match continuation_info {
-                        DetailsPanelLocalContinuationInfo::Conversation(conversation_id) => {
-                            ctx.dispatch_typed_action(
-                                &WorkspaceAction::ContinueConversationLocally { conversation_id },
-                            );
-                        }
-                        DetailsPanelLocalContinuationInfo::ThirdPartyTask { task_id, harness } => {
-                            ctx.dispatch_typed_action(
-                                &WorkspaceAction::ContinueThirdPartyConversationLocally {
-                                    task_id,
-                                    harness,
-                                },
-                            );
-                        }
-                    }
+                    let DetailsPanelLocalContinuationInfo::Conversation(conversation_id) =
+                        continuation_info;
+                    ctx.dispatch_typed_action(&WorkspaceAction::ContinueConversationLocally {
+                        conversation_id,
+                    });
                 }
             }
             ConversationDetailsPanelAction::OpenInOz => {
