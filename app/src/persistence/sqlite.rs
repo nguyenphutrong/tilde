@@ -11,17 +11,13 @@ use anyhow::{Context, Result, anyhow, bail};
 use chrono::Utc;
 use cloud_object_models::folder::persistence as folder_persistence;
 use cloud_object_models::folder::persistence::upsert_folders;
-use cloud_object_models::json_model::persistence::{
-    self as generic_string_persistence, PersistedGenericStringObject,
-};
 use cloud_object_models::notebook::persistence as notebook_persistence;
 use cloud_object_models::notebook::persistence::upsert_notebooks;
 use cloud_object_models::workflow::persistence as workflow_persistence;
 use cloud_object_models::workflow::persistence::upsert_workflows;
 use cloud_object_persistence::{
     GenericStringObjectPersistenceData, delete_cloud_object, delete_generic_string_object,
-    increment_retry_count, load_cloud_object_read_context, mark_object_as_synced,
-    read_time_of_next_force_object_refresh, record_time_of_next_refresh,
+    increment_retry_count, mark_object_as_synced, record_time_of_next_refresh,
     update_object_after_server_creation, update_object_metadata,
     upsert_generic_string_objects as upsert_generic_string_object_rows,
 };
@@ -41,16 +37,12 @@ use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
 use persistence::model::AMBIENT_AGENT_PANE_KIND;
 use uuid::Uuid;
-use warp_core::features::FeatureFlag;
 use warp_errors::{report_error, report_if_error};
+use warpui::AppContext;
 use warpui::platform::FullscreenState;
 use warpui::windowing::{MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH};
-use warpui::{AppContext, SingletonEntity};
 
-use super::agent::{
-    backfill_conversation_summaries, delete_agent_conversations, read_agent_conversation_metadata,
-    upsert_agent_conversation,
-};
+use super::agent::{delete_agent_conversations, upsert_agent_conversation};
 use super::block_list::{
     delete_ai_conversation, delete_blocks, save_block, update_block_agent_view_visibility,
     upsert_ai_query,
@@ -69,8 +61,7 @@ use super::{
 };
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
-use crate::ai::mcp::templatable_installation::VariableValue;
-use crate::ai::mcp::{TemplatableMCPServer, TemplatableMCPServerInstallation};
+use crate::ai::mcp::TemplatableMCPServerInstallation;
 use crate::ai::persisted_workspace::EnablementState;
 use crate::app_state::{
     AIFactPaneSnapshot, AmbientAgentPaneSnapshot, AppState, BranchSnapshot, CodePaneSnapShot,
@@ -79,24 +70,17 @@ use crate::app_state::{
     RightPanelSnapshot, SettingsPaneSnapshot, SplitDirection, TabGroupSnapshot, TabSnapshot,
     TerminalPaneSnapshot, WindowSnapshot, WorkflowPaneSnapshot,
 };
-use crate::auth::UserUid;
 use crate::auth::auth_manager::PersistedCurrentUserInformation;
-use crate::auth::auth_state::AuthStateProvider;
-use crate::cloud_object::model::actions::{
-    ObjectAction, ObjectActionSubtype, object_action_from_persisted,
-};
+use crate::cloud_object::ObjectIdType;
+use crate::cloud_object::model::actions::{ObjectAction, ObjectActionSubtype};
 use crate::cloud_object::model::generic_string_model::{CloudStringObject, GenericStringObjectId};
-use crate::cloud_object::{CloudObject, ObjectIdType};
 use crate::code::editor_management::CodeSource;
 use crate::drive::OpenWarpDriveObjectSettings;
 use crate::notebooks::NotebookId;
-use crate::persistence::block_list::{
-    get_all_restored_blocks, process_ai_queries_for_nld_history_match,
-    process_ai_queries_for_uparrow_prompt, read_recent_ai_queries,
-};
+use crate::persistence::block_list::get_all_restored_blocks;
 use crate::persistence::model::{
     CODE_REVIEW_PANE_KIND, GET_STARTED_PANE_KIND, NewPersistedObjectAction, NewTeamSettings,
-    ProjectRules, UserProfile,
+    UserProfile,
 };
 use crate::server::experiments::ServerExperiment;
 use crate::server::ids::{ClientId, HashableId, ServerId, SyncId};
@@ -109,8 +93,7 @@ use crate::terminal::history::PersistedCommand;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::workflows::WorkflowId;
 use crate::workspace::tab_group::TabGroupId;
-use crate::workspaces::team::Team as TeamMetadata;
-use crate::workspaces::user_profiles::{UserProfileWithUID, user_profile_from_persistence};
+use crate::workspaces::user_profiles::UserProfileWithUID;
 use crate::workspaces::workspace::{Workspace as WorkspaceMetadata, WorkspaceUid};
 use crate::{safe_info, send_telemetry_from_app_ctx};
 
@@ -140,7 +123,7 @@ pub fn initialize(
     let database_path = database_file_path_for_scope(&scope);
     match init_db(&scope) {
         Ok(mut conn) => {
-            let mut persisted_data = read_persisted_data(&mut conn, ctx, data_scope);
+            let persisted_data = read_persisted_data(&mut conn, ctx, data_scope);
 
             let writer_handles = match start_writer(conn, database_path.clone()) {
                 Ok(writer_handles) => Some(writer_handles),
@@ -153,23 +136,6 @@ pub fn initialize(
                     None
                 }
             };
-
-            // Persist any read-time-derived conversation summaries so the
-            // derivation only happens once per pre-`summary`-column row.
-            if let (Some(persisted_data), Some(writer_handles)) =
-                (persisted_data.as_mut(), writer_handles.as_ref())
-            {
-                let backfills = std::mem::take(&mut persisted_data.conversation_summary_backfills);
-                if !backfills.is_empty() {
-                    log::info!("Backfilling {} conversation summaries", backfills.len());
-                    report_if_error!(
-                        writer_handles
-                            .sender
-                            .send(ModelEvent::BackfillConversationSummaries { backfills })
-                            .context("Error requesting conversation summary backfill")
-                    );
-                }
-            }
 
             (persisted_data, writer_handles)
         }
@@ -189,8 +155,7 @@ fn read_persisted_data(
     ctx: &mut AppContext,
     data_scope: PersistedDataScope,
 ) -> Option<Box<PersistedData>> {
-    let user_uid = AuthStateProvider::as_ref(ctx).get().user_id();
-    match read_sqlite_data(conn, user_uid, data_scope) {
+    match read_sqlite_data(conn, data_scope) {
         Ok(app_state) => Some(Box::new(app_state)),
         Err(err) => {
             send_telemetry_from_app_ctx!(TelemetryEvent::DatabaseReadError(err.to_string()), ctx);
@@ -364,19 +329,11 @@ pub(super) fn init_db(scope: &PersistenceScope) -> Result<SqliteConnection> {
             "Encountered an error while creating parent directories for sqlite database: {err:#}"
         );
     }
-    if matches!(scope, PersistenceScope::RemoteServerDaemon { .. }) {
-        ensure_owner_only_dir(db_parent)?;
-    }
-
     if matches!(scope, PersistenceScope::App) {
         migrate_old_sqlite_into_secure_container_if_needed(&db_path);
     }
 
-    let conn = setup_database(&db_path)?;
-    if matches!(scope, PersistenceScope::RemoteServerDaemon { .. }) {
-        ensure_owner_only_file(&db_path)?;
-    }
-    Ok(conn)
+    setup_database(&db_path)
 }
 
 fn migrate_old_sqlite_into_secure_container_if_needed(db_path: &Path) {
@@ -454,9 +411,6 @@ pub fn database_file_path_for_scope(scope: &PersistenceScope) -> PathBuf {
     match scope {
         PersistenceScope::App => app_database_file_path(),
         PersistenceScope::Tui => tui_database_file_path(),
-        PersistenceScope::RemoteServerDaemon { identity_key } => {
-            remote_server_daemon_database_file_path(identity_key)
-        }
     }
 }
 
@@ -478,43 +432,6 @@ fn app_database_file_path() -> PathBuf {
 
 fn tui_database_file_path() -> PathBuf {
     warp_core::paths::tui_state_dir().join(WARP_SQLITE_FILE_NAME)
-}
-
-fn remote_server_daemon_database_file_path(identity_key: &str) -> PathBuf {
-    let data_dir = remote_server::setup::remote_server_daemon_data_dir(identity_key);
-    let expanded_data_dir = shellexpand::tilde(&data_dir).into_owned();
-    PathBuf::from(expanded_data_dir).join(WARP_SQLITE_FILE_NAME)
-}
-
-#[cfg(unix)]
-fn ensure_owner_only_dir(path: &Path) -> Result<()> {
-    use std::fs::Permissions;
-    use std::os::unix::fs::PermissionsExt;
-
-    std::fs::set_permissions(path, Permissions::from_mode(0o700))
-        .with_context(|| format!("setting permissions on directory {}", path.display()))
-}
-
-#[cfg(not(unix))]
-fn ensure_owner_only_dir(_path: &Path) -> Result<()> {
-    Ok(())
-}
-
-#[cfg(unix)]
-fn ensure_owner_only_file(path: &Path) -> Result<()> {
-    use std::fs::Permissions;
-    use std::os::unix::fs::PermissionsExt;
-
-    if path.exists() {
-        std::fs::set_permissions(path, Permissions::from_mode(0o600))
-            .with_context(|| format!("setting permissions on file {}", path.display()))?;
-    }
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn ensure_owner_only_file(_path: &Path) -> Result<()> {
-    Ok(())
 }
 
 pub(super) fn remove(sender: SyncSender<ModelEvent>) {
@@ -766,11 +683,6 @@ fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> a
             conversation_data,
         )
         .map_err(anyhow::Error::from),
-        ModelEvent::BackfillConversationSummaries { backfills } => {
-            backfill_conversation_summaries(connection, backfills)
-                .map_err(anyhow::Error::from)
-                .context("error backfilling conversation summaries")
-        }
         ModelEvent::DeleteMultiAgentConversations { conversation_ids } => {
             delete_agent_conversations(connection, conversation_ids)
                 .map_err(anyhow::Error::from)
@@ -1525,48 +1437,6 @@ fn save_codebase_index_metadata(
     Ok(())
 }
 
-fn get_all_codebase_index_metadata(
-    conn: &mut SqliteConnection,
-) -> Result<Vec<ai::workspace::WorkspaceMetadata>, diesel::result::Error> {
-    use schema::workspace_metadata::dsl::*;
-
-    Ok(workspace_metadata
-        .load_iter::<WorkspaceMetadataModel, DefaultLoadingMode>(conn)?
-        .filter_map(|item| item.ok().map(ai::workspace::WorkspaceMetadata::from))
-        .collect_vec())
-}
-
-fn get_all_workspace_language_servers_by_workspace(
-    conn: &mut SqliteConnection,
-) -> Result<HashMap<PathBuf, HashMap<LSPServerType, EnablementState>>, diesel::result::Error> {
-    use schema::workspace_language_server::dsl::*;
-    use schema::workspace_metadata;
-
-    let results = workspace_language_server
-        .inner_join(workspace_metadata::table)
-        .select((workspace_metadata::repo_path, language_server_name, enabled))
-        .load::<(String, String, String)>(conn)?;
-
-    let mut grouped: HashMap<PathBuf, HashMap<LSPServerType, EnablementState>> = HashMap::new();
-    for (path_str, server_name, enablement_str) in results {
-        let path = PathBuf::from(path_str);
-        let Some(server_type) = serde_json::from_str(&server_name).ok() else {
-            continue;
-        };
-
-        let Some(enablement) = serde_json::from_str(&enablement_str).ok() else {
-            continue;
-        };
-
-        grouped
-            .entry(path)
-            .or_default()
-            .insert(server_type, enablement);
-    }
-
-    Ok(grouped)
-}
-
 fn upsert_workspace_language_server(
     conn: &mut SqliteConnection,
     workspace_path: &Path,
@@ -1640,38 +1510,12 @@ fn save_project(conn: &mut SqliteConnection, project: Project) -> Result<()> {
     Ok(())
 }
 
-fn get_all_projects(conn: &mut SqliteConnection) -> Result<Vec<Project>, diesel::result::Error> {
-    use schema::projects::dsl::*;
-
-    Ok(projects
-        .load_iter::<Project, DefaultLoadingMode>(conn)?
-        .filter_map(|item| item.ok())
-        .collect_vec())
-}
-
 fn delete_project(conn: &mut SqliteConnection, project_path: &str) -> Result<()> {
     use schema::projects::dsl::*;
 
     diesel::delete(projects.filter(path.eq(project_path))).execute(conn)?;
 
     Ok(())
-}
-
-fn get_all_project_rules(
-    conn: &mut SqliteConnection,
-) -> Result<Vec<ProjectRulePath>, diesel::result::Error> {
-    use schema::project_rules::dsl::*;
-
-    Ok(project_rules
-        .load_iter::<ProjectRules, DefaultLoadingMode>(conn)?
-        .filter_map(|item| match item {
-            Ok(rule) => Some(ProjectRulePath {
-                path: PathBuf::from(rule.path),
-                project_root: PathBuf::from(rule.project_root),
-            }),
-            Err(_) => None,
-        })
-        .collect_vec())
 }
 
 fn upsert_project_rules(
@@ -1728,50 +1572,6 @@ fn get_all_ignored_suggestions(
         .collect())
 }
 
-fn get_all_mcp_server_installations(
-    conn: &mut SqliteConnection,
-) -> Result<HashMap<Uuid, TemplatableMCPServerInstallation>, diesel::result::Error> {
-    use schema::mcp_server_installations::dsl::*;
-
-    let rows: Vec<(String, String, String)> = mcp_server_installations
-        .select((id, templatable_mcp_server, variable_values))
-        .load::<(String, String, String)>(conn)?;
-    let rows_len = rows.len();
-
-    let result: HashMap<Uuid, TemplatableMCPServerInstallation> = rows
-        .into_iter()
-        .filter_map(|(id_str, templ_mcp, vars_json)| {
-            let uuid = uuid::Uuid::parse_str(&id_str).ok()?;
-
-            // Parse variable_values JSON into a flat HashMap<String, String>
-            let vars: HashMap<String, VariableValue> =
-                match serde_json::from_str::<HashMap<String, VariableValue>>(&vars_json) {
-                    Ok(map) => map,
-                    Err(_) => return None,
-                };
-
-            let mcp_server = match serde_json::from_str::<TemplatableMCPServer>(&templ_mcp) {
-                Ok(map) => map,
-                Err(_) => return None,
-            };
-
-            Some((
-                uuid,
-                TemplatableMCPServerInstallation::new(uuid, mcp_server, vars),
-            ))
-        })
-        .collect();
-
-    let improper_rows = rows_len - result.len();
-    if improper_rows > 0 {
-        log::warn!(
-            "Skipping {improper_rows} rows from mcp_server_installations table due to malformation."
-        );
-    }
-
-    Ok(result)
-}
-
 fn upsert_mcp_server_installation(
     conn: &mut SqliteConnection,
     mcp_server_installation: TemplatableMCPServerInstallation,
@@ -1825,24 +1625,6 @@ fn delete_mcp_server_installations_by_template_uuid(
     .execute(conn)?;
 
     Ok(())
-}
-
-fn get_mcp_servers_to_restore(
-    conn: &mut SqliteConnection,
-) -> Result<Vec<Uuid>, diesel::result::Error> {
-    use schema::mcp_server_installations::dsl::*;
-
-    let rows = mcp_server_installations
-        .filter(restore_running.eq(true))
-        .select(id)
-        .load::<String>(conn)?;
-
-    let installation_uuid = rows
-        .iter()
-        .filter_map(|uuid| uuid::Uuid::parse_str(uuid).ok())
-        .collect();
-
-    Ok(installation_uuid)
 }
 
 fn update_mcp_server_running(
@@ -2451,22 +2233,6 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
     }
 }
 
-fn box_persisted_generic_string_object(
-    object: PersistedGenericStringObject,
-) -> Box<dyn CloudObject> {
-    match object {
-        PersistedGenericStringObject::Preference(object) => Box::new(object),
-        PersistedGenericStringObject::EnvVarCollection(object) => Box::new(object),
-        PersistedGenericStringObject::WorkflowEnum(object) => Box::new(object),
-        PersistedGenericStringObject::AIFact(object) => Box::new(object),
-        PersistedGenericStringObject::MCPServer(object) => Box::new(object),
-        PersistedGenericStringObject::TemplatableMCPServer(object) => Box::new(object),
-        PersistedGenericStringObject::AIExecutionProfile(object) => Box::new(object),
-        PersistedGenericStringObject::CloudEnvironment(object) => Box::new(object),
-        PersistedGenericStringObject::ScheduledAmbientAgent(object) => Box::new(object),
-    }
-}
-
 /// This is not in a transaction. The interface for a transaction is a bit awkward,
 /// and makes it invalid to write the logic recursively. It's ok it's not in a
 /// transaction because we should be the only connection using the database.
@@ -2478,34 +2244,8 @@ fn box_persisted_generic_string_object(
 /// In the future, the awkwardness of the transaction interface is resolved in diesel 2.0.0.
 fn read_sqlite_data(
     conn: &mut SqliteConnection,
-    current_user_id: Option<UserUid>,
     data_scope: PersistedDataScope,
 ) -> Result<PersistedData, Error> {
-    if matches!(data_scope, PersistedDataScope::CodebaseIndicesOnly) {
-        return Ok(PersistedData {
-            app_state: None,
-            cloud_objects: Default::default(),
-            workspaces: Default::default(),
-            current_workspace_uid: None,
-            command_history: Default::default(),
-            user_profiles: Default::default(),
-            time_of_next_force_object_refresh: None,
-            object_actions: Default::default(),
-            experiments: Default::default(),
-            ai_queries: Default::default(),
-            nld_prompts: Default::default(),
-            codebase_indices: get_all_codebase_index_metadata(conn)?,
-            workspace_language_servers: Default::default(),
-            multi_agent_conversations: Default::default(),
-            projects: Default::default(),
-            project_rules: Default::default(),
-            ignored_suggestions: Default::default(),
-            mcp_server_installations: Default::default(),
-            mcp_servers_to_restore: Default::default(),
-            conversation_summary_backfills: Default::default(),
-        });
-    }
-
     let app_state = if data_scope.session_restoration() {
         use schema::windows::dsl::*;
 
@@ -2717,207 +2457,19 @@ fn read_sqlite_data(
         None
     };
 
-    let read_context = load_cloud_object_read_context(conn, current_user_id)?;
-    let mut cloud_objects: Vec<Box<dyn CloudObject>> = Vec::new();
-    cloud_objects.extend(
-        workflow_persistence::read_workflows(conn, &read_context)?
-            .into_iter()
-            .map(|workflow| Box::new(workflow) as Box<dyn CloudObject>),
-    );
-    cloud_objects.extend(
-        notebook_persistence::read_notebooks(conn, &read_context)?
-            .into_iter()
-            .map(|notebook| Box::new(notebook) as Box<dyn CloudObject>),
-    );
-    cloud_objects.extend(
-        folder_persistence::read_folders(conn, &read_context)?
-            .into_iter()
-            .map(|folder| Box::new(folder) as Box<dyn CloudObject>),
-    );
-    cloud_objects.extend(
-        generic_string_persistence::read_generic_string_objects(conn, &read_context)?
-            .into_iter()
-            .map(box_persisted_generic_string_object),
-    );
-
-    let db_teams: Vec<model::Team> = schema::teams::dsl::teams.load(conn)?;
-
-    let team_member_rows: Vec<model::TeamMemberRow> =
-        schema::team_members::dsl::team_members.load(conn)?;
-    let members_by_team_id: HashMap<i32, Vec<crate::workspaces::team::TeamMember>> =
-        team_member_rows
-            .into_iter()
-            .fold(HashMap::new(), |mut acc, row| {
-                let member = crate::workspaces::team::TeamMember {
-                    uid: UserUid::new(&row.user_uid),
-                    email: row.email,
-                    role: serde_json::from_str(&row.role)
-                        .unwrap_or(crate::workspaces::team::MembershipRole::User),
-                    is_disabled: row.is_disabled,
-                };
-                acc.entry(row.team_id).or_default().push(member);
-                acc
-            });
-
-    let team_settings_rows: Vec<model::TeamSetting> =
-        schema::team_settings::dsl::team_settings.load(conn)?;
-    let settings_by_team_id: HashMap<i32, String> = team_settings_rows
-        .into_iter()
-        .map(|ts| (ts.team_id, ts.settings_json))
+    let commands = schema::commands::dsl::commands
+        // The newest row for a duplicate command supplies its summary metadata.
+        .order(schema::commands::columns::id.desc())
+        .load_iter::<model::Command, DefaultLoadingMode>(conn)?
+        .filter_map(|command| command.ok())
+        .map(PersistedCommand::from)
         .collect();
-
-    let teams: Vec<TeamMetadata> = db_teams
-        .into_iter()
-        .map(|team| {
-            let team_settings = settings_by_team_id
-                .get(&team.id)
-                .and_then(|json| serde_json::from_str(json).ok());
-
-            let billing_metadata = team
-                .billing_metadata_json
-                .as_ref()
-                .and_then(|json| serde_json::from_str(json).ok());
-
-            let members = members_by_team_id.get(&team.id).cloned();
-
-            TeamMetadata::from_local_cache(
-                ServerId::from_string_lossy(team.server_uid),
-                team.name,
-                team_settings,
-                billing_metadata,
-                members,
-            )
-        })
-        .collect();
-
-    let workspace_teams: Vec<model::WorkspaceTeam> = schema::workspace_teams::dsl::workspace_teams
-        .load_iter::<model::WorkspaceTeam, DefaultLoadingMode>(conn)?
-        .filter_map(|workspace_team| workspace_team.ok())
-        .collect();
-
-    let workspaces: Vec<WorkspaceMetadata> = schema::workspaces::dsl::workspaces
-        .load_iter::<model::Workspace, DefaultLoadingMode>(conn)?
-        .filter_map(|workspace| {
-            workspace.ok().map(|workspace| {
-                let teams_for_workspace = workspace_teams
-                    .iter()
-                    .filter_map(|workspace_team| {
-                        if workspace_team.workspace_server_uid == workspace.server_uid {
-                            teams.iter().find(|team| {
-                                team.uid
-                                    == ServerId::from_string_lossy(&workspace_team.team_server_uid)
-                            })
-                        } else {
-                            None
-                        }
-                    })
-                    .cloned()
-                    .collect();
-                WorkspaceMetadata::from_local_cache(
-                    workspace.server_uid.into(),
-                    workspace.name,
-                    Some(teams_for_workspace),
-                )
-            })
-        })
-        .collect();
-
-    let current_workspace_uid: Option<WorkspaceUid> = schema::workspaces::dsl::workspaces
-        .filter(schema::workspaces::dsl::is_selected.eq(true))
-        .select(schema::workspaces::dsl::server_uid)
-        .first::<String>(conn)
-        .optional()?
-        .map(|uid| uid.into());
-
-    // The GUI and TUI both consume command history. Other headless launch
-    // modes skip it.
-    let commands = if data_scope.command_history() {
-        schema::commands::dsl::commands
-            // The newest row for a duplicate command supplies its summary metadata.
-            .order(schema::commands::columns::id.desc())
-            .load_iter::<model::Command, DefaultLoadingMode>(conn)?
-            .filter_map(|command| command.ok())
-            .map(PersistedCommand::from)
-            .collect()
-    } else {
-        Vec::new()
-    };
-
-    let user_profiles = if data_scope.user_profiles() {
-        schema::user_profiles::dsl::user_profiles
-            .load_iter::<model::UserProfile, DefaultLoadingMode>(conn)?
-            .filter_map(|user_profile| user_profile.ok())
-            .map(user_profile_from_persistence)
-            .collect()
-    } else {
-        Vec::new()
-    };
-
-    let object_actions: Vec<ObjectAction> = if data_scope.gui_only_data() {
-        schema::object_actions::dsl::object_actions
-            .load_iter::<model::PersistedObjectAction, DefaultLoadingMode>(conn)?
-            .filter_map(|object_action| object_action.ok()) // parse into PersistedObjectAction
-            .filter_map(|action| object_action_from_persisted(action).ok())
-            .collect()
-    } else {
-        Vec::new()
-    };
-
-    let server_experiments = schema::server_experiments::dsl::server_experiments
-        .load_iter::<model::ServerExperiment, DefaultLoadingMode>(conn)?
-        .filter_map(|server_experiment| server_experiment.ok())
-        .filter_map(|server_experiment| {
-            ServerExperiment::from_string(server_experiment.experiment).ok()
-        })
-        .collect();
-
-    let time_of_next_force_object_refresh = read_time_of_next_force_object_refresh(conn)?;
-
-    // Seed up-arrow prompt history and (optionally) NLD prompt-history matching from a single
-    // SQLite read, deriving both from the same in-memory query vector instead of reading twice.
-    // TODO: Once up-arrow prompt history supports pagination, drop the 100-row up-arrow cap and
-    // serve both up-arrow and NLD matching from one consolidated query list.
-    let recent_ai_queries = read_recent_ai_queries(conn)?;
-    let nld_prompts = if FeatureFlag::NldPromptHistoryMatch.is_enabled() {
-        process_ai_queries_for_nld_history_match(&recent_ai_queries)
-    } else {
-        Vec::new()
-    };
-    let ai_queries = process_ai_queries_for_uparrow_prompt(recent_ai_queries);
-
-    let codebase_indices = get_all_codebase_index_metadata(conn)?;
-    let workspace_language_servers = get_all_workspace_language_servers_by_workspace(conn)?;
-    // Load conversation metadata only; task payloads are hydrated lazily
-    // per-conversation via `read_agent_conversation_by_id`.
-    let (multi_agent_conversations, conversation_summary_backfills) =
-        read_agent_conversation_metadata(conn)?;
-    let projects = get_all_projects(conn)?;
-    let project_rules = get_all_project_rules(conn)?;
     let ignored_suggestions = get_all_ignored_suggestions(conn)?;
-    let mcp_server_installations = get_all_mcp_server_installations(conn)?;
-    let mcp_servers_to_restore = get_mcp_servers_to_restore(conn)?;
 
     Ok(PersistedData {
         app_state,
-        cloud_objects,
-        workspaces,
-        current_workspace_uid,
         command_history: commands,
-        user_profiles,
-        time_of_next_force_object_refresh,
-        object_actions,
-        experiments: server_experiments,
-        ai_queries,
-        nld_prompts,
-        codebase_indices,
-        workspace_language_servers,
-        multi_agent_conversations,
-        projects,
-        project_rules,
         ignored_suggestions,
-        mcp_server_installations,
-        mcp_servers_to_restore,
-        conversation_summary_backfills,
     })
 }
 

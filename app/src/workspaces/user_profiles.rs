@@ -7,18 +7,6 @@ use crate::auth::UserUid;
 
 pub enum UserProfilesEvent {}
 
-#[cfg(not(target_family = "wasm"))]
-pub fn user_profile_from_persistence(
-    user_profile: crate::persistence::model::UserProfile,
-) -> UserProfileWithUID {
-    UserProfileWithUID {
-        firebase_uid: UserUid::new(&user_profile.firebase_uid),
-        display_name: user_profile.display_name,
-        email: user_profile.email,
-        photo_url: user_profile.photo_url,
-    }
-}
-
 /// Private struct for internal mapping between the user's uid and the important information we might
 /// want to query about them.
 pub struct UserProfileData {

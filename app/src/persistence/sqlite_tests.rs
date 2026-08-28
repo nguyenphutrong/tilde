@@ -2,8 +2,7 @@ use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use ai::workspace::WorkspaceMetadata;
-use chrono::{Local, Utc};
+use chrono::Local;
 use cloud_object_persistence::to_cloud_object_permissions;
 use diesel::connection::SimpleConnection;
 use pathfinder_geometry::rect::RectF;
@@ -13,14 +12,13 @@ use warp_graphql::scalars::time::ServerTimestamp;
 
 use super::{
     app_database_file_path, database_file_path_for_current_scope, database_file_path_for_scope,
-    decode_path, deduplicate_events, encode_path, get_all_codebase_index_metadata,
-    read_sqlite_data, save_app_state, save_codebase_index_metadata, setup_database, start_writer,
+    decode_path, deduplicate_events, encode_path, read_sqlite_data, save_app_state, setup_database,
+    start_writer,
 };
 use crate::app_state::{
     AppState, CodePaneSnapShot, CodePaneTabSnapshot, LeafContents, LeafSnapshot, PaneNodeSnapshot,
     TabGroupSnapshot, TabSnapshot, TerminalPaneSnapshot, WindowSnapshot,
 };
-use crate::auth::UserUid;
 use crate::cloud_object::{CloudObjectPermissions, Owner};
 use crate::code::editor_management::CodeSource;
 use crate::notebooks::{CloudNotebook, CloudNotebookModel};
@@ -35,9 +33,6 @@ use crate::terminal::model::block::SerializedBlock;
 use crate::terminal::model::session::SessionId;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::workspace::tab_group::TabGroupId;
-use crate::workspaces::team::{MembershipRole, Team, TeamMember};
-use crate::workspaces::user_profiles::UserProfileWithUID;
-use crate::workspaces::workspace::Workspace;
 
 #[test]
 fn app_scope_database_path_matches_app_database_path() {
@@ -81,68 +76,7 @@ fn database_path_for_current_scope_defaults_to_app_scope() {
 }
 
 #[test]
-fn remote_server_daemon_scope_database_path_uses_identity_data_dir() {
-    let path = database_file_path_for_scope(&PersistenceScope::RemoteServerDaemon {
-        identity_key: "user@example.com/ssh host".to_string(),
-    });
-    let expected_data_dir =
-        remote_server::setup::remote_server_daemon_data_dir("user@example.com/ssh host");
-
-    assert!(path.is_absolute());
-    assert_eq!(
-        path,
-        PathBuf::from(shellexpand::tilde(&expected_data_dir).into_owned()).join("warp.sqlite")
-    );
-}
-
-#[test]
-fn remote_server_daemon_scope_database_path_handles_empty_identity_key() {
-    let path = database_file_path_for_scope(&PersistenceScope::RemoteServerDaemon {
-        identity_key: String::new(),
-    });
-    let expected_data_dir = remote_server::setup::remote_server_daemon_data_dir("");
-
-    assert_eq!(
-        path,
-        PathBuf::from(shellexpand::tilde(&expected_data_dir).into_owned()).join("warp.sqlite")
-    );
-}
-
-#[cfg(unix)]
-#[test]
-fn remote_server_daemon_database_permissions_are_owner_only() {
-    use std::fs::Permissions;
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
-
-    let tempdir = tempfile::tempdir().expect("tempdir should be created");
-    let daemon_dir = tempdir.path().join("daemon");
-    let database_path = daemon_dir.join("warp.sqlite");
-
-    std::fs::create_dir_all(&daemon_dir).expect("daemon dir should be created");
-    std::fs::set_permissions(&daemon_dir, Permissions::from_mode(0o755))
-        .expect("daemon dir permissions should be set");
-    std::fs::write(&database_path, b"").expect("database file should be created");
-    std::fs::set_permissions(&database_path, Permissions::from_mode(0o644))
-        .expect("database file permissions should be set");
-
-    super::ensure_owner_only_dir(&daemon_dir).expect("daemon dir should be owner-only");
-    super::ensure_owner_only_file(&database_path).expect("database file should be owner-only");
-
-    assert_eq!(daemon_dir.metadata().unwrap().mode() & 0o777, 0o700);
-    assert_eq!(database_path.metadata().unwrap().mode() & 0o777, 0o600);
-}
-
-fn test_codebase_metadata(path: &str) -> WorkspaceMetadata {
-    WorkspaceMetadata {
-        path: PathBuf::from(path),
-        navigated_ts: Some(Utc::now()),
-        modified_ts: None,
-        queried_ts: None,
-    }
-}
-
-#[test]
-fn sqlite_read_restores_app_state_and_codebase_metadata() {
+fn sqlite_read_restores_app_state() {
     let tempdir = tempfile::tempdir().expect("tempdir should be created");
     let database_path = tempdir.path().join("warp.sqlite");
     let mut conn = setup_database(&database_path).expect("database should initialize");
@@ -155,17 +89,12 @@ fn sqlite_read_restores_app_state_and_codebase_metadata() {
     };
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let metadata = test_codebase_metadata("/tmp/remote-repo");
-    save_codebase_index_metadata(&mut conn, metadata.clone())
-        .expect("codebase index metadata should save");
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::Full)
-        .expect("persisted data should load");
+    let restored =
+        read_sqlite_data(&mut conn, PersistedDataScope::Full).expect("persisted data should load");
     let restored_app_state = restored
         .app_state
         .expect("app state should be present for the full scope");
     assert_eq!(restored_app_state.windows.len(), 1);
-    assert_eq!(restored.codebase_indices.len(), 1);
-    assert_eq!(restored.codebase_indices[0].path, metadata.path);
 }
 
 /// Mirrors `init_db(&PersistenceScope::Tui)` in an isolated tempdir: the TUI
@@ -183,9 +112,6 @@ fn tui_database_in_tui_subdirectory_round_trips_data() {
     .expect("tui subdirectory should be created");
     let mut conn = setup_database(&database_path).expect("database should initialize");
 
-    let metadata = test_codebase_metadata("/tmp/tui-repo");
-    save_codebase_index_metadata(&mut conn, metadata.clone())
-        .expect("codebase index metadata should save");
     let writer = start_writer(conn, database_path.clone()).expect("writer should start");
     writer
         .sender
@@ -207,82 +133,21 @@ fn tui_database_in_tui_subdirectory_round_trips_data() {
         .expect("insert command event should send");
     writer
         .sender
-        .send(ModelEvent::UpsertUserProfiles {
-            profiles: vec![UserProfileWithUID {
-                firebase_uid: UserUid::new("creator-uid"),
-                display_name: Some("MCP Creator".to_owned()),
-                email: "creator@example.com".to_owned(),
-                photo_url: String::new(),
-            }],
-        })
-        .expect("user profile event should send");
-    writer
-        .sender
         .send(ModelEvent::Terminate)
         .expect("terminate event should send");
     writer.handle.join().expect("writer should terminate");
 
     let mut conn = setup_database(&database_path).expect("database should reopen");
 
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::TuiFrontend)
+    let restored = read_sqlite_data(&mut conn, PersistedDataScope::TuiFrontend)
         .expect("persisted data should load");
     // The TUI data scope skips GUI session restoration...
     assert!(restored.app_state.is_none());
-    // ...but restores command history and shared data like creator profiles and
-    // codebase index metadata.
+    // ...but restores local command history.
     assert_eq!(restored.command_history.len(), 1);
     assert_eq!(restored.command_history[0].command, "ls");
-    assert_eq!(restored.user_profiles.len(), 1);
-    assert_eq!(
-        restored.user_profiles[0].display_name.as_deref(),
-        Some("MCP Creator")
-    );
-    assert_eq!(restored.codebase_indices.len(), 1);
-    assert_eq!(restored.codebase_indices[0].path, metadata.path);
 }
 
-#[test]
-fn sqlite_writer_reuses_codebase_index_metadata_events() {
-    let tempdir = tempfile::tempdir().expect("tempdir should be created");
-    let database_path = tempdir.path().join("warp.sqlite");
-    let conn = setup_database(&database_path).expect("database should initialize");
-
-    let writer = start_writer(conn, database_path.clone()).expect("writer should start");
-    let metadata = test_codebase_metadata("/tmp/writer-repo");
-    writer
-        .sender
-        .send(ModelEvent::UpsertCodebaseIndexMetadata {
-            index_metadata: Box::new(metadata.clone()),
-        })
-        .expect("upsert event should send");
-    writer
-        .sender
-        .send(ModelEvent::Terminate)
-        .expect("terminate event should send");
-    writer.handle.join().expect("writer should terminate");
-
-    let mut conn = setup_database(&database_path).expect("database should reopen");
-    let restored = get_all_codebase_index_metadata(&mut conn).expect("metadata should load");
-    assert_eq!(restored.len(), 1);
-    assert_eq!(restored[0].path, metadata.path);
-
-    let writer = start_writer(conn, database_path.clone()).expect("writer should restart");
-    writer
-        .sender
-        .send(ModelEvent::DeleteCodebaseIndexMetadata {
-            repo_path: metadata.path,
-        })
-        .expect("delete event should send");
-    writer
-        .sender
-        .send(ModelEvent::Terminate)
-        .expect("terminate event should send");
-    writer.handle.join().expect("writer should terminate");
-
-    let mut conn = setup_database(&database_path).expect("database should reopen");
-    let restored = get_all_codebase_index_metadata(&mut conn).expect("metadata should load");
-    assert!(restored.is_empty());
-}
 #[test]
 fn test_deduplicate_snapshots() {
     let local_notebook = CloudNotebook::new_local(
@@ -439,7 +304,7 @@ fn test_sqlite_round_trips_vertical_tabs_panel_open() {
 
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::Full)
+    let restored = read_sqlite_data(&mut conn, PersistedDataScope::Full)
         .expect("app state should load")
         .app_state
         .expect("app state should be present for the full scope");
@@ -473,7 +338,7 @@ fn test_sqlite_round_trips_window_team_uid() {
 
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::Full)
+    let restored = read_sqlite_data(&mut conn, PersistedDataScope::Full)
         .expect("app state should load")
         .app_state
         .expect("app state should be present for the full scope");
@@ -541,7 +406,7 @@ fn test_sqlite_round_trips_custom_vertical_tabs_title() {
 
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::Full)
+    let restored = read_sqlite_data(&mut conn, PersistedDataScope::Full)
         .expect("app state should load")
         .app_state
         .expect("app state should be present for the full scope");
@@ -620,7 +485,7 @@ fn test_sqlite_round_trips_code_pane_with_multiple_tabs() {
 
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::Full)
+    let restored = read_sqlite_data(&mut conn, PersistedDataScope::Full)
         .expect("app state should load")
         .app_state
         .expect("app state should be present for the full scope");
@@ -745,7 +610,7 @@ fn test_sqlite_round_trips_tab_groups() {
 
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::Full)
+    let restored = read_sqlite_data(&mut conn, PersistedDataScope::Full)
         .expect("app state should load")
         .app_state
         .expect("app state should be present for the full scope");
@@ -906,7 +771,7 @@ fn test_sqlite_round_trips_pinned_state() {
 
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::Full)
+    let restored = read_sqlite_data(&mut conn, PersistedDataScope::Full)
         .expect("app state should load")
         .app_state
         .expect("app state should be present for the full scope");
@@ -1084,7 +949,7 @@ fn test_sqlite_drops_too_small_bounds_on_read() {
     )
     .expect("corrupting update should succeed");
 
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::Full)
+    let restored = read_sqlite_data(&mut conn, PersistedDataScope::Full)
         .expect("app state should load")
         .app_state
         .expect("app state should be present for the full scope");
@@ -1094,66 +959,4 @@ fn test_sqlite_drops_too_small_bounds_on_read() {
         restored.windows[0].bounds.is_none(),
         "tiny persisted bounds must be discarded on read so users recover from a corrupt DB"
     );
-}
-
-#[test]
-fn team_member_is_disabled_round_trips_through_sqlite_cache() {
-    let tempdir = tempfile::tempdir().expect("tempdir should be created");
-    let database_path = tempdir.path().join("warp.sqlite");
-    let conn = setup_database(&database_path).expect("database should initialize");
-
-    let team = Team::from_local_cache(
-        ServerId::from_string_lossy(format!("{:0>22}", "team")),
-        "Team".to_string(),
-        None,
-        None,
-        Some(vec![
-            TeamMember {
-                uid: UserUid::new("active-user"),
-                email: "active@example.com".to_string(),
-                role: MembershipRole::User,
-                is_disabled: false,
-            },
-            TeamMember {
-                uid: UserUid::new("disabled-user"),
-                email: "disabled@example.com".to_string(),
-                role: MembershipRole::User,
-                is_disabled: true,
-            },
-        ]),
-    );
-    let workspace = Workspace::from_local_cache(
-        format!("{:0>22}", "workspace").into(),
-        "Workspace".to_string(),
-        Some(vec![team]),
-    );
-
-    let writer = start_writer(conn, database_path.clone()).expect("writer should start");
-    writer
-        .sender
-        .send(ModelEvent::UpsertWorkspaces {
-            workspaces: vec![workspace],
-        })
-        .expect("upsert workspaces event should send");
-    writer
-        .sender
-        .send(ModelEvent::Terminate)
-        .expect("terminate event should send");
-    writer.handle.join().expect("writer should terminate");
-
-    let mut conn = setup_database(&database_path).expect("database should reopen");
-    let restored = read_sqlite_data(&mut conn, None, PersistedDataScope::Full)
-        .expect("persisted data should load");
-
-    let members = &restored.workspaces[0].teams[0].members;
-    let active_member = members
-        .iter()
-        .find(|member| member.email == "active@example.com")
-        .expect("active member should be present");
-    let disabled_member = members
-        .iter()
-        .find(|member| member.email == "disabled@example.com")
-        .expect("disabled member should be present");
-    assert!(!active_member.is_disabled);
-    assert!(disabled_member.is_disabled);
 }

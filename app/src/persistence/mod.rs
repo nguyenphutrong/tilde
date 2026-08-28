@@ -16,7 +16,6 @@ pub use persistence::schema;
 #[cfg(feature = "integration_tests")]
 pub mod testing;
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, OnceLock};
@@ -43,7 +42,7 @@ use warp_graphql::scalars::time::ServerTimestamp;
 use warp_multi_agent_api as api;
 use warpui::{AppContext, Entity, SingletonEntity};
 
-use self::model::{AgentConversation, AgentConversationData, Project};
+use self::model::{AgentConversationData, Project};
 use crate::ai::blocklist::PersistedAIInput;
 use crate::ai::mcp::TemplatableMCPServerInstallation;
 use crate::ai::persisted_workspace::EnablementState;
@@ -52,7 +51,7 @@ use crate::auth::auth_manager::PersistedCurrentUserInformation;
 use crate::cloud_object::model::actions::ObjectAction;
 use crate::cloud_object::model::generic_string_model::CloudStringObject;
 use crate::cloud_object::{
-    CloudObject, CloudObjectMetadata, ObjectIdType, RevisionAndLastEditor, ServerCreationInfo,
+    CloudObjectMetadata, ObjectIdType, RevisionAndLastEditor, ServerCreationInfo,
 };
 use crate::drive::folders::CloudFolder;
 use crate::notebooks::CloudNotebook;
@@ -71,12 +70,8 @@ pub enum PersistenceScope {
     /// The GUI app (and other launch modes that share its database).
     App,
     /// The `warp-tui` front-end, which keeps its own database so GUI/TUI
-    /// version skew can never migrate a shared database out from under the
-    /// older binary. Cloud sync is the cross-front-end sharing mechanism.
+    /// version skew can never migrate a shared database out from under the older binary.
     Tui,
-    RemoteServerDaemon {
-        identity_key: String,
-    },
 }
 
 /// The [`PersistenceScope`] this process's persistence was initialized with.
@@ -105,15 +100,10 @@ pub fn current_scope() -> PersistenceScope {
 /// opt out of the data they never read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PersistedDataScope {
-    /// The GUI app: everything, including window/tab/block session
-    /// restoration and command history.
+    /// The GUI app, including window/tab/block session restoration and command history.
     Full,
-    /// The `warp-tui` front-end: command history, cloud objects, user profiles,
-    /// and agent/conversation state, but no GUI session restoration or pending
-    /// object actions.
+    /// The `warp-tui` front-end: command history without GUI session restoration.
     TuiFrontend,
-    /// The remote server daemon: only codebase index metadata.
-    CodebaseIndicesOnly,
 }
 
 impl PersistedDataScope {
@@ -121,42 +111,6 @@ impl PersistedDataScope {
     fn session_restoration(self) -> bool {
         matches!(self, PersistedDataScope::Full)
     }
-
-    /// Shell-command history consumed by both interactive front-ends.
-    fn command_history(self) -> bool {
-        matches!(
-            self,
-            PersistedDataScope::Full | PersistedDataScope::TuiFrontend
-        )
-    }
-
-    /// User profiles used to identify cloud-object creators in both interactive frontends.
-    fn user_profiles(self) -> bool {
-        self != PersistedDataScope::CodebaseIndicesOnly
-    }
-
-    /// Pending object actions, which only the GUI consumes.
-    fn gui_only_data(self) -> bool {
-        matches!(self, PersistedDataScope::Full)
-    }
-}
-
-/// A conversation whose `summary` column had to be derived from its task
-/// snapshot at read time (rows written before the column existed, or rows
-/// whose stored summary failed to parse). Sent to the SQLite writer thread
-/// so the derivation happens only once per row.
-#[derive(Debug)]
-pub struct ConversationSummaryBackfill {
-    pub conversation_id: String,
-    /// Serialized [`model::AgentConversationSummary`].
-    pub summary_json: String,
-    /// The `summary` column value observed at read time (`None` or invalid
-    /// JSON). The backfill only applies while the column still holds this
-    /// value, so it never overwrites a newer write.
-    pub previous_summary: Option<String>,
-    /// The row's pre-backfill `last_modified_at`, restored after the
-    /// update trigger bumps it.
-    pub last_modified_at: chrono::NaiveDateTime,
 }
 
 /// Initializes the persistence "subsystem".
@@ -275,40 +229,11 @@ impl Entity for PersistenceWriter {
 
 impl SingletonEntity for PersistenceWriter {}
 
-/// TODO: all of this data should eventually be indexed by user_id so that
-/// the logged in user sees the data for their user (and if another user logs in,
-/// they see their respective data). To do this, we can simply return a mapping
-/// of user ID->SqliteData and get the respective AppState after the user logs in.
-///
-/// For now, to address the global scoping here, we clear all persisted data on logout.
 pub struct PersistedData {
-    /// Session restoration data. `None` when the launch mode's
-    /// [`PersistedDataScope`] excludes it entirely (the daemon).
+    /// Session restoration data. `None` for the TUI, which has no GUI windows.
     pub app_state: Option<AppState>,
-
-    /// Shareable objects.
-    pub cloud_objects: Vec<Box<dyn CloudObject>>,
-    pub workspaces: Vec<WorkspaceMetadata>,
-    pub current_workspace_uid: Option<WorkspaceUid>,
     pub command_history: Vec<PersistedCommand>,
-    pub user_profiles: Vec<UserProfileWithUID>,
-    pub time_of_next_force_object_refresh: Option<DateTime<Utc>>,
-    pub object_actions: Vec<ObjectAction>,
-    pub experiments: Vec<ServerExperiment>,
-    pub ai_queries: Vec<PersistedAIInput>,
-    pub nld_prompts: Vec<(String, DateTime<Local>)>,
-    pub codebase_indices: Vec<CodeWorkspaceMetadata>,
-    pub workspace_language_servers: HashMap<PathBuf, HashMap<LSPServerType, EnablementState>>,
-    pub multi_agent_conversations: Vec<AgentConversation>,
-    pub projects: Vec<Project>,
-    pub project_rules: Vec<ProjectRulePath>,
     pub ignored_suggestions: Vec<(String, SuggestionType)>,
-    pub mcp_server_installations: HashMap<Uuid, TemplatableMCPServerInstallation>,
-    pub mcp_servers_to_restore: Vec<Uuid>,
-    /// Conversation summaries derived at read time for pre-`summary`-column
-    /// rows. Drained by `sqlite::initialize`, which hands them to the writer
-    /// thread for persistence; not intended for other consumers.
-    pub conversation_summary_backfills: Vec<ConversationSummaryBackfill>,
 }
 
 #[derive(Clone, Debug)]
@@ -430,11 +355,6 @@ pub enum ModelEvent {
         conversation_id: String,
         updated_tasks: Vec<api::Task>,
         conversation_data: AgentConversationData,
-    },
-    /// Persists read-time-derived conversation summaries for rows written
-    /// before the `summary` column existed.
-    BackfillConversationSummaries {
-        backfills: Vec<ConversationSummaryBackfill>,
     },
     DeleteMultiAgentConversations {
         conversation_ids: Vec<String>,
