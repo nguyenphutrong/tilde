@@ -8,7 +8,6 @@ use std::sync::Arc;
 use std::sync::mpsc::{SendError, SyncSender};
 use std::thread::JoinHandle;
 
-use ai::api_keys::ApiKeyManager;
 use anyhow::Context as _;
 use async_broadcast::InactiveReceiver;
 #[cfg(unix)]
@@ -18,25 +17,19 @@ use pathfinder_geometry::vector::Vector2F;
 use settings::Setting as _;
 use warp_core::SessionId;
 use warp_errors::report_error;
-use warpui::r#async::executor::Background;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity, ViewHandle};
 
 use super::event_loop::EventLoop;
+use super::mio_channel;
 use super::shell::{ShellStarter, ShellStarterSource};
 use super::spawner::{PtySpawnHooks, PtySpawnMode};
 #[cfg(unix)]
 use super::terminal_attributes::TerminalAttributesPoller;
-use super::{mio_channel, recorder};
-use crate::ai::aws_credentials::AwsCredentialRefresher as _;
 use crate::ai::blocklist::SerializedBlockListItem;
-use crate::auth::AuthStateProvider;
-use crate::auth::auth_state::AuthState;
 use crate::banner::BannerState;
 use crate::context_chips::ContextChipKind;
-use crate::context_chips::prompt::Prompt;
 use crate::features::FeatureFlag;
 use crate::persistence::ModelEvent;
-use crate::send_telemetry_on_executor;
 use crate::server::telemetry::{PtySpawnMode as TelemetryPtySpawnMode, TelemetryEvent};
 use crate::settings::{DebugSettings, PrivacySettings, SshSettings};
 use crate::terminal::available_shells::{AvailableShell, AvailableShells};
@@ -385,37 +378,6 @@ impl<S> TerminalManager<S> {
         let colors = model.colors();
         let model = Arc::new(FairMutex::new(model));
 
-        // Have ApiKeyManager subscribe to block completion events for AWS credential refresh.
-        // This must happen after `model` is created, since the subscription needs it to resolve
-        // lazily-computed `UserBlockCompleted` fields.
-        ApiKeyManager::handle(ctx).update(ctx, |manager, ctx| {
-            manager.register_model_event_dispatcher(&model_events, model.clone(), ctx);
-        });
-
-        // This is purely for measuring throughput on WarpDev.
-        if FeatureFlag::RecordPtyThroughput.is_enabled() {
-            let auth_state = AuthStateProvider::as_ref(ctx).get().clone();
-            let telemetry_executor = Arc::clone(ctx.background_executor());
-            recorder::record_pty_throughput(
-                inactive_pty_reads_rx.clone().activate(),
-                model.clone(),
-                |model| {
-                    !model.is_receiving_in_band_command_output()
-                        && model.is_active_block_bootstrapped()
-                },
-                move |max_bytes_per_second| {
-                    send_telemetry_on_executor!(
-                        auth_state,
-                        TelemetryEvent::PtyThroughput {
-                            max_bytes_per_second,
-                        },
-                        telemetry_executor
-                    );
-                },
-                ctx.background_executor().to_owned(),
-            );
-        }
-
         // If this session should be a shared-session creator, configure its initial
         // shared-session state before the surface is constructed, so that bootstrap
         // events can observe the correct pending status and source type.
@@ -595,15 +557,11 @@ fn on_shell_determined<S: TerminalSurface>(
     }
 
     log::debug!("Using shell starter source {shell_starter_source:?}");
-    let bg_executor = ctx.background_executor();
-    let auth_state = AuthStateProvider::as_ref(ctx).get();
-
     let is_fallback_shell = matches!(
         shell_starter_source,
         Some(ShellStarterSource::Fallback { .. })
     );
-    let shell_starter = shell_starter_source
-        .map(|source| get_shell_starter_internal(source, bg_executor, auth_state));
+    let shell_starter = shell_starter_source.map(get_shell_starter_internal);
     let shell_starter = match shell_starter {
         Some(shell_starter) => shell_starter,
         None => {
@@ -813,22 +771,13 @@ impl<S> TerminalManager<S> {
         let is_honor_ps1_enabled = *SessionSettings::as_ref(ctx).honor_ps1;
         let is_crash_reporting_enabled = PrivacySettings::as_ref(ctx).is_crash_reporting_enabled;
 
-        // Determine whether the Node.js Version chip is enabled anywhere it could be
-        // shown (the Warp prompt, the agent footer, or the CLI agent footer). When it
-        // is not, the shell bootstrap skips the expensive per-prompt `node --version`
-        // detection. The chip value is fed by the same precmd payload regardless of
-        // where it is displayed, so we must check all three locations.
+        // Skip precmd-time node version detection when the chip is disabled in both local footers.
         let node_version_chip_enabled = {
-            let in_prompt = !is_honor_ps1_enabled
-                && Prompt::as_ref(ctx)
-                    .chip_kinds()
-                    .contains(&ContextChipKind::NodeVersion);
             let settings = SessionSettings::as_ref(ctx);
-            in_prompt
-                || settings
-                    .agent_footer_chip_selection
-                    .all_chips()
-                    .contains(&ContextChipKind::NodeVersion)
+            settings
+                .agent_footer_chip_selection
+                .all_chips()
+                .contains(&ContextChipKind::NodeVersion)
                 || settings
                     .cli_agent_footer_chip_selection
                     .all_chips()
@@ -1004,7 +953,6 @@ fn wire_up_terminal_attribute_poller_with_surface<S: TerminalSurface>(
 
 pub fn get_shell_starter(
     chosen_shell: Option<AvailableShell>,
-    auth_state: &AuthState,
     ctx: &mut AppContext,
 ) -> Option<ShellStarter> {
     let preferred_shell = chosen_shell.unwrap_or_else(|| {
@@ -1017,41 +965,16 @@ pub fn get_shell_starter(
         .and_then(|starter| {
             warpui::r#async::block_on(async { starter.to_shell_starter_source().await })
         })
-        .map(|starter_source| {
-            get_shell_starter_internal(
-                starter_source,
-                ctx.background_executor().clone(),
-                auth_state,
-            )
-        })
+        .map(get_shell_starter_internal)
 }
 
-fn get_shell_starter_internal(
-    shell_starter_source: ShellStarterSource,
-    background_executor: Arc<Background>,
-    auth_state: &AuthState,
-) -> ShellStarter {
+fn get_shell_starter_internal(shell_starter_source: ShellStarterSource) -> ShellStarter {
     match shell_starter_source {
         ShellStarterSource::Override(shell_starter) => shell_starter,
         ShellStarterSource::Environment(starter) | ShellStarterSource::UserDefault(starter) => {
             ShellStarter::Direct(starter)
         }
-        ShellStarterSource::Fallback {
-            unsupported_shell,
-            starter,
-        } => {
-            if let Some(unsupported_shell) = unsupported_shell {
-                send_telemetry_on_executor!(
-                    auth_state,
-                    TelemetryEvent::UnsupportedShell {
-                        shell: unsupported_shell
-                    },
-                    background_executor
-                );
-            }
-
-            ShellStarter::Direct(starter)
-        }
+        ShellStarterSource::Fallback { starter, .. } => ShellStarter::Direct(starter),
     }
 }
 

@@ -25738,7 +25738,7 @@ impl TerminalView {
             // TODO(CORE-2300): This appears to be used for invoking env vars.
             // Before we close out CORE-2300, we should evaluate if we need to add
             // shell info here.
-            let shell_starter = get_shell_starter(None, &self.auth_state, ctx)?;
+            let shell_starter = get_shell_starter(None, ctx)?;
             let shell_path = match &shell_starter {
                 ShellStarter::Direct(direct_shell_starter)
                 | ShellStarter::MSYS2(direct_shell_starter) => direct_shell_starter
