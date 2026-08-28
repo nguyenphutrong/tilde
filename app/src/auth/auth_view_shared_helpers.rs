@@ -305,10 +305,6 @@ pub fn render_overlay(overlay_body: Box<dyn Element>, appearance: &Appearance) -
         .finish()
 }
 
-// ---------------------------------------------------------------------------
-// Privacy settings overlay (shared between AuthViewBody and LoginSlideView)
-// ---------------------------------------------------------------------------
-
 /// Handles needed to render the privacy settings overlay.
 #[derive(Default)]
 pub struct PrivacySettingsHandles {
@@ -330,10 +326,8 @@ pub struct PrivacySettingsActions<A: Action + Clone> {
 /// Renders the full privacy settings overlay body (logo + header + toggles + done button).
 /// This is the content that goes inside `render_overlay()`.
 ///
-/// `is_ai_enabled` gates whether AI-dependent toggles (e.g. the cloud conversation
-/// storage toggle) are shown. Callers should pass the effective AI-enabled state
-/// for their context (the in-memory onboarding selection during the login slide,
-/// or the stored setting elsewhere).
+/// `is_ai_enabled` gates whether AI-dependent toggles (e.g. the cloud conversation storage toggle)
+/// are shown.
 pub fn render_privacy_settings_overlay_body<A: Action + Clone + 'static>(
     appearance: &Appearance,
     app: &AppContext,

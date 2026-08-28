@@ -312,13 +312,8 @@ fn gui_default_execute_commands_remains_always_ask() {
     })
 }
 
-/// Regression test for the onboarding autonomy bug where
-/// `edit_profile_internal` would silently drop edits made to an `Unsynced`
-/// default profile whenever `personal_drive` returned `None` (logged-out
-/// users). `apply_agent_settings` calls `set_*` on the default profile the
-/// moment onboarding completes, which can happen before the user logs in
-/// (e.g. `LoginSlideEvent::LoginLaterConfirmed`), so those edits must
-/// persist on the local `Unsynced` state rather than being dropped.
+/// Regression test for edits being silently dropped from an `Unsynced` default profile whenever
+/// `personal_drive` returns `None` for logged-out users.
 #[test]
 fn edits_persist_on_unsynced_default_profile_when_logged_out() {
     App::test((), |mut app| async move {

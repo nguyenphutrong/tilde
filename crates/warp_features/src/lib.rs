@@ -239,9 +239,6 @@ pub enum FeatureFlag {
     /// Enables the XML output system prompt for the pre-plan agent in Agent Mode.
     AgentModePrePlanXML,
 
-    /// Enables Agent Mode onboarding.
-    AgentOnboarding,
-
     /// Enables suggested rules.
     SuggestedRules,
 
@@ -929,10 +926,6 @@ pub enum FeatureFlag {
     /// orchestration (`run_agents`) confirmation card and plan-card config
     /// block for choosing a runner when starting remote child agents.
     CloudAgentRunners,
-
-    /// Gates the account-first onboarding flow, including the reordered
-    /// pre-auth slides and post-auth account offer.
-    AccountFirstOnboarding,
 
     /// Accepts well-known non-UUID managed MCP ids (e.g. `"linear"`) as
     /// `warp_id` values in MCP configs and as bare identifiers in CLI
