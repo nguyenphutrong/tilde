@@ -47,18 +47,13 @@ use crate::util::bindings::{BindingGroup, CustomAction, keybinding_name_to_displ
 use crate::workspace::WorkspaceAction;
 
 mod about_page;
-mod agent_assisted_environment_modal;
 mod appearance_page;
-mod delete_environment_confirmation_dialog;
 mod directory_color_add_picker;
-pub(crate) mod environments_page;
-pub(crate) mod handoff_environment_creation_modal;
 pub mod keybindings;
 pub mod pane_manager;
 mod scripting_page;
 mod settings_file_footer;
 pub(crate) mod settings_page;
-pub mod update_environment_form;
 mod warpify_page;
 
 pub use settings_page::{
