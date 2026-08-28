@@ -14,7 +14,6 @@ use warpui::platform::WindowStyle;
 use warpui::{App, ViewHandle};
 
 use super::*;
-use crate::NotebookKeybindings;
 use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::ai::request_usage_model::AIRequestUsageModel;
 use crate::auth::AuthStateProvider;
@@ -32,6 +31,7 @@ use crate::code_review::diff_size_limits::DiffSize;
 use crate::code_review::diff_state::{DiffStateModel, FileDiff, GitFileStatus};
 use crate::code_review::editor_state::CodeReviewEditorState;
 use crate::code_review::git_repo_model::GitRepoModels;
+use crate::notebooks::editor::keys::NotebookKeybindings;
 use crate::pane_group::WorkingDirectoriesModel;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::team::MockTeamClient;

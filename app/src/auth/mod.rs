@@ -19,7 +19,6 @@ use ai::index::full_source_code_embedding::manager::CodebaseIndexManager;
 pub use auth_manager::AuthManager;
 pub use auth_state::AuthStateProvider;
 use itertools::Itertools;
-pub use login_failure_notification::LoginFailureReason;
 #[cfg(feature = "tui")]
 use url::Url;
 pub use user_uid::UserUid;

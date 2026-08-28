@@ -6,9 +6,7 @@ use std::path::{Path, PathBuf};
 use ai::skills::{
     ParsedSkill, SkillPathOrigin, SkillProvider, SkillReference, SkillScope, provider_rank,
 };
-pub use file_watchers::{
-    SkillWatcher, SkillWatcherEvent, extract_skill_parent_directory, read_skills_from_directories,
-};
+pub use file_watchers::{SkillWatcher, SkillWatcherEvent, extract_skill_parent_directory};
 use warp_core::features::FeatureFlag;
 use warp_util::host_id::HostId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;

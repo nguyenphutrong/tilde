@@ -1,15 +1,11 @@
 mod catalog;
 pub use catalog::CloudEnvironmentCatalog;
-#[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-pub(crate) use catalog::sort_environments_by_recency;
 #[cfg(feature = "tui")]
 pub use catalog::{CloudEnvironment, CloudEnvironmentCatalogEvent};
-#[cfg(test)]
-pub use cloud_object_models::BaseImage;
 #[cfg_attr(target_family = "wasm", expect(unused_imports))]
 pub use cloud_object_models::{
-    AmbientAgentEnvironment, AwsProviderConfig, CloudAmbientAgentEnvironment,
-    CloudAmbientAgentEnvironmentModel, GcpProviderConfig, GithubRepo, ProvidersConfig, SourceRepo,
+    AmbientAgentEnvironment, CloudAmbientAgentEnvironment, CloudAmbientAgentEnvironmentModel,
+    GithubRepo,
 };
 use cloud_objects::cloud_object::Owner;
 use warpui::{AppContext, Entity, SingletonEntity as _, ViewContext};

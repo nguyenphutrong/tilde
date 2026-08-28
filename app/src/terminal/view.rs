@@ -533,10 +533,9 @@ use crate::view_components::{DismissibleToast, ToastFlavor};
 use crate::workflows::WorkflowSelectionSource;
 use crate::workflows::workflow::Workflow;
 use crate::workspace::sync_inputs::SyncedInputState;
-use crate::workspace::view::cloud_agent_capacity_modal::CloudAgentCapacityModalVariant;
 use crate::workspace::{
     CommandSearchOptions, ForkAIConversationParams, ForkFromExchange,
-    ForkedConversationDestination, OneTimeModalModel, ToastStack, WorkspaceAction,
+    ForkedConversationDestination, ToastStack, WorkspaceAction,
 };
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 use crate::workspaces::workspace::CustomerType;
@@ -1796,8 +1795,6 @@ pub enum Event {
     OpenShareSessionDeniedModal,
     /// Used to focus and bring this session to the foreground.
     FocusSession,
-    /// Emitted when the guided onboarding tutorial callout is completed or dismissed.
-    OnboardingTutorialCompleted,
     SelectedBlocksChanged,
     SelectedTextChanged,
     UpdateSessionLinkPermissions {
@@ -1976,10 +1973,6 @@ pub enum Event {
     PluggableNotification {
         title: Option<String>,
         body: String,
-    },
-    /// Emitted when cloud mode runs should display the cloud-agent capacity/credits modal.
-    ShowCloudAgentCapacityModal {
-        variant: CloudAgentCapacityModalVariant,
     },
     /// Emitted when the StartAgent executor needs the workspace to create
     /// a new child agent conversation in a split pane. The freshly-created
@@ -6162,18 +6155,6 @@ impl TerminalView {
                         .lock()
                         .block_list_mut()
                         .set_is_executing_oz_environment_startup_commands(false);
-                }
-
-                // For an oz local-to-cloud handoff, the first `AppendedExchange` is the
-                // analogue of `HarnessCommandStarted` for non-oz harnesses: the moment we
-                // tear down the queued-prompt block in favor of the live agent UI.
-                if self
-                    .ambient_agent_view_model
-                    .as_ref()
-                    .is_some_and(|model| model.as_ref(ctx).is_local_to_cloud_handoff())
-                {
-                    self.remove_pending_user_query_block(ctx);
-                    self.remove_cloud_mode_queue_row(ctx);
                 }
 
                 let should_add_ai_block = history_model
@@ -13712,7 +13693,6 @@ impl TerminalView {
         let should_show_onboarding = FeatureFlag::AgentOnboarding.is_enabled()
             && !is_onboarded
             && !is_anonymous_or_logged_out;
-        let is_launch_modal_open = OneTimeModalModel::as_ref(ctx).is_oz_launch_modal_open();
 
         let has_plugin_instructions_block = self.rich_content_views.iter().any(|rc| {
             matches!(
@@ -13726,7 +13706,6 @@ impl TerminalView {
             && !self.model.lock().block_list().is_restored_session()
             && !should_show_onboarding
             && self.onboarding_callout_view.is_none()
-            && !is_launch_modal_open
             && !is_subshell_or_ssh
             && !has_plugin_instructions_block
         {
@@ -14838,7 +14817,6 @@ impl TerminalView {
                 }
 
                 self.onboarding_callout_view = None;
-                ctx.emit(Event::OnboardingTutorialCompleted);
                 ctx.notify();
             }
             OnboardingCalloutViewEvent::Completed {
@@ -14854,7 +14832,6 @@ impl TerminalView {
                     ctx,
                 );
                 self.onboarding_callout_view = None;
-                ctx.emit(Event::OnboardingTutorialCompleted);
                 ctx.notify();
             }
             OnboardingCalloutViewEvent::Completed {
@@ -14864,7 +14841,6 @@ impl TerminalView {
                 self.input
                     .update(ctx, |input, ctx| input.replace_buffer_content("", ctx));
                 self.onboarding_callout_view = None;
-                ctx.emit(Event::OnboardingTutorialCompleted);
                 ctx.notify();
             }
             OnboardingCalloutViewEvent::Completed {
@@ -14875,7 +14851,6 @@ impl TerminalView {
                 self.input
                     .update(ctx, |input, ctx| input.replace_buffer_content("", ctx));
                 self.onboarding_callout_view = None;
-                ctx.emit(Event::OnboardingTutorialCompleted);
                 ctx.notify();
             }
             OnboardingCalloutViewEvent::StateUpdated => {
@@ -21150,10 +21125,6 @@ impl TerminalView {
             return;
         }
 
-        if OneTimeModalModel::as_ref(ctx).is_any_modal_open() {
-            return;
-        }
-
         // If the onboarding callout is active, it should win focus so that its displayed
         // keybindings (enter/delete) actually work.
         if self.focus_onboarding_callout_if_active(ctx) {
@@ -22132,8 +22103,6 @@ impl TerminalView {
                     ctx,
                 );
             }
-            InputEvent::OpenHandoffEnvironmentCreationModal
-            | InputEvent::OpenCloudModeV2EnvironmentCreationModal => {}
         }
     }
 

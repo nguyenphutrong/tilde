@@ -29,7 +29,7 @@ message HostScopedRequest {
   // 4 (open_buffer) and 7 (get_diff_state) moved to SessionScopedRequest:
   // they establish per-connection subscription state, so they must be
   // delivered on (and answered by) a specific connection, never failed over.
-  reserved 4, 7;
+  reserved 4, 7, 14;
   oneof message {
     WriteFile write_file = 1;
     DeleteFile delete_file = 2;
@@ -42,7 +42,6 @@ message HostScopedRequest {
     GetFragmentMetadataFromHash get_fragment_metadata_from_hash = 11;
     GetBranches get_branches = 12;
     ResyncCodebase resync_codebase = 13;
-    UploadHandoffSnapshot upload_handoff_snapshot = 14;
     GitCommitChainRequest git_commit_chain = 15;
     GitPushRequest git_push = 16;
     GitCreatePrRequest git_create_pr = 17;
@@ -88,6 +87,7 @@ message Notification {
 // Push messages use an empty request_id to distinguish them from
 // request/response pairs.
 message ServerMessage {
+  reserved 26;
   string request_id = 1;
   oneof message {
     InitializeResponse initialize_response = 2;
@@ -114,7 +114,6 @@ message ServerMessage {
     BufferConflictDetected buffer_conflict_detected = 23;
     GetFragmentMetadataFromHashResponse get_fragment_metadata_from_hash_response = 24;
     GetBranchesResponse get_branches_response = 25;
-    UploadHandoffSnapshotResponse upload_handoff_snapshot_response = 26;
     GitCommitChainResponse git_commit_chain_response = 27;
     GitPushResponse git_push_response = 28;
     GitCreatePrResponse git_create_pr_response = 29;
@@ -669,21 +668,6 @@ message BufferUpdatedPush {
   uint64 new_server_version = 2;
   uint64 expected_client_version = 3;
   repeated TextEdit edits = 4;
-}
-
-// Client → server: request the daemon gather a handoff snapshot and upload it.
-// All paths must be absolute paths on the remote host's filesystem.
-message UploadHandoffSnapshot {
-  // Absolute paths the agent touched (file edits, working directories).
-  // Non-absolute or empty entries are rejected by the daemon.
-  repeated string paths = 1;
-}
-
-// Daemon → client: result of the handoff snapshot upload.
-message UploadHandoffSnapshotResponse {
-  optional string initial_snapshot_token = 1;
-  bool success = 2;
-  optional string error = 3;
 }
 
 // Client → server: close a buffer (stop watching).

@@ -179,15 +179,7 @@ impl AgentViewZeroStateBlock {
                     return;
                 }
 
-                // Hide the zero state when this pane becomes a local-to-cloud handoff
-                // pane (REMOTE-1486). The fresh cloud-mode banner is suppressed because
-                // the pane is actually pre-loaded with a forked source conversation, not
-                // a brand-new one.
-                if matches!(event, AmbientAgentViewModelEvent::PendingHandoffChanged)
-                    && model.as_ref(ctx).is_local_to_cloud_handoff()
-                {
-                    me.should_hide = true;
-                } else if FeatureFlag::CloudModeSetupV2.is_enabled() {
+                if FeatureFlag::CloudModeSetupV2.is_enabled() {
                     if matches!(
                         event,
                         AmbientAgentViewModelEvent::DispatchedAgent
@@ -210,8 +202,6 @@ impl AgentViewZeroStateBlock {
 
         let has_parent_terminal =
             cloud_agent_view_model.is_none_or(|model| !model.as_ref(ctx).is_ambient_agent());
-        let is_local_to_cloud_handoff = cloud_agent_view_model
-            .is_some_and(|model| model.as_ref(ctx).is_local_to_cloud_handoff());
         let changelog_model = ChangelogModel::handle(ctx);
         ctx.subscribe_to_model(&changelog_model, |me, changelog_model, event, ctx| {
             if let changelog_model::Event::ChangelogRequestComplete { .. } = event {
@@ -259,8 +249,7 @@ impl AgentViewZeroStateBlock {
                 Self::recent_conversations_for_working_directory(current_working_directory, ctx)
             })
             .unwrap_or_default();
-        let should_hide = matches!(origin, AgentViewEntryOrigin::AcceptedPassiveCodeDiff)
-            || is_local_to_cloud_handoff;
+        let should_hide = matches!(origin, AgentViewEntryOrigin::AcceptedPassiveCodeDiff);
         let is_oz_updates_expanded = !origin.is_cloud_agent()
             && *AISettings::handle(ctx).as_ref(ctx).should_expand_oz_updates;
 

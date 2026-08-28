@@ -11,7 +11,6 @@ use warpui::platform::WindowStyle;
 use warpui::{App, Element as _, ModelHandle, SingletonEntity, ViewHandle};
 
 use super::*;
-use crate::NotebookKeybindings;
 use crate::ai::request_usage_model::AIRequestUsageModel;
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::persistence::CloudModel;
@@ -21,6 +20,7 @@ use crate::code::local_code_editor::LocalCodeEditorView;
 use crate::code_review::GlobalCodeReviewModel;
 use crate::code_review::code_review_view::CodeReviewView;
 use crate::code_review::diff_state::DiffStateModel;
+use crate::notebooks::editor::keys::NotebookKeybindings;
 use crate::pane_group::WorkingDirectoriesModel;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::team::MockTeamClient;

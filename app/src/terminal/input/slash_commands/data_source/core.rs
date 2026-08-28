@@ -64,7 +64,6 @@ fn split_command_and_argument(buffer: &str) -> (&str, Option<&str>) {
 /// they are computed once per recompute and shared by both surfaces.
 pub struct CommonCommandGates {
     is_orchestration_enabled: bool,
-    is_cloud_handoff_enabled: bool,
     has_default_host: bool,
     is_cli_agent_input: bool,
 }
@@ -417,9 +416,6 @@ pub trait SlashCommandDataSource {
         if command.name == commands::ORCHESTRATE_NAME && !gates.is_orchestration_enabled {
             return false;
         }
-        if command.name == commands::MOVE_TO_CLOUD.name && !gates.is_cloud_handoff_enabled {
-            return false;
-        }
         // /host is only useful when a default self-hosted host is configured.
         if command.name == commands::HOST.name && !gates.has_default_host {
             return false;
@@ -444,7 +440,6 @@ pub trait SlashCommandDataSource {
                 .is_some();
         CommonCommandGates {
             is_orchestration_enabled: ai_settings.is_orchestration_enabled(ctx),
-            is_cloud_handoff_enabled: ai_settings.is_cloud_handoff_enabled(ctx),
             has_default_host,
             is_cli_agent_input: self.is_cli_agent_input_open(ctx),
         }

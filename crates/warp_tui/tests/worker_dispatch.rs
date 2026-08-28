@@ -1,4 +1,4 @@
-use command::blocking::Command;
+use std::process::Command;
 
 /// Verifies a worker invocation exits through worker dispatch without starting the TUI frontend.
 #[test]

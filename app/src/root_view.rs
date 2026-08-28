@@ -9,7 +9,6 @@ use pathfinder_geometry::vector::{Vector2F, vec2f};
 use serde::{Deserialize, Serialize};
 use settings::Setting as _;
 use warp_core::context_flag::ContextFlag;
-use warp_core::user_preferences::GetUserPreferences as _;
 use warpui::elements::Border;
 use warpui::keymap::{EditableBinding, FixedBinding};
 use warpui::platform::{WindowBounds, WindowStyle};
@@ -896,16 +895,6 @@ impl NewWorkspaceSource {
             | NewWorkspaceSource::TransferredTab { .. } => false,
         }
     }
-}
-
-const HAS_COMPLETED_ONBOARDING_KEY: &str = "HasCompletedOnboarding";
-
-pub(crate) fn has_completed_local_onboarding(ctx: &AppContext) -> bool {
-    ctx.private_user_preferences()
-        .read_value(HAS_COMPLETED_ONBOARDING_KEY)
-        .unwrap_or_default()
-        .and_then(|value| serde_json::from_str::<bool>(&value).ok())
-        .unwrap_or(false)
 }
 
 pub struct RootView {

@@ -66,8 +66,6 @@ use crate::notebooks::editor::model::FileLinkResolutionContext;
 use crate::persistence::ModelEvent;
 use crate::send_telemetry_from_ctx;
 use crate::server::server_api::AIApiError;
-#[cfg(not(target_family = "wasm"))]
-use crate::server::server_api::ServerApiProvider;
 use crate::server::team_scope::RequestTeamScope;
 use crate::server::telemetry::TelemetryEvent;
 use crate::terminal::ShellLaunchData;
@@ -78,7 +76,6 @@ use crate::terminal::model::session::SessionType;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::terminal_model::TerminalModel;
 use crate::terminal::view::inline_banner::ZeroStatePromptSuggestionType;
-use crate::workspace::OneTimeModalModel;
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_workspaces::{TeamContext, TeamContextResolver, UserWorkspaces};
 
@@ -590,7 +587,7 @@ impl BlocklistAIController {
             me.handle_pending_events_ready(*conversation_id, ctx);
         });
         let streamer = OrchestrationEventStreamer::handle(ctx);
-        ctx.subscribe_to_model(&streamer, move |me, _, event, ctx| match event {
+        ctx.subscribe_to_model(&streamer, move |_, _, event, _| match event {
             OrchestrationEventStreamerEvent::DormantClaudeWakeReady { .. } => {}
             // Viewer-mode events are handled by `OrchestrationViewerModel`.
             OrchestrationEventStreamerEvent::ChildSpawned { .. }
@@ -1849,10 +1846,8 @@ impl BlocklistAIController {
         );
     }
 
-    /// Schedules an auto-resume-after-error for the conversation, once the recovery backoff
-    /// carried by `resume` has elapsed, the network is online, and the auto-handoff sleep
-    /// modal is closed, so the resume doesn't race the user's enable/dismiss decision on
-    /// wake.
+    /// Schedules an auto-resume-after-error for the conversation once the recovery backoff
+    /// carried by `resume` has elapsed and the network is online.
     ///
     /// `resume` carries the failed request's budget with this resume already charged against
     /// it, so the resumed request continues the same bounded chain instead of getting a
@@ -1868,15 +1863,9 @@ impl BlocklistAIController {
         let backoff = resume.backoff();
         let recovery = resume.recovery();
         let wait_for_online = NetworkStatus::as_ref(ctx).wait_until_online();
-        let wait_for_modal_closed =
-            OneTimeModalModel::as_ref(ctx).wait_until_auto_handoff_sleep_modal_closed();
         let wait = async move {
             Timer::after(backoff).await;
             wait_for_online.await;
-            // Await the modal second: the future reads live modal state at
-            // poll time, so a modal surfaced on wake (after connectivity
-            // returns) is still observed.
-            wait_for_modal_closed.await;
         };
         let handle = ctx.spawn(wait, move |me, _, ctx| {
             // Clean up the pending handle now that the resume is executing.

@@ -33,8 +33,6 @@ use crate::terminal::view::rich_content::{RichContentInsertionPosition, RichCont
 use crate::terminal::view::{
     ConversationDetailsPanelAutoOpenPolicy, Event as TerminalViewEvent, TerminalView,
 };
-use crate::workspace::view::cloud_agent_capacity_modal::CloudAgentCapacityModalVariant;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const CHILD_AGENT_GITHUB_AUTH_REQUIRED_BLOCKED_ACTION: &str =
     "GitHub authentication required before starting the child agent.";
@@ -79,19 +77,9 @@ impl TerminalView {
     }
 
     pub(in crate::terminal::view) fn show_out_of_credits_modal(&self, ctx: &mut ViewContext<Self>) {
-        let is_on_paid_plan = UserWorkspaces::as_ref(ctx)
-            .current_workspace()
-            .is_some_and(|workspace| workspace.billing_metadata.is_user_on_paid_plan());
-
-        if is_on_paid_plan {
-            ctx.emit(crate::terminal::view::Event::ShowCloudAgentCapacityModal {
-                variant: CloudAgentCapacityModalVariant::OutOfCredits,
-            });
-        } else {
-            AIRequestUsageModel::handle(ctx).update(ctx, |model, ctx| {
-                model.refresh_request_usage_async(ctx);
-            });
-        }
+        AIRequestUsageModel::handle(ctx).update(ctx, |model, ctx| {
+            model.refresh_request_usage_async(ctx);
+        });
     }
 
     /// Handles ambient agent view model events.
@@ -115,8 +103,7 @@ impl TerminalView {
             }
             AmbientAgentViewModelEvent::NeedsGithubAuth
             | AmbientAgentViewModelEvent::Cancelled
-            | AmbientAgentViewModelEvent::HarnessCommandStarted { .. }
-            | AmbientAgentViewModelEvent::HandoffSnapshotUploadFailed { .. } => true,
+            | AmbientAgentViewModelEvent::HarnessCommandStarted { .. } => true,
             _ => false,
         };
         if should_clean_up_pending_cloud_query {
@@ -151,9 +138,7 @@ impl TerminalView {
                 }
                 if FeatureFlag::CloudModeSetupV2.is_enabled() {
                     // Render the queued cloud prompt while the shared-session transcript catches
-                    // up. Empty-prompt handoffs may substitute a wire prompt or keep it absent;
-                    // the display follows that wire value and omits the block when none exists.
-                    // Reapply a stripped `/plan` or `/orchestrate` prefix from `request.mode`.
+                    // up. Reapply a stripped `/plan` or `/orchestrate` prefix from `request.mode`.
                     let prompt = ambient_agent_view_model
                         .as_ref(ctx)
                         .request()
@@ -271,18 +256,6 @@ impl TerminalView {
                 }
                 // Re-render to show the error state.
                 ctx.emit(TerminalViewEvent::TerminalViewStateChanged);
-                ctx.notify();
-            }
-            AmbientAgentViewModelEvent::ShowCloudAgentCapacityModal => {
-                if FeatureFlag::CloudMode.is_enabled()
-                    && ambient_agent_view_model.as_ref(ctx).is_ambient_agent()
-                    && !self.model.lock().is_shared_ambient_agent_session()
-                {
-                    ctx.emit(crate::terminal::view::Event::ShowCloudAgentCapacityModal {
-                        variant: CloudAgentCapacityModalVariant::ConcurrentLimit,
-                    });
-                }
-
                 ctx.notify();
             }
             AmbientAgentViewModelEvent::ShowAICreditModal => {
@@ -412,14 +385,6 @@ impl TerminalView {
                 // whatever the sandbox PTY was sized to during setup.
                 self.force_report_viewer_terminal_size(ctx);
                 ctx.emit(TerminalViewEvent::TerminalViewStateChanged);
-                ctx.notify();
-            }
-            AmbientAgentViewModelEvent::PendingHandoffChanged => {
-                ctx.notify();
-            }
-            AmbientAgentViewModelEvent::HandoffSnapshotUploadFailed { .. } => {
-                // The toast is surfaced by `Input`'s subscription; this just
-                // triggers a re-render of pane chrome.
                 ctx.notify();
             }
             AmbientAgentViewModelEvent::UpdatedSetupCommandVisibility

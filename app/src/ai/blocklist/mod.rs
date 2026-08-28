@@ -9,7 +9,6 @@ mod controller;
 pub(crate) mod conversation_selection;
 pub(crate) mod diff_storage;
 pub(crate) mod diff_types;
-pub(crate) mod handoff;
 
 pub(crate) mod local_agent_task_sync_model;
 pub(crate) mod orchestration_child_tracker;
@@ -40,11 +39,6 @@ pub(crate) mod view_util;
 // Consumed by `tui_export` for the `warp_tui` frontend.
 #[cfg_attr(not(feature = "tui"), allow(unused_imports))]
 pub use action_model::AIActionStatus;
-pub(crate) use action_model::recording_controller::RecordingController;
-#[cfg(not(target_family = "wasm"))]
-pub(crate) use action_model::recording_finalize::{
-    FinalizeReason, finalize_recording_for_conversation,
-};
 // Consumed by `tui_export` for the `warp_tui` frontend.
 #[cfg(feature = "tui")]
 pub use action_model::{

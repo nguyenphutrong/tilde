@@ -47,8 +47,6 @@ use crate::pane_group::child_agent::{
 };
 use crate::pane_group::{self, Direction, PaneGroup};
 use crate::persistence::{BlockCompleted, ModelEvent};
-#[cfg(not(target_family = "wasm"))]
-use crate::server::server_api::ServerApiProvider;
 use crate::session_management::SessionNavigationData;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::general_settings::GeneralSettings;
@@ -1036,9 +1034,6 @@ fn handle_terminal_view_event(
             Event::TerminalViewStateChanged => {
                 ctx.emit(pane_group::Event::TerminalViewStateChanged);
             }
-            Event::OnboardingTutorialCompleted => {
-                ctx.emit(pane_group::Event::OnboardingTutorialCompleted);
-            }
             Event::OpenWorkflowModalWithCommand(command) => {
                 ctx.emit(pane_group::Event::OpenWorkflowModalWithCommand(
                     command.clone(),
@@ -1405,9 +1400,6 @@ fn handle_terminal_view_event(
                     open_code_review: open_code_review.clone(),
                 });
             }
-            Event::ShowCloudAgentCapacityModal { variant } => {
-                ctx.emit(pane_group::Event::ShowCloudAgentCapacityModal { variant: *variant });
-            }
             Event::RevealChildAgent { conversation_id } => {
                 // Routed through the swap mechanism to land all reveal cases in one path.
                 if group.ensure_hidden_child_agent_pane_for_conversation(*conversation_id, ctx) {
@@ -1483,13 +1475,7 @@ fn handle_terminal_view_event(
                 kill_agent_conversation(group, source_terminal_view_id, *conversation_id, ctx);
             }
             Event::StartAgentConversation(request) => {
-                dispatch_start_agent_conversation(
-                    group,
-                    pane_id,
-                    terminal_pane_id,
-                    request.clone(),
-                    ctx,
-                );
+                dispatch_start_agent_conversation(group, pane_id, request.clone(), ctx);
             }
             _ => {}
         }
@@ -1505,7 +1491,6 @@ fn handle_terminal_view_event(
 fn dispatch_start_agent_conversation(
     group: &mut PaneGroup,
     parent_pane_id: PaneId,
-    terminal_pane_id: TerminalPaneId,
     request: StartAgentRequest,
     ctx: &mut ViewContext<PaneGroup>,
 ) {
@@ -1602,9 +1587,8 @@ fn dispatch_start_agent_conversation(
 /// `HiddenChildAgentTaskContext` (so the agent UI reflects it). On failure
 /// the child surfaces as an error conversation instead.
 ///
-/// Gated to non-wasm because `ServerApiProvider` is `cfg(not(wasm))`-only.
-/// `dispatch_start_agent_conversation`'s wasm wildcard arm routes the Oz
-/// path through `create_error_child_agent_conversation` instead.
+/// Local child launch is unavailable on wasm; `dispatch_start_agent_conversation`'s wasm
+/// wildcard arm routes the Oz path through `create_error_child_agent_conversation` instead.
 #[cfg(not(target_family = "wasm"))]
 fn launch_local_no_harness_child(
     group: &mut PaneGroup,

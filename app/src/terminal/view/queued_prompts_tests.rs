@@ -290,9 +290,6 @@ fn cloud_setup_cleanup_events_remove_the_locked_queue_row() {
                 },
                 AmbientAgentViewModelEvent::Cancelled,
                 AmbientAgentViewModelEvent::NeedsGithubAuth,
-                AmbientAgentViewModelEvent::HandoffSnapshotUploadFailed {
-                    error_message: "upload failed".to_owned(),
-                },
             ];
 
             for event in cleanup_events {
