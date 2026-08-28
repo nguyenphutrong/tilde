@@ -82,13 +82,7 @@ mod throttle;
 mod tips;
 mod tracing;
 #[cfg(feature = "tui")]
-mod tui;
-#[cfg(feature = "tui")]
 pub mod tui_export;
-#[cfg(feature = "tui")]
-mod tui_onboarding_markers;
-#[cfg(all(feature = "tui", any(test, feature = "test-util")))]
-mod tui_test_support;
 mod ui_components;
 mod undo_close;
 mod uri;
@@ -308,8 +302,6 @@ use crate::terminal::keys::TerminalKeybindings;
 use crate::terminal::resizable_data::ResizableData;
 use crate::terminal::view::inline_banner::ByoLlmAuthBannerSessionState;
 use crate::terminal::{AudibleBell, CustomSecretRegexUpdater, History};
-#[cfg(feature = "tui")]
-pub use crate::tui::{TuiLoginEvent, TuiLoginModel, TuiLoginPhase, log_out_tui};
 use crate::undo_close::UndoCloseStack;
 use crate::user_config::WarpConfig;
 use crate::util::bindings::is_binding_cross_platform;
@@ -1083,14 +1075,12 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
             FeatureFlag::UseTantivySearch.set_enabled(true);
         }
 
-        // The TUI front-end reuses the full `initialize_app` bootstrap above (so
-        // auth, `Appearance`, settings, etc. exist), then runs the device-login
-        // flow and mounts the TUI (via `crate::tui::init`) instead of the
-        // GUI/CLI `launch()` path.
+        // The TUI front-end mounts its local terminal after shared settings and
+        // terminal initialization, without any account or cloud bootstrap.
         match launch_mode {
             #[cfg(feature = "tui")]
             LaunchMode::Tui { entrypoint } => match entrypoint {
-                TuiEntryPoint::Interactive { mount, .. } => crate::tui::init(mount, ctx),
+                TuiEntryPoint::Interactive { mount, .. } => mount(ctx),
                 TuiEntryPoint::CliCommand { execute } => execute(ctx),
             },
             #[cfg(not(feature = "tui"))]
