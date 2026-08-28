@@ -337,57 +337,6 @@ fn is_remote_returns_false_when_remote_host_is_none() {
 }
 
 #[test]
-fn local_failure_is_shared_across_local_sessions() {
-    let mut model = CLIAgentSessionsModel::new();
-
-    model.record_plugin_auto_failure(CLIAgent::Claude, None);
-
-    assert!(model.has_plugin_auto_failed(CLIAgent::Claude, &None));
-}
-
-#[test]
-fn local_failure_does_not_affect_remote_host() {
-    let mut model = CLIAgentSessionsModel::new();
-
-    model.record_plugin_auto_failure(CLIAgent::Claude, None);
-
-    let remote = Some("user@devbox".to_owned());
-    assert!(!model.has_plugin_auto_failed(CLIAgent::Claude, &remote));
-}
-
-#[test]
-fn remote_failure_does_not_affect_local() {
-    let mut model = CLIAgentSessionsModel::new();
-
-    model.record_plugin_auto_failure(CLIAgent::Claude, Some("user@devbox".to_owned()));
-
-    assert!(!model.has_plugin_auto_failed(CLIAgent::Claude, &None));
-}
-
-#[test]
-fn remote_failures_are_independent_per_host() {
-    let mut model = CLIAgentSessionsModel::new();
-
-    let host_a = Some("user@host-a".to_owned());
-    let host_b = Some("user@host-b".to_owned());
-
-    model.record_plugin_auto_failure(CLIAgent::Claude, host_a.clone());
-
-    assert!(model.has_plugin_auto_failed(CLIAgent::Claude, &host_a));
-    assert!(!model.has_plugin_auto_failed(CLIAgent::Claude, &host_b));
-}
-
-#[test]
-fn failure_tracking_is_independent_per_agent() {
-    let mut model = CLIAgentSessionsModel::new();
-
-    model.record_plugin_auto_failure(CLIAgent::Claude, None);
-
-    assert!(model.has_plugin_auto_failed(CLIAgent::Claude, &None));
-    assert!(!model.has_plugin_auto_failed(CLIAgent::Gemini, &None));
-}
-
-#[test]
 fn session_start_sets_plugin_version() {
     let mut session = CLIAgentSession {
         agent: CLIAgent::Claude,
