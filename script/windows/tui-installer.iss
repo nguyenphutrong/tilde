@@ -4,7 +4,7 @@
   #define MyAppName "WarpAgentCLIDev"
 #endif
 #ifndef MyAppVersion
-  #define MyAppVersion "0.1.0"
+  #define MyAppVersion "0.1.1"
 #endif
 #ifndef MyAppExeName
   #define MyAppExeName "warp-tui-dev.exe"

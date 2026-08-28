@@ -6,10 +6,10 @@ on:
       version:
         description: Release version (must match the Tilde app version)
         required: true
-        default: v0.1.0
+        default: v0.1.1
         type: string
       confirmation:
-        description: Type "release-v0.1.0" to create the prerelease
+        description: Type "release-v0.1.1" to create the prerelease
         required: true
         type: string
 
@@ -70,11 +70,6 @@ jobs:
             echo "Requested $VERSION does not match app version v$app_version" >&2
             exit 1
           }
-          [[ "$VERSION" == "v0.1.0" ]] || {
-            echo "This initial release workflow only permits v0.1.0" >&2
-            exit 1
-          }
-
           test "$(uname -m)" = arm64
           echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
