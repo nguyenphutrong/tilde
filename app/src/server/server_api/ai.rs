@@ -45,11 +45,6 @@ use warp_graphql::mutations::generate_commands::{
     GenerateCommands, GenerateCommandsInput, GenerateCommandsResult, GenerateCommandsStatus,
     GenerateCommandsVariables,
 };
-use warp_graphql::mutations::generate_dialogue::{
-    GenerateDialogue, GenerateDialogueInput,
-    GenerateDialogueResult as GenerateDialogueResultGraphql, GenerateDialogueStatus,
-    GenerateDialogueVariables, TranscriptPart as TranscriptPartGraphql,
-};
 use warp_graphql::mutations::generate_metadata_for_command::{
     GenerateMetadataForCommand, GenerateMetadataForCommandInput, GenerateMetadataForCommandResult,
     GenerateMetadataForCommandStatus, GenerateMetadataForCommandVariables,
@@ -148,8 +143,6 @@ use crate::ai::llms::{
 use crate::ai::request_usage_model::RequestLimitInfo;
 use crate::ai::{AICreditAvailability, RequestUsageInfo};
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
-use crate::ai_assistant::requests::GenerateDialogueResult;
-use crate::ai_assistant::utils::TranscriptPart;
 use crate::ai_assistant::{AIGeneratedCommand, GenerateCommandsFromNaturalLanguageError};
 use crate::drive::workflows::ai_assist::{GeneratedCommandMetadata, GeneratedCommandMetadataError};
 use crate::persistence::model::ConversationUsageMetadata;
@@ -1168,13 +1161,6 @@ pub trait AIClient: 'static + Send + Sync {
         ai_execution_context: Option<WarpAiExecutionContext>,
     ) -> Result<Vec<AIGeneratedCommand>, GenerateCommandsFromNaturalLanguageError>;
 
-    async fn generate_dialogue_answer(
-        &self,
-        transcript: Vec<TranscriptPart>,
-        prompt: String,
-        ai_execution_context: Option<WarpAiExecutionContext>,
-    ) -> anyhow::Result<GenerateDialogueResult>;
-
     async fn generate_metadata_for_command(
         &self,
         command: String,
@@ -1671,61 +1657,6 @@ impl AIClient for ServerApi {
                 }
             },
             _ => Err(GenerateCommandsFromNaturalLanguageError::Other),
-        }
-    }
-
-    async fn generate_dialogue_answer(
-        &self,
-        transcript: Vec<TranscriptPart>,
-        prompt: String,
-        // TODO: use relevant context from RequestContext and deprecate usage of ai_execution_context
-        _ai_execution_context: Option<WarpAiExecutionContext>,
-    ) -> anyhow::Result<GenerateDialogueResult> {
-        let graphql_transcript: Vec<TranscriptPartGraphql> = transcript
-            .into_iter()
-            .map(|part| TranscriptPartGraphql {
-                user: part.raw_user_prompt().to_string(),
-                assistant: part.raw_assistant_answer().to_string(),
-            })
-            .collect();
-        let variables = GenerateDialogueVariables {
-            input: GenerateDialogueInput {
-                transcript: graphql_transcript,
-                prompt,
-            },
-            request_context: get_request_context(),
-        };
-
-        let operation = GenerateDialogue::build(variables);
-        let response = self
-            .send_graphql_request(
-                operation,
-                Some(Duration::from_secs(AI_ASSISTANT_REQUEST_TIMEOUT_SECONDS)),
-            )
-            .await?;
-        match response.generate_dialogue {
-            GenerateDialogueResultGraphql::GenerateDialogueOutput(output) => match output.status {
-                GenerateDialogueStatus::GenerateDialogueSuccess(success) => {
-                    Ok(GenerateDialogueResult::Success {
-                        answer: success.answer,
-                        truncated: success.truncated,
-                        request_limit_info: success.request_limit_info.into(),
-                        transcript_summarized: success.transcript_summarized,
-                    })
-                }
-                GenerateDialogueStatus::GenerateDialogueFailure(failure) => {
-                    Ok(GenerateDialogueResult::Failure {
-                        request_limit_info: failure.request_limit_info.into(),
-                    })
-                }
-                GenerateDialogueStatus::Unknown => Err(anyhow!("failed to generate AI dialogue")),
-            },
-            GenerateDialogueResultGraphql::UserFacingError(e) => {
-                Err(anyhow!(get_user_facing_error_message(e)))
-            }
-            GenerateDialogueResultGraphql::Unknown => {
-                Err(anyhow!("failed to generate AI dialogue"))
-            }
         }
     }
 

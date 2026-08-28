@@ -22,7 +22,7 @@ This is the exact path Warp reads at launch — it is platform- and channel-spec
 A flat YAML map of `action_name` → `key_trigger`. Action names contain a colon, so they **must be quoted**:
 
 ```yaml
-"workspace:toggle_ai_assistant": ctrl-s
+"input:toggle_input_type": ctrl-s
 "editor_view:delete_all_left": cmd-shift-A
 "workspace:toggle_command_palette": none
 ```
@@ -60,9 +60,9 @@ Remap an existing custom binding by old trigger:
 
 ```yaml
 # before
-"workspace:toggle_ai_assistant": ctrl-space
+"input:toggle_input_type": ctrl-space
 # after
-"workspace:toggle_ai_assistant": ctrl-s
+"input:toggle_input_type": ctrl-s
 ```
 
 Remove a default shortcut:
@@ -74,7 +74,7 @@ Remove a default shortcut:
 Shift combined with a special key (note the special key stays lowercase):
 
 ```yaml
-"workspace:toggle_ai_assistant": ctrl-shift-space
+"input:toggle_input_type": ctrl-shift-space
 ```
 
 Cross-platform binding using the `cmdorctrl-` alias (resolves to `cmd` on macOS, `ctrl` elsewhere):

@@ -1651,7 +1651,6 @@ pub enum Event {
     },
     Pane(PaneEvent),
     OpenSettings(SettingsSection),
-    AskAIAssistant(AskAIType),
     /// Event propagates terminal inputs up to the workspace,
     /// to be processed on the way back down through the view hierarchy.
     SyncInput(SyncEvent),
@@ -19056,11 +19055,7 @@ impl TerminalView {
             },
         };
 
-        if FeatureFlag::AgentMode.is_enabled() {
-            self.ask_blocklist_ai(&ask_data, ctx);
-        } else {
-            ctx.emit(Event::AskAIAssistant(ask_data.clone()));
-        }
+        self.ask_blocklist_ai(&ask_data, ctx);
 
         self.close_context_menu(ctx, false);
     }
