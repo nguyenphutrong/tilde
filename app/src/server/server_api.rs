@@ -4,16 +4,11 @@ pub mod block;
 #[cfg(not(target_family = "wasm"))]
 pub(crate) mod download;
 pub mod factory;
-pub mod harness_support;
-pub mod integrations;
-pub mod managed_mcp;
 pub mod managed_secrets;
 pub mod object;
 pub(crate) mod presigned_upload;
 pub mod referral;
 pub mod team;
-#[cfg(feature = "tui")]
-pub mod tui_onboarding;
 pub mod workspace;
 
 use std::ops::Deref;
@@ -30,15 +25,12 @@ use channel_versions::ChannelVersions;
 use chrono::{DateTime, FixedOffset};
 use factory::FactoryClient;
 use instant::Instant;
-use managed_mcp::ManagedMcpClient;
 use object::ObjectClient;
 use parking_lot::Mutex;
 use referral::ReferralsClient;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use team::TeamClient;
-#[cfg(feature = "tui")]
-use tui_onboarding::TuiOnboardingClient;
 use url::Url;
 use warp_core::context_flag::ContextFlag;
 use warp_core::telemetry::TelemetryEvent;
@@ -550,6 +542,38 @@ impl ServerApi {
     ) -> Result<Vec<(String, String)>> {
         self.ambient_headers(AmbientHeaderPolicy::for_task(task_id.to_string()))
             .await
+    }
+
+    pub(crate) async fn post_public_api_response_for_task<B>(
+        &self,
+        task_id: &AmbientAgentTaskId,
+        path: &str,
+        body: &B,
+    ) -> Result<http_client::Response>
+    where
+        B: Serialize,
+    {
+        let auth_token = self
+            .get_or_refresh_access_token()
+            .await
+            .context("Failed to get access token for API request")?;
+        let url = format!("{}/api/v1/{path}", ChannelState::server_root_url());
+        let mut request = self.base_client.http_client().post(&url).json(body);
+        if let Some(token) = auth_token.as_bearer_token() {
+            request = request.bearer_auth(token);
+        }
+        for (name, value) in self.ambient_agent_headers_for_task(task_id).await? {
+            request = request.header(name, value);
+        }
+        let response = request
+            .send()
+            .await
+            .with_context(|| format!("Failed to send API request to {url}"))?;
+        if response.status().is_success() {
+            Ok(response)
+        } else {
+            Err(Self::error_from_response(response).await)
+        }
     }
 
     pub fn send_graphql_request<'a, QF, O: warp_graphql::client::Operation<QF> + Send + 'a>(
@@ -1438,10 +1462,6 @@ impl ServerApiProvider {
     pub fn get_team_client(&self) -> Arc<dyn TeamClient> {
         self.server_api.clone()
     }
-    #[cfg(feature = "tui")]
-    pub fn get_tui_onboarding_client(&self) -> Arc<dyn TuiOnboardingClient> {
-        self.server_api.clone()
-    }
 
     pub fn get_ai_client(&self) -> Arc<dyn AIClient> {
         self.server_api.clone()
@@ -1451,7 +1471,7 @@ impl ServerApiProvider {
         self.server_api.clone()
     }
 
-    pub fn get_integrations_client(&self) -> Arc<dyn integrations::IntegrationsClient> {
+    pub fn get_factory_client(&self) -> Arc<dyn FactoryClient> {
         self.server_api.clone()
     }
 
@@ -1459,24 +1479,10 @@ impl ServerApiProvider {
         self.server_api.clone()
     }
 
-    #[cfg_attr(target_family = "wasm", expect(dead_code))]
-    pub fn get_managed_mcp_client(&self) -> Arc<dyn ManagedMcpClient> {
-        self.server_api.clone()
-    }
-
-    pub fn get_factory_client(&self) -> Arc<dyn FactoryClient> {
-        self.server_api.clone()
-    }
-
     /// Returns the shared HTTP client. This client is wired into network logging
     /// and includes standard Warp request headers.
     pub fn get_http_client(&self) -> Arc<http_client::Client> {
         self.server_api.owned_http_client()
-    }
-
-    #[cfg_attr(target_family = "wasm", expect(dead_code))]
-    pub fn get_harness_support_client(&self) -> Arc<dyn harness_support::HarnessSupportClient> {
-        self.server_api.clone()
     }
 }
 

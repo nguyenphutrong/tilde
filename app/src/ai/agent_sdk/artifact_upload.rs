@@ -16,8 +16,7 @@ use crate::server::server_api::ai::{
     AIClient, CreateFileArtifactUploadRequest, CreateFileArtifactUploadResponse,
     FileArtifactRecord, FileArtifactUploadTargetInfo,
 };
-use crate::server::server_api::harness_support::FileUploadBody;
-use crate::server::server_api::presigned_upload::upload_file_to_target;
+use crate::server::server_api::presigned_upload::{FileUploadBody, upload_file_to_target};
 use crate::util::image::{MIME_SNIFF_BYTES, infer_mime_type};
 
 const OZ_RUN_ID_ENV_VAR: &str = "OZ_RUN_ID";

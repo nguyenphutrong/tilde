@@ -119,7 +119,7 @@ use warp_multi_agent_api::ConversationData;
 use super::ServerApi;
 #[cfg(not(target_family = "wasm"))]
 use super::download::write_response_body_to_path;
-use super::harness_support::{UploadField, UploadFieldValue, UploadTarget};
+use super::presigned_upload::{UploadField, UploadFieldValue, UploadTarget};
 #[cfg(not(feature = "agent_mode_evals"))]
 use crate::ai::BonusGrant;
 pub use crate::ai::agent::UserQueryMode;
@@ -1571,29 +1571,6 @@ impl ServerApi {
             .post_public_api_response_for_task(task_id, "agent/messages", &request)
             .await?;
         let response = response.json::<SendAgentMessageResponse>().await?;
-        Ok(response)
-    }
-
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    pub(crate) async fn list_agent_messages_for_task(
-        &self,
-        task_id: &AmbientAgentTaskId,
-        run_id: &str,
-        request: ListAgentMessagesRequest,
-    ) -> anyhow::Result<Vec<AgentMessageHeader>, anyhow::Error> {
-        let mut params = vec![format!("limit={}", request.limit)];
-        if request.unread_only {
-            params.push("unread=true".to_string());
-        }
-        if let Some(since) = request.since {
-            params.push(format!("since={}", urlencoding::encode(&since)));
-        }
-
-        let path = format!("agent/messages/{run_id}?{}", params.join("&"));
-        let response = self
-            .get_public_api_response_for_task(task_id, &path)
-            .await?;
-        let response = response.json::<Vec<AgentMessageHeader>>().await?;
         Ok(response)
     }
 
