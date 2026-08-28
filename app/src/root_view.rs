@@ -21,7 +21,8 @@ use warpui::{
     ViewContext, ViewHandle, WindowId, id,
 };
 
-use crate::app_state::{AppState, WindowSnapshot};
+use crate::ai::blocklist::SerializedBlockListItem;
+use crate::app_state::{AppState, PaneUuid, WindowSnapshot};
 use crate::appearance::Appearance;
 use crate::interval_timer::IntervalTimer;
 use crate::launch_configs::launch_config;
@@ -423,6 +424,7 @@ fn open_from_restored(arg: &OpenFromRestoredArg, ctx: &mut AppContext) {
                         global_resource_handles.clone(),
                         NewWorkspaceSource::Restored {
                             window_snapshot: window.clone(),
+                            block_lists: app_state.block_lists.clone(),
                         },
                         ctx,
                     );
@@ -446,6 +448,7 @@ fn open_from_restored(arg: &OpenFromRestoredArg, ctx: &mut AppContext) {
         }
         add_restored_window(
             window,
+            app_state.block_lists.clone(),
             global_resource_handles.clone(),
             background_blur_radius_pixels,
             background_blur_texture,
@@ -472,6 +475,7 @@ fn open_from_restored(arg: &OpenFromRestoredArg, ctx: &mut AppContext) {
     if let Some(window) = active_index.and_then(|index| app_state.windows.get(index)) {
         add_restored_window(
             window,
+            app_state.block_lists.clone(),
             global_resource_handles,
             background_blur_radius_pixels,
             background_blur_texture,
@@ -482,6 +486,7 @@ fn open_from_restored(arg: &OpenFromRestoredArg, ctx: &mut AppContext) {
 
 fn add_restored_window(
     window: &WindowSnapshot,
+    block_lists: Arc<HashMap<PaneUuid, Vec<SerializedBlockListItem>>>,
     global_resource_handles: GlobalResourceHandles,
     background_blur_radius_pixels: Option<u8>,
     background_blur_texture: bool,
@@ -502,6 +507,7 @@ fn add_restored_window(
                 global_resource_handles,
                 NewWorkspaceSource::Restored {
                     window_snapshot: window.clone(),
+                    block_lists,
                 },
                 ctx,
             );
@@ -860,6 +866,7 @@ pub enum NewWorkspaceSource {
     },
     Restored {
         window_snapshot: WindowSnapshot,
+        block_lists: Arc<HashMap<PaneUuid, Vec<SerializedBlockListItem>>>,
     },
     Session {
         options: Box<NewTerminalOptions>,
@@ -879,7 +886,9 @@ pub enum NewWorkspaceSource {
 impl NewWorkspaceSource {
     pub fn has_horizontal_split(&self) -> bool {
         match self {
-            NewWorkspaceSource::Restored { window_snapshot } => {
+            NewWorkspaceSource::Restored {
+                window_snapshot, ..
+            } => {
                 let Some(active_tab) = window_snapshot
                     .tabs
                     .get(window_snapshot.active_tab_index)

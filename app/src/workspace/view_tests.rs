@@ -275,7 +275,10 @@ fn restored_workspace(
         Workspace::new(
             global_resource_handles,
             None,
-            NewWorkspaceSource::Restored { window_snapshot },
+            NewWorkspaceSource::Restored {
+                window_snapshot,
+                block_lists: Default::default(),
+            },
             ctx,
         )
     });
