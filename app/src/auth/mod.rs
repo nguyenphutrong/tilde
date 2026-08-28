@@ -4,10 +4,9 @@ pub mod auth_override_warning_modal;
 mod auth_view_body;
 pub mod auth_view_modal;
 mod auth_view_shared_helpers;
+#[cfg(target_family = "wasm")]
 mod login_error_modal;
 mod login_failure_notification;
-pub mod needs_sso_link_view;
-pub mod paste_auth_token_modal;
 mod user_properties;
 pub use warp_server_auth::{auth_state, credentials, user, user_uid};
 #[cfg(target_family = "wasm")]
@@ -58,13 +57,6 @@ use crate::{
     GlobalResourceHandlesProvider, focus_running_window_and_show_native_modal, persistence,
     send_telemetry_sync_from_app_ctx,
 };
-
-pub fn init(app: &mut AppContext) {
-    auth_view_modal::init(app);
-    auth_view_body::init(app);
-    auth_override_warning_body::init(app);
-    paste_auth_token_modal::init(app);
-}
 
 /// Returns the configured Warp web logout URL.
 ///

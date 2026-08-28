@@ -12,7 +12,6 @@ use warpui::elements::{
     MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, Stack,
 };
 use warpui::fonts::Weight;
-use warpui::keymap::FixedBinding;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
     AppContext, Element, Entity, FocusContext, SingletonEntity, TypedActionView, UpdateModel, View,
@@ -59,21 +58,6 @@ lazy_static! {
     static ref AUTH_TOKEN_INPUT_TEXT_DISABLED: ThemeFill =
         AUTH_TOKEN_INPUT_TEXT_COLOR.with_opacity(20);
     static ref AUTH_TOKEN_INPUT_TEXT_HINT: ThemeFill = AUTH_TOKEN_INPUT_TEXT_COLOR.with_opacity(40);
-}
-
-pub fn init(app: &mut AppContext) {
-    use warpui::keymap::macros::*;
-
-    app.register_fixed_bindings([FixedBinding::new(
-        "enter",
-        AuthViewBodyAction::Signup,
-        id!("AuthViewBody"),
-    )]);
-    app.register_fixed_bindings([FixedBinding::new(
-        "escape",
-        AuthViewBodyAction::Close,
-        id!("AuthViewBody"),
-    )]);
 }
 
 #[derive(Default)]
@@ -201,12 +185,6 @@ impl AuthViewBody {
             copy_url_click_count: 0,
             allow_loginless,
         }
-    }
-
-    pub fn handle_paste(&mut self, ctx: &mut ViewContext<Self>) {
-        self.show_auth_token_input = true;
-        self.auth_token_input
-            .update(ctx, |editor, ctx| editor.paste(ctx));
     }
 
     pub fn reset_login_screen(&mut self, ctx: &mut ViewContext<Self>) {
