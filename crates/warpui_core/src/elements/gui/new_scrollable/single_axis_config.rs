@@ -40,23 +40,21 @@ pub enum SingleAxisConfig {
 impl SingleAxisConfig {
     /// At run-time, validate if the passed-in axis config is valid.
     pub(super) fn validate(&self, axis: Axis) {
-        if cfg!(debug_assertions) {
-            if let SingleAxisConfig::Manual { child, .. } = self {
-                if matches!(axis, Axis::Horizontal)
-                    && matches!(child.axis(), ScrollableAxis::Vertical)
-                {
-                    panic!(
-                        "Set horizontal scrolling to be manual when the child element could only be scrolled on vertical axis"
-                    );
-                }
+        if cfg!(debug_assertions)
+            && let SingleAxisConfig::Manual { child, .. } = self
+        {
+            if matches!(axis, Axis::Horizontal) && matches!(child.axis(), ScrollableAxis::Vertical)
+            {
+                panic!(
+                    "Set horizontal scrolling to be manual when the child element could only be scrolled on vertical axis"
+                );
+            }
 
-                if matches!(axis, Axis::Vertical)
-                    && matches!(child.axis(), ScrollableAxis::Horizontal)
-                {
-                    panic!(
-                        "Set vertical scrolling to be manual when the child element could only be scrolled on horizontal axis"
-                    );
-                }
+            if matches!(axis, Axis::Vertical) && matches!(child.axis(), ScrollableAxis::Horizontal)
+            {
+                panic!(
+                    "Set vertical scrolling to be manual when the child element could only be scrolled on horizontal axis"
+                );
             }
         }
     }
