@@ -6,10 +6,10 @@ on:
       version:
         description: Release version (must match the Tilde app version)
         required: true
-        default: v0.1.1
+        default: v0.1.2
         type: string
       confirmation:
-        description: Type "release-v0.1.1" to create the prerelease
+        description: Type "release-v0.1.2" to create the prerelease
         required: true
         type: string
 
