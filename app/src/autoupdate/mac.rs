@@ -12,11 +12,13 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use channel_versions::VersionInfo;
 use command::r#async::Command;
 use command::blocking;
-use futures::{StreamExt, TryStreamExt as _};
+use futures::StreamExt;
 use futures_lite::future;
+use futures_lite::io::AsyncWriteExt as _;
 use instant::Instant;
 use nix::errno::Errno;
 use nix::unistd::{fchown, getgid, getuid};
+use sha2::{Digest as _, Sha256};
 use warp_core::macos::get_bundle_path;
 use warp_core::safe_error;
 use warp_errors::report_error;
@@ -330,6 +332,46 @@ async fn verify_code_signature(component: &str, path: &Path) -> Result<()> {
     Ok(())
 }
 
+async fn verify_oss_bundle(path: &Path, version: &str) -> Result<()> {
+    let codesign_verify_output = Command::new("/usr/bin/codesign")
+        .args(["--verify", "--deep", "--strict"])
+        .arg(path)
+        .output()
+        .await?;
+    ensure!(
+        codesign_verify_output.status.success(),
+        "Failed to verify Tilde code signature: {codesign_verify_output:?}"
+    );
+
+    let plist = plist::Value::from_file(path.join("Contents/Info.plist"))?;
+    let dictionary = plist
+        .as_dictionary()
+        .context("Tilde Info.plist is not a dictionary")?;
+    ensure!(
+        dictionary
+            .get("CFBundleIdentifier")
+            .and_then(plist::Value::as_string)
+            == Some("bytrong.app.tilde"),
+        "Downloaded bundle has an unexpected identifier"
+    );
+    ensure!(
+        dictionary
+            .get("CFBundleExecutable")
+            .and_then(plist::Value::as_string)
+            == Some("tilde"),
+        "Downloaded bundle has an unexpected executable"
+    );
+    ensure!(
+        dictionary
+            .get("CFBundleShortVersionString")
+            .and_then(plist::Value::as_string)
+            == Some(version.trim_start_matches('v')),
+        "Downloaded bundle version does not match the GitHub release"
+    );
+
+    Ok(())
+}
+
 pub(super) async fn download_update_and_cleanup(
     version_info: &VersionInfo,
     update_id: &str,
@@ -548,16 +590,18 @@ async fn download_and_extract_binary(
         warp_errors::report_error!(&err);
     }
 
-    // Ensure that the new app we just downloaded has both integrity (e.g. no corrupted files)
-    // and validity (it was signed by us).
-    // Store the executable path in a variable to prevent temporary value issues.
-    let executable_path_buf = target.join(executable_path(channel));
+    // Ensure that the new app has both integrity and the expected signing identity.
     let verification_start = Instant::now();
-    future::try_zip(
-        verify_code_signature("bundle", &target),
-        verify_code_signature("executable", executable_path_buf.as_path()),
-    )
-    .await?;
+    if channel == Channel::Oss {
+        verify_oss_bundle(&target, &version_info.version).await?;
+    } else {
+        let executable_path_buf = target.join(executable_path(channel));
+        future::try_zip(
+            verify_code_signature("bundle", &target),
+            verify_code_signature("executable", executable_path_buf.as_path()),
+        )
+        .await?;
+    }
 
     log::info!(
         "Verified new app code signature in {:?}",
@@ -643,18 +687,41 @@ async fn download_dmg(
         .get(&update_url)
         .timeout(Duration::from_secs(DMG_TIMEOUT_S))
         .send()
-        .await?;
+        .await?
+        .error_for_status()?;
     let dmg_file = dmg_path(channel, version_info, update_id);
 
     let mut file = async_fs::File::create(&dmg_file).await?;
-    futures_lite::io::copy(
-        res.bytes_stream()
-            .map_err(std::io::Error::other)
-            .into_async_read(),
-        &mut file,
-    )
-    .await?;
+    let mut hasher = Sha256::new();
+    let mut stream = res.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        hasher.update(&chunk);
+        file.write_all(&chunk).await?;
+    }
     file.sync_data().await?;
+
+    if *channel == Channel::Oss {
+        let checksum_url = update_url.replace(".dmg", ".sha256");
+        let checksum = client
+            .get(&checksum_url)
+            .timeout(Duration::from_secs(DMG_TIMEOUT_S))
+            .send()
+            .await?
+            .error_for_status()?
+            .text()
+            .await?;
+        let expected = checksum
+            .split_whitespace()
+            .next()
+            .filter(|checksum| checksum.len() == 64)
+            .context("Tilde release checksum is invalid")?;
+        let actual = hex::encode(hasher.finalize());
+        ensure!(
+            actual.eq_ignore_ascii_case(expected),
+            "Tilde release checksum verification failed"
+        );
+    }
 
     log::info!("Wrote DMG to tempfile at {:?}", &dmg_file);
     Ok(dmg_file)
@@ -701,7 +768,7 @@ fn update_url(channel: Channel, version: &str) -> String {
     format!(
         "{}/{}",
         release_assets_directory_url(channel, version),
-        dmg_name(channel)
+        dmg_name(channel, version)
     )
 }
 
@@ -713,7 +780,11 @@ fn versioned_app_name(channel: Channel, version: &str) -> String {
     format!("{}({}).app", app_name_prefix(channel), version)
 }
 
-fn dmg_name(channel: Channel) -> String {
+fn dmg_name(channel: Channel, version: &str) -> String {
+    if channel == Channel::Oss {
+        return format!("Tilde-{version}-macos-arm64.dmg");
+    }
+
     // If the user is on an Apple Silicon Mac, download an arm64-only bundle.
     let is_arm64 = command::blocking::Command::new("uname")
         .arg("-m")
@@ -734,7 +805,7 @@ fn app_name_prefix(channel: Channel) -> &'static str {
         Channel::Local => "warp",
         Channel::Integration => "integration",
         Channel::Dev => "WarpDev",
-        Channel::Oss => "warp-oss",
+        Channel::Oss => "Tilde",
     }
 }
 
@@ -745,7 +816,7 @@ fn executable_name(channel: Channel) -> &'static str {
         Channel::Local => "warp",
         Channel::Integration => "integration",
         Channel::Dev => "dev",
-        Channel::Oss => "warp-oss",
+        Channel::Oss => "tilde",
     }
 }
 

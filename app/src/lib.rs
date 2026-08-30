@@ -156,12 +156,15 @@ pub mod workspace;
 
 use std::borrow::Cow;
 use std::ops::Deref;
+use std::sync::Arc;
 
 use ::settings::{Setting, ToggleableSetting};
 #[cfg(feature = "local_tty")]
 use anyhow::Context;
 use anyhow::{Result, anyhow};
 use appearance::{Appearance, AppearanceManager};
+use auth::auth_manager::AuthManager;
+use auth::auth_state::{AuthState, AuthStateProvider};
 use channel::ChannelState;
 use interval_timer::IntervalTimer;
 use itertools::Itertools;
@@ -186,6 +189,7 @@ use warp_errors::{report_error, report_if_error};
 #[cfg(feature = "local_fs")]
 use warp_files::FileModel;
 use warp_logging::{LogDestination, LogFrontend};
+use warp_server_client::network_logging::NetworkLogModel;
 use warpui::integration::TestDriver;
 use warpui::modals::{AlertDialogWithCallbacks, AppModalCallback};
 use warpui::platform::TerminationMode;
@@ -201,7 +205,7 @@ use crate::ai::llms::LLMPreferences;
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::antivirus::AntivirusInfo;
 use crate::app_state::AppState;
-use crate::autoupdate::RelaunchModel;
+use crate::autoupdate::{AutoupdateState, RelaunchModel};
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::default_terminal::DefaultTerminal;
@@ -217,6 +221,7 @@ use crate::root_view::{
     OpenFromRestoredArg, OpenPath, quake_mode_window_id, quake_mode_window_is_open,
 };
 use crate::server::cloud_objects::update_manager::UpdateManager;
+use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 pub use crate::server::telemetry::{
     AgentModeEntrypoint, AgentModeEntrypointSelectionType, TelemetryEvent,
 };
@@ -1062,6 +1067,31 @@ pub(crate) fn initialize_app(
 
     if FeatureFlag::UIZoom.is_enabled() {
         ctx.set_zoom_factor(WindowSettings::as_ref(ctx).zoom_level.as_zoom_factor());
+    }
+
+    let auth_state = Arc::new(AuthState::initialize(ctx));
+    timer.mark_interval_end("AUTH_MANAGER_SET_USER");
+
+    ctx.add_singleton_model(|_| NetworkLogModel::default());
+    let server_api_provider = ctx.add_singleton_model({
+        let auth_state = auth_state.clone();
+        move |ctx| ServerApiProvider::new(auth_state, None, None, ctx)
+    });
+    let server_api = server_api_provider.as_ref(ctx).get();
+    ctx.add_singleton_model(|_| AuthStateProvider::new(auth_state));
+    ctx.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
+    ctx.add_singleton_model(|ctx| {
+        AuthManager::new(
+            server_api.clone(),
+            server_api_provider.as_ref(ctx).get_auth_client(),
+            ctx,
+        )
+    });
+    AutoupdateState::register(ctx, server_api);
+    let autoupdate_supported = ChannelState::channel() != channel::Channel::Oss
+        || cfg!(all(target_os = "macos", target_arch = "aarch64"));
+    if matches!(launch_mode, LaunchMode::App { .. }) && autoupdate_supported {
+        AutoupdateState::handle(ctx).update(ctx, |state, ctx| state.start_polling(ctx));
     }
 
     ctx.add_singleton_model(|_ctx| GPUState::new());

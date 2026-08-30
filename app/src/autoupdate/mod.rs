@@ -1,5 +1,6 @@
 mod changelog;
 mod channel_versions;
+mod github;
 #[cfg(target_os = "linux")]
 pub mod linux;
 #[cfg(target_os = "macos")]
@@ -773,13 +774,22 @@ async fn fetch_version(
     update_id: &str,
     server_api: Arc<ServerApi>,
 ) -> Result<VersionInfo> {
+    if matches!(channel, Channel::Oss) {
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        return github::fetch_latest_tilde_version(server_api.http_client()).await;
+
+        #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+        anyhow::bail!("Tilde autoupdate is only available on macOS arm64");
+    }
+
     let versions = fetch_channel_versions(update_id, server_api.clone(), false, is_daily).await?;
 
     let channel_version = match channel {
         Channel::Stable => versions.stable,
         Channel::Preview => versions.preview,
         Channel::Dev => versions.dev,
-        Channel::Integration | Channel::Local | Channel::Oss => {
+        Channel::Oss => unreachable!("OSS releases are fetched from GitHub above"),
+        Channel::Integration | Channel::Local => {
             // These channels don't ship release artifacts, so there's no
             // version to fetch. This branch is normally unreachable because
             // `AutoupdateState::register` gates the poll loop on the
@@ -787,9 +797,7 @@ async fn fetch_version(
             // can end up with `Autoupdate` enabled while running on one of
             // these channels. Return an error rather than panicking so the
             // poll loop just logs and bails.
-            anyhow::bail!(
-                "Local, integration, and open-source channel binaries don't support autoupdate"
-            );
+            anyhow::bail!("Local and integration channel binaries don't support autoupdate");
         }
     };
     let version_info = channel_version.version_info();
@@ -1151,8 +1159,9 @@ fn release_assets_directory_url(channel: Channel, version: &str) -> String {
             format!("{releases_base_url}/preview/{version}")
         }
         Channel::Dev => format!("{releases_base_url}/dev/{version}"),
-        Channel::Local | Channel::Integration | Channel::Oss => {
-            unreachable!("local/integration/oss autoupdate not supported");
+        Channel::Oss => format!("{releases_base_url}/download/{version}"),
+        Channel::Local | Channel::Integration => {
+            unreachable!("local/integration autoupdate not supported");
         }
     }
 }

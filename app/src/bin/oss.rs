@@ -4,7 +4,9 @@
 
 use anyhow::Result;
 use warp_core::AppId;
-use warp_core::channel::{Channel, ChannelConfig, ChannelState, OzConfig, WarpServerConfig};
+use warp_core::channel::{
+    AutoupdateConfig, Channel, ChannelConfig, ChannelState, OzConfig, WarpServerConfig,
+};
 
 // Simple wrapper around warp::run() for Tilde builds.
 fn main() -> Result<()> {
@@ -17,7 +19,10 @@ fn main() -> Result<()> {
             oz_config: OzConfig::offline(),
             telemetry_config: None,
             crash_reporting_config: None,
-            autoupdate_config: None,
+            autoupdate_config: Some(AutoupdateConfig {
+                releases_base_url: "https://github.com/nguyenphutrong/tilde/releases".into(),
+                show_autoupdate_menu_items: cfg!(all(target_os = "macos", target_arch = "aarch64")),
+            }),
             mcp_static_config: None,
         },
     );
