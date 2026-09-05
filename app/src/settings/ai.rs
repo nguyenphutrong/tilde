@@ -651,7 +651,7 @@ settings::macros::implement_setting_for_enum!(
     settings_value::SettingsValue,
 )]
 #[schemars(
-    description = "Which unit the usage entry displays in Warp Agent CLI.",
+    description = "Which unit the usage entry displays in Tilde Agent CLI.",
     rename_all = "snake_case"
 )]
 pub enum TuiUsageDisplayMode {
@@ -670,7 +670,7 @@ settings::macros::implement_setting_for_enum!(
     surface: settings::SettingSurfaces::TUI,
     private: false,
     toml_path: "agents.usage_display_mode",
-    description: "Which unit the usage entry displays in Warp Agent CLI: credits or provider cost.",
+    description: "Which unit the usage entry displays in Tilde Agent CLI: credits or provider cost.",
 );
 /// One configurable item in the Warp Agent CLI statusline.
 #[derive(
@@ -686,7 +686,7 @@ settings::macros::implement_setting_for_enum!(
     settings_value::SettingsValue,
 )]
 #[schemars(
-    description = "A configurable item in the Warp Agent CLI statusline.",
+    description = "A configurable item in the Tilde Agent CLI statusline.",
     rename_all = "snake_case"
 )]
 #[serde(rename_all = "snake_case")]
@@ -1482,7 +1482,7 @@ define_settings_group!(AISettings, settings: [
         surface: settings::SettingSurfaces::TUI,
         private: false,
         toml_path: "agents.statusline",
-        description: "Controls the order and visibility of Warp Agent CLI statusline items.",
+        description: "Controls the order and visibility of Tilde Agent CLI statusline items.",
     },
     // Whether or not the profile-level command autoexecution speedbump has been shown.
     //
@@ -1555,7 +1555,7 @@ define_settings_group!(AISettings, settings: [
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "cloud_platform.third_party_api_keys.aws_bedrock_credentials_enabled",
-        description: "Whether Warp should use your local AWS credentials for Bedrock-enabled requests.",
+        description: "Whether Tilde should use your local AWS credentials for Bedrock-enabled requests.",
     }
     // Whether to automatically run the AWS login command when Bedrock credentials are expired.
     //
@@ -1617,7 +1617,7 @@ define_settings_group!(AISettings, settings: [
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "cloud_platform.third_party_api_keys.gemini_enterprise_credentials_enabled",
-        description: "Whether Warp should route eligible requests through your workspace's Gemini Enterprise Google Cloud project.",
+        description: "Whether Tilde should route eligible requests through your workspace's Gemini Enterprise Google Cloud project.",
     }
     // Whether or not the user wants agent mode requests to use their saved rules.
     memory_enabled: MemoryEnabled {
@@ -1639,7 +1639,7 @@ define_settings_group!(AISettings, settings: [
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.knowledge.warp_drive_context_enabled",
-        description: "Whether Warp Drive context is included in AI requests.",
+        description: "Whether Tilde Drive context is included in AI requests.",
     }
 
     // Whether the codebase speedbump banner has been permanently dismissed for a given repo path.
@@ -1815,7 +1815,7 @@ define_settings_group!(AISettings, settings: [
         private: false,
         storage_key: "CanUseWarpCreditsWithByok",
         toml_path: "cloud_platform.third_party_api_keys.can_use_warp_credits_with_byok",
-        description: "Whether Warp credits can be used as a fallback for user-provided models.",
+        description: "Whether Tilde credits can be used as a fallback for user-provided models.",
     }
 
     should_render_use_agent_footer_for_user_commands: ShouldRenderUseAgentToolbarForUserCommands {
@@ -2060,7 +2060,7 @@ define_settings_group!(AISettings, settings: [
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.warp_agent.other.agent_attribution_enabled",
-        description: "Whether the Warp Agent adds an attribution co-author line to commit messages and pull requests it creates.",
+        description: "Whether the Tilde Agent adds an attribution co-author line to commit messages and pull requests it creates.",
     }
 
     should_force_disable_cloud_handoff: ShouldForceDisableCloudHandoff {
@@ -2093,7 +2093,7 @@ define_settings_group!(AISettings, settings: [
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "agents.warp_agent.other.auto_handoff_on_sleep_enabled",
-        description: "Whether Warp automatically hands off local agent conversations to cloud when the computer is about to sleep.",
+        description: "Whether Tilde automatically hands off local agent conversations to cloud when the computer is about to sleep.",
     }
 
     // This is not a user-visible setting - it's merely a one-time flag to track if the

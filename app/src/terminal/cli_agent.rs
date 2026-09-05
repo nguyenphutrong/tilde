@@ -241,7 +241,7 @@ impl CLIAgent {
             CLIAgent::Hermes => "Hermes",
             CLIAgent::Vibe => "Mistral Vibe",
             CLIAgent::Antigravity => "Antigravity",
-            CLIAgent::WarpTui => "Warp TUI",
+            CLIAgent::WarpTui => "Tilde TUI",
             CLIAgent::Unknown => "CLI Agent",
         }
     }

@@ -2,7 +2,7 @@
 # Package Spec
 ###############################################################################
 
-Summary:     Warp, the Rust-based terminal for developers and teams
+Summary:     Tilde, the Rust-based terminal for developers and teams
 Name:        warp-terminal@@CHANNEL_SUFFIX@@
 Version:     @@VERSION@@
 Release:     @@RELEASE@@
@@ -28,9 +28,9 @@ prefix:      /opt
 ###############################################################################
 
 %description
-Warp is a modern, Rust-based terminal with AI built in so teams can
+Tilde is a modern, Rust-based terminal with AI built in so teams can
 build great software, faster. Bringing collaboration to the command line,
-Warp lets teams save and share commands for streamlined onboarding and
+Tilde lets teams save and share commands for streamlined onboarding and
 incident response.
 
 ###############################################################################

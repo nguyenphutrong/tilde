@@ -205,10 +205,10 @@ mod package_manager {
                     ))],
                 }),
                 FormattedTextLine::Line(vec![
-                    FormattedTextFragment::plain_text("If you installed Warp using "),
+                    FormattedTextFragment::plain_text("If you installed Tilde using "),
                     FormattedTextFragment::bold(package_manager_name),
                     FormattedTextFragment::plain_text(
-                        " or a compatible tool, the pre-filled command will update Warp for you.",
+                        " or a compatible tool, the pre-filled command will update Tilde for you.",
                     ),
                 ]),
             ];
@@ -239,7 +239,7 @@ mod package_manager {
             lines.push(FormattedTextLine::Line(vec![
                 FormattedTextFragment::plain_text("\nReview the command below, then "),
                 FormattedTextFragment::bold("press enter"),
-                FormattedTextFragment::plain_text(" to install the update and re-launch Warp.  "),
+                FormattedTextFragment::plain_text(" to install the update and re-launch Tilde.  "),
                 FormattedTextFragment::hyperlink(
                     "Please report any issues",
                     "https://github.com/warpdotdev/Warp/issues/new/choose",

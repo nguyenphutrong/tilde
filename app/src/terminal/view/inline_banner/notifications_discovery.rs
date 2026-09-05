@@ -101,7 +101,7 @@ pub fn render_inline_notifications_discovery_banner(
                         learn_more_button,
                     ),
                     RequestPermissionsOutcome::PermissionsDenied => (
-                        "Warp was denied permissions to send you notifications.",
+                        "Tilde was denied permissions to send you notifications.",
                         troubleshoot_button,
                     ),
                     RequestPermissionsOutcome::OtherError { .. } => (

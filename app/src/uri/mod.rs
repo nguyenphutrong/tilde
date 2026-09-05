@@ -911,7 +911,7 @@ impl Action {
             Self::Docker | Self::OpenFileEditor { .. } | Self::OpenRepo => W::default(),
             Self::NewTab => W::ShowPrimaryWindow(WindowActivationFallbackBehavior::Notify {
                 title: "New tab created".to_owned(),
-                description: "Go to Warp to see your new tab.".to_owned(),
+                description: "Go to Tilde to see your new tab.".to_owned(),
             }),
             Self::NewWindow => W::Nothing,
         }

@@ -1189,7 +1189,7 @@ fn summary_search_fragments_include_hidden_overflow_values() {
                 text: "Claude".to_string(),
                 status: Some(ConversationStatus::InProgress),
             },
-            label("Warp Agent"),
+            label("Tilde Agent"),
             label("cargo"),
             label("code review"),
             label("hidden work"),
