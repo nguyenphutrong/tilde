@@ -15,7 +15,7 @@ define_settings_group!(WarpDriveSettings, settings: [
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "warp_drive.sorting_choice",
-        description: "The sort order for items in Warp Drive.",
+        description: "The sort order for items in Tilde Drive.",
     },
     // Controls whether Warp Drive appears in the tools panel, command palette, and command search.
     enable_warp_drive: EnableWarpDrive {
@@ -26,7 +26,7 @@ define_settings_group!(WarpDriveSettings, settings: [
         surface: settings::SettingSurfaces::GUI,
         private: false,
         toml_path: "warp_drive.enabled",
-        description: "Whether Warp Drive is enabled.",
+        description: "Whether Tilde Drive is enabled.",
     },
 ]);
 

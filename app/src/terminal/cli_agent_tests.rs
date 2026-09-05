@@ -641,7 +641,7 @@ fn test_warp_tui_variant_properties() {
             "run-tui",
         ]
     );
-    assert_eq!(CLIAgent::WarpTui.display_name(), "Warp TUI");
+    assert_eq!(CLIAgent::WarpTui.display_name(), "Tilde TUI");
     assert_eq!(CLIAgent::WarpTui.brand_color(), Some(ColorU::black()));
     assert_eq!(CLIAgent::WarpTui.icon(), Some(Icon::Warp));
     assert_eq!(CLIAgent::WarpTui.brand_icon_color(), ColorU::white());

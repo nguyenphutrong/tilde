@@ -583,12 +583,12 @@ impl AIDocumentModel {
                 )
             })
             .ok_or_else(|| {
-                format!("Plan document {ai_document_id} was not found in Warp Drive.")
+                format!("Plan document {ai_document_id} was not found in Tilde Drive.")
             })?;
         let (sync_id, title, content) = notebook;
         if sync_id.into_server().is_none() {
             return Err(format!(
-                "Plan document {ai_document_id} is not backed by a saved Warp Drive notebook."
+                "Plan document {ai_document_id} is not backed by a saved Tilde Drive notebook."
             ));
         }
 

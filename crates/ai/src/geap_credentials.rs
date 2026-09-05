@@ -110,7 +110,7 @@ pub struct GeapMintBinding {
 // body, so interpolating it would leak it to Sentry via `report_error!`.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum LoadGeapCredentialsError {
-    #[error("failed to mint a Warp identity token")]
+    #[error("failed to mint a Tilde identity token")]
     MintIdentityToken { detail: String },
     #[error("STS token exchange failed")]
     ExchangeToken { status: Option<u16>, detail: String },
@@ -156,17 +156,17 @@ impl LoadGeapCredentialsError {
     pub fn user_facing(&self) -> (String, String, GeapRecoveryAction) {
         match self {
             Self::MintIdentityToken { .. } => (
-                "Couldn't authenticate with Warp".to_string(),
-                "Warp couldn't create Gemini Enterprise credentials. Check your network \
-                 connection and that you're signed in to Warp, then try again."
+                "Couldn't authenticate with Tilde".to_string(),
+                "Tilde couldn't create Gemini Enterprise credentials. Check your network \
+                 connection and that you're signed in to Tilde, then try again."
                     .to_string(),
                 GeapRecoveryAction::Retry,
             ),
             Self::ExchangeToken { status, .. } if is_admin_config_status(*status) => (
                 "Gemini Enterprise is misconfigured".to_string(),
-                "Google rejected Warp's identity token. Ask your team admin to verify \
+                "Google rejected Tilde's identity token. Ask your team admin to verify \
                  that the Workload Identity Federation audience exactly matches the provider's \
-                 full resource name, the provider trusts Warp's OIDC issuer, and its attribute \
+                 full resource name, the provider trusts Tilde's OIDC issuer, and its attribute \
                  condition allows this workspace."
                     .to_string(),
                 GeapRecoveryAction::ContactAdmin,
@@ -180,8 +180,8 @@ impl LoadGeapCredentialsError {
             ),
             Self::ImpersonateServiceAccount { status, .. } if is_admin_config_status(*status) => (
                 "Gemini Enterprise service account access is misconfigured".to_string(),
-                "Warp couldn't obtain credentials for the service account configured by your \
-                 team admin. Ask them to verify the service account email, confirm the Warp \
+                "Tilde couldn't obtain credentials for the service account configured by your \
+                 team admin. Ask them to verify the service account email, confirm the Tilde \
                  workload identity has the Workload Identity User role on that service account, \
                  and ensure the IAM Service Account Credentials API is enabled."
                     .to_string(),
@@ -222,12 +222,12 @@ impl GeapCredentialsState {
         match self {
             Self::Missing => (
                 "Gemini Enterprise credentials not loaded".to_string(),
-                "Warp hasn't loaded your Gemini Enterprise credentials yet.".to_string(),
+                "Tilde hasn't loaded your Gemini Enterprise credentials yet.".to_string(),
                 Icon::Key,
             ),
             Self::Disabled => (
                 "Gemini Enterprise disabled".to_string(),
-                "Warp will not load Gemini Enterprise credentials until it's enabled by you or \
+                "Tilde will not load Gemini Enterprise credentials until it's enabled by you or \
                  your team admin."
                     .to_string(),
                 Icon::Key,
@@ -235,13 +235,13 @@ impl GeapCredentialsState {
             Self::Unconfigured => (
                 "Gemini Enterprise setup incomplete".to_string(),
                 "Your team admin needs to configure the Workload Identity Federation audience \
-                before Warp can load credentials."
+                before Tilde can load credentials."
                     .to_string(),
                 Icon::AlertTriangle,
             ),
             Self::Refreshing { .. } => (
                 "Refreshing credentials...".to_string(),
-                "Loading your Gemini Enterprise credentials into Warp".to_string(),
+                "Loading your Gemini Enterprise credentials into Tilde".to_string(),
                 Icon::RefreshCw04,
             ),
             Self::Loaded {

@@ -759,7 +759,7 @@ impl BuyCreditsBanner {
             } else {
                 // Default message when not at limit
                 let banner_description = if has_admin_permissions {
-                    "Add more credits to your account to continue using the Warp Agent."
+                    "Add more credits to your account to continue using the Tilde Agent."
                 } else {
                     "Contact a team admin to purchase more credits to continue."
                 };

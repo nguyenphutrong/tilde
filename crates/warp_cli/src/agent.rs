@@ -252,7 +252,7 @@ impl ValueEnum for Harness {
     fn to_possible_value(&self) -> Option<PossibleValue> {
         let mut pv = match self {
             Harness::Oz => {
-                PossibleValue::new("oz").help("Use Warp's built-in MAA infrastructure (default)")
+                PossibleValue::new("oz").help("Use Tilde's built-in MAA infrastructure (default)")
             }
             Harness::Claude => PossibleValue::new("claude")
                 .alias("claude-code")
@@ -303,7 +303,7 @@ impl Harness {
 
     pub fn display_name(self) -> &'static str {
         match self {
-            Self::Oz => "Warp Agent",
+            Self::Oz => "Tilde Agent",
             Self::Claude => "Claude Code",
             Self::OpenCode => "OpenCode",
             Self::Gemini => "Gemini CLI",
@@ -368,7 +368,7 @@ pub enum AgentProfileCommand {
 /// Agent-related subcommands.
 #[derive(Debug, Clone, Subcommand)]
 pub enum AgentCommand {
-    /// Run a new Warp Agent.
+    /// Run a new Tilde Agent.
     Run(RunAgentArgs),
     /// Dispatch a cloud agent.
     RunCloud(RunCloudArgs),
@@ -558,7 +558,7 @@ pub struct RunAgentArgs {
 
     /// Execution harness for the agent run.
     ///
-    /// "oz" (default) uses Warp Agent.
+    /// "oz" (default) uses Tilde Agent.
     /// "claude" delegates to the `claude` CLI.
     #[arg(long = "harness", value_name = "HARNESS", default_value_t = Harness::Oz, hide = true)]
     pub harness: Harness,
@@ -715,7 +715,7 @@ pub struct RunCloudArgs {
     #[arg(long = "agent", value_name = "UID")]
     pub agent_uid: Option<String>,
 
-    /// Where this job should be hosted. Setting "warp" runs it on Warp's infrastructure. Any other
+    /// Where this job should be hosted. Setting "warp" runs it on Tilde's infrastructure. Any other
     /// value is treated is a self-hosted job and the value will be matched with the self-hosted
     /// worker's name.
     #[arg(long = "host", value_name = "WORKER_ID")]
@@ -742,7 +742,7 @@ pub struct RunCloudArgs {
 
     /// Execution harness for the agent run.
     ///
-    /// "oz" (the default) runs on Warp's built-in agent infrastructure. Other
+    /// "oz" (the default) runs on Tilde's built-in agent infrastructure. Other
     /// values delegate the run to an external agent CLI; see the possible
     /// values below.
     #[arg(long = "harness", value_name = "HARNESS", default_value_t = Harness::Oz)]
