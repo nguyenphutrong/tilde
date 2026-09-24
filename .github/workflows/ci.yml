@@ -53,8 +53,22 @@ jobs:
       - name: Check formatting
         run: ./script/format --check
 
-      - name: Check terminal app
-        run: cargo check --locked -p warp --lib
+      - name: Enforce local-only dependency and endpoint policy
+        run: |
+          python3 script/test_local_only.py
+          python3 script/check_local_only.py
+
+      - name: Check Linux GUI binary
+        run: cargo check --locked -p warp --bin tilde --features gui
+
+      - name: Clippy terminal app
+        run: cargo clippy --locked -p warp --lib --features gui
+
+      - name: Test terminal grid, editor, and renderer core
+        run: cargo test --locked -p warp_terminal -p warp_editor -p warpui_core --lib
+
+      - name: Test migration replay and persistence compatibility
+        run: cargo test --locked -p persistence --lib
 
       - name: Test terminal CLI
         run: cargo test --locked -p warp_cli --lib
