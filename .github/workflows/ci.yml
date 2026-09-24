@@ -83,6 +83,7 @@ jobs:
           cargo test --locked -p warp --lib terminal::warpify::settings::
           cargo test --locked -p warp --lib local_and_ssh_executors_do_not_require_a_remote_server
           cargo test --locked -p warp --lib retired_input_predictions_are_not_registered_settings
+          cargo test --locked -p warp --lib terminal::autosuggestions::tests::
 
       - name: Test terminal CLI
         run: cargo test --locked -p warp_cli --lib
