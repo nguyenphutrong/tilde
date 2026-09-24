@@ -3772,33 +3772,29 @@ fn test_standard_tab_context_menu_shows_hover_only_tab_bar() {
 }
 
 #[test]
-fn test_open_cloud_agent_setup_guide_cannot_reopen_management_view() {
+fn test_legacy_agent_filters_survive_local_workspace_restore() {
     let _agent_management_guard = FeatureFlag::AgentManagementView.override_enabled(true);
 
     App::test((), |mut app| async move {
         initialize_app(&mut app);
-
         let workspace = mock_workspace(&mut app);
+        let mut snapshot = workspace.read(&app, |workspace, ctx| {
+            workspace.snapshot(workspace.window_id, false, ctx)
+        });
+        let mut filters = PersistedAgentManagementFilters::default();
+        filters.filters.status = crate::ai::agent_conversations_model::StatusFilter::Failed;
+        snapshot.agent_management_filters = Some(filters.clone());
 
-        workspace.update(&mut app, |workspace, ctx| {
-            assert!(
-                !workspace
-                    .current_workspace_state
-                    .is_agent_management_view_open
+        let restored = restored_workspace(&mut app, snapshot);
+        restored.read(&app, |workspace, ctx| {
+            assert_eq!(workspace.tab_count(), 1);
+            assert_eq!(
+                workspace
+                    .snapshot(workspace.window_id, false, ctx)
+                    .agent_management_filters,
+                Some(filters)
             );
-
-            workspace.handle_action(&WorkspaceAction::OpenCloudAgentSetupGuide, ctx);
-            assert!(
-                !workspace
-                    .current_workspace_state
-                    .is_agent_management_view_open
-            );
-            assert!(
-                !workspace
-                    .agent_management_view
-                    .as_ref(ctx)
-                    .is_showing_setup_guide()
-            );
+            assert!(!HeaderToolbarItemKind::AgentManagement.is_available(ctx));
         });
     });
 }
