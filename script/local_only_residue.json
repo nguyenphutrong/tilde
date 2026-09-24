@@ -143,7 +143,6 @@
   "endpoint:app/src/auth/auth_view_body.rs:db0ea43be5f34efe6be87e8f5c695a2c52ffb29ca02db221f4d37757808c9a54": 1,
   "endpoint:app/src/auth/login_failure_notification.rs:af7203b60583815b7cf17eba12838c074fbd4d3acea3f69f960c8121c9883dbf": 1,
   "endpoint:app/src/autoupdate/linux.rs:cc2aaddd85a25351055206d70a3f29020ea4c7d50c28b3d8643c6b983825f774": 1,
-  "endpoint:app/src/drive/import/modal_body.rs:813fa6d557fdcda8cf1c4ed14f7129e97834ec9d227aee754ba2a5601dc0bc36": 1,
   "endpoint:app/src/drive/sharing/qr_code_tests.rs:9a37011222e7834e86dc84fa483bd278d8c8db164c3eb782d1b8a56751ee1357": 1,
   "endpoint:app/src/launch_configs/save_modal.rs:940a9cb021089c747149bf93eed902caae705fb34261340d6ff31015ff87d7b9": 1,
   "endpoint:app/src/resource_center/keybindings_page.rs:b107475ab97e665ff0d604e7ce0225d56c79b9a1dc781f42a09a4a96f6244232": 1,

@@ -72,10 +72,6 @@ pub enum DrivePanelEvent {
     },
     OpenSearch,
     OpenSharedObjectsCreationDeniedModal(DriveObjectType, ServerId),
-    OpenImportModal {
-        owner: Owner,
-        initial_folder_id: Option<SyncId>,
-    },
     OpenNotebook(NotebookSource),
     OpenEnvVarCollection(EnvVarCollectionSource),
     OpenWorkflowInPane(WorkflowOpenSource, WorkflowViewMode),
@@ -145,21 +141,6 @@ impl DrivePanel {
                 None => {
                     report_error!(
                         "Cannot identify a notebook owner",
-                        extra: { "space" => ?space }
-                    );
-                }
-            },
-            DriveIndexEvent::OpenImportModal {
-                space,
-                initial_folder_id,
-            } => match Self::new_object_owner(*space, initial_folder_id.as_ref(), ctx) {
-                Some(owner) => ctx.emit(DrivePanelEvent::OpenImportModal {
-                    owner,
-                    initial_folder_id: *initial_folder_id,
-                }),
-                None => {
-                    report_error!(
-                        "Cannot identify an import target",
                         extra: { "space" => ?space }
                     );
                 }
