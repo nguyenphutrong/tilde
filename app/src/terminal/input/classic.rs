@@ -102,13 +102,6 @@ impl Input {
         );
         let mut column = Flex::column();
 
-        if matches!(input_mode, InputMode::PinnedToBottom | InputMode::Waterfall)
-            && let Some(banner) =
-                self.render_input_banner(appearance, app, input_mode, is_compact_mode)
-        {
-            column.add_child(banner);
-        }
-
         column.add_children([prompt_top_padding_row.finish(), prompt_row.finish()]);
 
         let ai_input_model = self.ai_input_model.as_ref(app);
@@ -142,13 +135,6 @@ impl Input {
                     .with_margin_bottom(4.)
                     .finish(),
             );
-        }
-
-        if matches!(input_mode, InputMode::PinnedToTop)
-            && let Some(banner) =
-                self.render_input_banner(appearance, app, input_mode, is_compact_mode)
-        {
-            column.add_child(banner);
         }
 
         let subshell_flag = self.get_subshell_flag_render_state(&model, is_compact_mode, app);

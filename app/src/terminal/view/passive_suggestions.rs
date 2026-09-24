@@ -35,9 +35,6 @@ impl TerminalView {
         if self.resolve_unit_test_suggestion(resolution, ctx) {
             return true;
         }
-        if self.resolve_prompt_suggestion(resolution, ctx) {
-            return true;
-        }
 
         false
     }

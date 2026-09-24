@@ -315,7 +315,6 @@ pub mod flags {
     /// should not match.
     pub const TERMINAL_INPUT_PAGE_KEYS_HANDLED_BY_INPUT: &str =
         "TerminalInputPageKeysHandledByInput";
-    pub const HAS_PENDING_PROMPT_SUGGESTION: &str = "HasPendingPromptSuggestion";
     pub const ACTIVE_AGENT_VIEW: &str = "ActiveAgentView";
     pub const ACTIVE_INLINE_AGENT_VIEW: &str = "ActiveInlineAgentView";
     /// When set, ctrl-enter should be the active binding to enter agent view.

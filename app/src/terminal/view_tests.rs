@@ -9092,58 +9092,6 @@ fn close_cli_agent_rich_input_with_empty_buffer_stores_no_draft() {
     })
 }
 
-#[test]
-fn ctrl_c_does_not_accept_prompt_suggestion_banner() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        let block_id = terminal.update(&mut app, |view, _ctx| {
-            let mut model = view.model.lock();
-            model.simulate_block("ls", "output");
-            let last_completed_block_index = BlockIndex(model.block_list().blocks().len() - 2);
-            model
-                .block_list()
-                .block_at(last_completed_block_index)
-                .unwrap()
-                .id()
-                .clone()
-        });
-
-        terminal.update(&mut app, |view, ctx| {
-            view.on_legacy_prompt_suggestion_generated(
-                AgentModePromptSuggestion::Success(PromptSuggestion {
-                    id: "suggestion".to_owned(),
-                    label: Some("Do something".to_owned()),
-                    prompt: "Do something".to_owned(),
-                    coding_query_context: None,
-                    static_prompt_suggestion_name: None,
-                    should_start_new_conversation: false,
-                }),
-                block_id.clone(),
-                "ls".to_owned(),
-                0,
-                ctx,
-            );
-
-            assert!(
-                view.inline_banners_state
-                    .prompt_suggestions_banner
-                    .is_some()
-            );
-
-            // Ctrl-C should not accept the prompt suggestion.
-            view.handle_action(&TerminalAction::CtrlC, ctx);
-
-            assert!(
-                view.inline_banners_state
-                    .prompt_suggestions_banner
-                    .is_some()
-            );
-        });
-    })
-}
-
 /// Regression test for GH703: a Linear deeplink prompt must never be auto-submitted
 /// to the LLM. Because `LinearDeepLink` returns `AutoTriggerBehavior::Never`, the
 /// prompt must land in the input buffer as a draft and the "press enter again to

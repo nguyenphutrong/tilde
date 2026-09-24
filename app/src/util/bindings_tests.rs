@@ -141,6 +141,23 @@ fn test_toggle_maximize_pane_binding_is_editable() {
 }
 
 #[test]
+fn test_retired_prompt_suggestion_binding_is_absent() {
+    App::test((), |mut app| async move {
+        app.update(terminal::init);
+        app.update(|ctx| {
+            assert!(
+                ctx.editable_bindings()
+                    .any(|binding| binding.name == "terminal:warpify_subshell")
+            );
+            assert!(
+                !ctx.editable_bindings()
+                    .any(|binding| binding.name == "terminal:accept_prompt_suggestions")
+            );
+        });
+    });
+}
+
+#[test]
 fn test_terminal_page_scroll_bindings_are_editable() {
     App::test((), |mut app| async move {
         app.update(terminal::init);

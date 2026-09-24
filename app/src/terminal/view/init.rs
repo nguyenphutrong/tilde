@@ -5,17 +5,15 @@ use warpui::platform::OperatingSystem;
 use warpui::units::IntoLines;
 
 use super::{AskAISource, ContextMenuAction, TerminalAction};
-use crate::ai::predict::prompt_suggestions::ACCEPT_PROMPT_SUGGESTION_KEYBINDING;
 use crate::channel::{Channel, ChannelState};
 use crate::features::FeatureFlag;
-use crate::server::telemetry::{InteractionSource, ToggleBlockFilterSource};
+use crate::server::telemetry::ToggleBlockFilterSource;
 use crate::settings_view::flags;
 use crate::terminal::TerminalView;
 use crate::terminal::model::escape_sequences::{self, EscCodes};
 use crate::terminal::model::selection::SelectionDirection;
 use crate::terminal::shared_session::{SharedSessionActionSource, SharedSessionStatus};
 use crate::terminal::view::LONG_RUNNING_AGENT_REQUESTED_COMMAND_CONTEXT_KEY;
-use crate::terminal::view::passive_suggestions::PromptSuggestionResolution;
 use crate::util::bindings;
 use crate::util::bindings::{CustomAction, cmd_or_ctrl_shift, is_binding_pty_compliant};
 
@@ -322,26 +320,6 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-i")
         .with_context_predicate(
             id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand") & id!("SubshellBanner"),
-        ),
-        EditableBinding::new(
-            ACCEPT_PROMPT_SUGGESTION_KEYBINDING,
-            "Accept Prompt Suggestion",
-            TerminalAction::ResolvePromptSuggestion(PromptSuggestionResolution::Accept {
-                interaction_source: InteractionSource::Keybinding,
-            }),
-        )
-        .with_mac_key_binding(if FeatureFlag::AgentView.is_enabled() {
-            "ctrl-enter"
-        } else {
-            "cmd-enter"
-        })
-        .with_linux_or_windows_key_binding(if FeatureFlag::AgentView.is_enabled() {
-            "alt-shift-enter"
-        } else {
-            "ctrl-shift-enter"
-        })
-        .with_context_predicate(
-            id!("Terminal") & !id!("IMEOpen") & id!(flags::HAS_PENDING_PROMPT_SUGGESTION),
         ),
         EditableBinding::new(
             CANCEL_COMMAND_KEYBINDING,

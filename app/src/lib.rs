@@ -196,7 +196,6 @@ use window_settings::WindowSettings;
 use workspace::sync_inputs::SyncedInputState;
 
 use self::features::FeatureFlag;
-use crate::ai::AIRequestUsageModel;
 use crate::ai::llms::LLMPreferences;
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::antivirus::AntivirusInfo;
