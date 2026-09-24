@@ -137,9 +137,6 @@ use crate::terminal::shared_session::share_modal::{ShareSessionModal, ShareSessi
 use crate::terminal::shared_session::{
     self, IsSharedSessionCreator, SharedSessionActionSource, SharedSessionSource,
 };
-use crate::terminal::view::inline_banner::{
-    ZeroStatePromptSuggestionTriggeredFrom, ZeroStatePromptSuggestionType,
-};
 use crate::terminal::view::load_ai_conversation::{
     RestoreConversationEntryBehavior, RestoredAIConversation,
 };
@@ -5133,7 +5130,7 @@ impl PaneGroup {
                 ctx.emit(Event::AppStateChanged);
             }
             PaneEvent::NewPaneInAIMode { initial_query } => {
-                self.add_terminal_pane_in_agent_mode(initial_query.as_deref(), None, ctx)
+                self.add_terminal_pane_in_agent_mode(initial_query.as_deref(), ctx)
             }
             PaneEvent::ClearHoveredTabIndex => ctx.emit(Event::ClearHoveredTabIndex),
             #[cfg(feature = "local_fs")]
@@ -7957,7 +7954,6 @@ impl PaneGroup {
     pub(crate) fn start_agent_mode_in_new_pane(
         &mut self,
         initial_query: Option<&str>,
-        zero_state_prompt_suggestion_type: Option<ZeroStatePromptSuggestionType>,
         ctx: &mut ViewContext<Self>,
     ) {
         if let Some(terminal_view) = self.focused_session_view(ctx) {
@@ -7981,17 +7977,6 @@ impl PaneGroup {
                             input.focus_input_box(ctx);
                         });
                 }
-                if let Some(zero_state_prompt_suggestion_type) = zero_state_prompt_suggestion_type {
-                    terminal_view
-                        .input()
-                        .update(terminal_view_ctx, |input, ctx| {
-                            input.insert_zero_state_prompt_suggestion(
-                                zero_state_prompt_suggestion_type,
-                                ZeroStatePromptSuggestionTriggeredFrom::TryAgentModeBanner,
-                                ctx,
-                            );
-                        });
-                }
             });
         }
     }
@@ -8001,7 +7986,6 @@ impl PaneGroup {
     pub(crate) fn add_terminal_pane_in_agent_mode(
         &mut self,
         initial_query: Option<&str>,
-        zero_state_prompt_suggestion_type: Option<ZeroStatePromptSuggestionType>,
         ctx: &mut ViewContext<Self>,
     ) {
         // We can only control the size of a pane that hasn't been laid out by setting `PaneFlex`
@@ -8051,7 +8035,7 @@ impl PaneGroup {
 
         ctx.emit(Event::AppStateChanged);
 
-        self.start_agent_mode_in_new_pane(initial_query, zero_state_prompt_suggestion_type, ctx);
+        self.start_agent_mode_in_new_pane(initial_query, ctx);
     }
 
     /// Creates an ambient agent pane with the given initial prompt.

@@ -62,9 +62,6 @@ use crate::terminal::model::terminal_model::BlockSelectionCardinality;
 use crate::terminal::settings::AltScreenPaddingMode;
 use crate::terminal::shared_session::SharedSessionActionSource;
 use crate::terminal::shell::ShellType;
-use crate::terminal::view::inline_banner::{
-    ZeroStatePromptSuggestionTriggeredFrom, ZeroStatePromptSuggestionType,
-};
 use crate::terminal::view::{
     BlockEntity, BlockSelectionDetails, NotificationsDiscoveryBannerAction,
     NotificationsErrorBannerAction, NotificationsTrigger, PromptPart,
@@ -1945,12 +1942,6 @@ pub enum TelemetryEvent {
         interaction_source: InteractionSource,
     },
 
-    /// Keeps track of number of times the user uses a zero state prompt suggestion & the type of suggestion used.
-    ZeroStatePromptSuggestionUsed {
-        suggestion_type: ZeroStatePromptSuggestionType,
-        triggered_from: ZeroStatePromptSuggestionTriggeredFrom,
-    },
-
     UnitTestSuggestionShown {
         identifiers: AIIdentifiers,
     },
@@ -3448,10 +3439,6 @@ impl TelemetryEvent {
                 "view": view,
                 "interaction_source": interaction_source,
             })),
-            TelemetryEvent::ZeroStatePromptSuggestionUsed {
-                suggestion_type,
-                triggered_from,
-            } => Some(json!({"type": suggestion_type, "triggered_from": triggered_from})),
             TelemetryEvent::UnitTestSuggestionShown { identifiers } => Some(json!({
                 "server_output_id": identifiers.server_output_id,
                 "exchange_id": identifiers.client_exchange_id,
@@ -4707,7 +4694,6 @@ impl TelemetryEvent {
             | TelemetryEvent::SuggestedCodeDiffBannerShown { .. }
             | TelemetryEvent::SuggestedCodeDiffFailed { .. }
             | TelemetryEvent::PromptSuggestionAccepted { .. }
-            | TelemetryEvent::ZeroStatePromptSuggestionUsed { .. }
             | TelemetryEvent::UnitTestSuggestionShown { .. }
             | TelemetryEvent::UnitTestSuggestionCancelled { .. }
             | TelemetryEvent::AgentModeCodeSuggestionEditedByUser { .. }
@@ -5258,7 +5244,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ToggleGitOperationsAutogenSetting => {
                 EnablementState::Flag(FeatureFlag::GitOperationsInCodeReview)
             }
-            Self::ZeroStatePromptSuggestionUsed => EnablementState::Always,
             Self::ToggleVoiceInputSetting => EnablementState::Always,
             Self::AgentModeCodeSuggestionEditedByUser
             | Self::AgentModeCodeFilesNavigated
@@ -5713,7 +5698,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::PromptSuggestionAccepted => "Agent Mode Query Suggestion Accepted",
             Self::StaticPromptSuggestionsBannerShown => "Static Prompt Suggestions Banner Shown",
             Self::StaticPromptSuggestionAccepted => "Static Prompt Suggestion Accepted",
-            Self::ZeroStatePromptSuggestionUsed => "Zero State Prompt Suggestion Used",
             Self::TogglePromptSuggestionsSetting => "Toggle Agent Mode Query Suggestions Setting",
             Self::UnitTestSuggestionShown { .. } => "Suggested Prompt Shown",
             Self::UnitTestSuggestionAccepted { .. } => "Suggested Prompt Accepted",
@@ -6422,7 +6406,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::PromptSuggestionAccepted => "Prompt Suggestion accepted",
             Self::StaticPromptSuggestionsBannerShown => "Static Prompt Suggestions banner shown",
             Self::StaticPromptSuggestionAccepted => "Static Prompt Suggestion accepted",
-            Self::ZeroStatePromptSuggestionUsed => "Used a zero state prompt suggestion",
             Self::AgentModeCodeSuggestionEditedByUser => {
                 "Agent Mode Code suggestion edited by user"
             }
