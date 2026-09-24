@@ -82,6 +82,8 @@ cargo test --locked -p warp_tui --lib
 
 Recovery uses owner-authorized warning-allowing Clippy plus focused checks for each commit/push.
 Strict presubmit `-D warnings` fails on pre-existing unused/dead-code warnings; these are not fixed or
-suppressed as part of recovery. Ordinary Clippy passing does not mean warning-clean. Full integration
-tests remain blocked by stale AI assistant imports and seven removed launch-config fields. Linux
-build and GUI smoke are separate verification requirements; unit checks do not substitute for them.
+suppressed as part of recovery. Ordinary Clippy passing does not mean warning-clean. The obsolete AI
+assistant integration test is removed and seven launch-config constructors match their current API;
+all-target integration checking and Clippy pass without removing local launch-config assertions.
+Linux build and GUI smoke are separate verification requirements; unit checks do not substitute for
+them. Integration compilation does not imply a successful real-display test run.
