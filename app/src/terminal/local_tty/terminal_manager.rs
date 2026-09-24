@@ -31,7 +31,7 @@ use crate::context_chips::ContextChipKind;
 use crate::features::FeatureFlag;
 use crate::persistence::ModelEvent;
 use crate::server::telemetry::{PtySpawnMode as TelemetryPtySpawnMode, TelemetryEvent};
-use crate::settings::{DebugSettings, PrivacySettings, SshSettings};
+use crate::settings::{DebugSettings, SshSettings};
 use crate::terminal::available_shells::{AvailableShell, AvailableShells};
 use crate::terminal::color::List as ColorList;
 use crate::terminal::event_listener::ChannelEventListener;
@@ -63,23 +63,9 @@ use crate::terminal::{
 
 type PtyController = writeable_pty::PtyController<mio_channel::Sender<Message>>;
 
-struct AppPtySpawnHooks {
-    is_crash_reporting_enabled: bool,
-}
+struct AppPtySpawnHooks;
 
 impl PtySpawnHooks for AppPtySpawnHooks {
-    fn before_spawn(&self) {
-        #[cfg(feature = "crash_reporting")]
-        crate::crash_reporting::uninit_cocoa_sentry();
-    }
-
-    fn after_spawn(&self) {
-        if self.is_crash_reporting_enabled {
-            #[cfg(feature = "crash_reporting")]
-            crate::crash_reporting::init_cocoa_sentry();
-        }
-    }
-
     fn spawned(&self, mode: PtySpawnMode, ctx: &mut AppContext) {
         let mode = match mode {
             PtySpawnMode::TerminalServer => TelemetryPtySpawnMode::TerminalServer,
@@ -746,7 +732,6 @@ impl<S> TerminalManager<S> {
             .is_shell_debug_mode_enabled
             .value();
         let is_honor_ps1_enabled = *SessionSettings::as_ref(ctx).honor_ps1;
-        let is_crash_reporting_enabled = PrivacySettings::as_ref(ctx).is_crash_reporting_enabled;
 
         // Skip precmd-time node version detection when the chip is disabled in both local footers.
         let node_version_chip_enabled = {
@@ -790,12 +775,9 @@ impl<S> TerminalManager<S> {
             close_fds: true,
         };
 
-        let hooks = AppPtySpawnHooks {
-            is_crash_reporting_enabled,
-        };
         Pty::new(
             options,
-            &hooks,
+            &AppPtySpawnHooks,
             #[cfg(windows)]
             event_loop_tx,
             ctx,

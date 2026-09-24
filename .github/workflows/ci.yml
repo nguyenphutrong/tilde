@@ -75,7 +75,9 @@ jobs:
           cargo test --locked -p warp --lib ctrl_t_action_forwards_to_pty_when_no_external_widget_detected
 
       - name: Test migration replay and persistence compatibility
-        run: cargo test --locked -p persistence --lib
+        run: |
+          cargo test --locked -p persistence --lib
+          cargo test --locked -p warp --lib persistence::sqlite::tests::
 
       - name: Test SSH bootstrap and settings preservation
         run: |

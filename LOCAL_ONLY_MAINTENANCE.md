@@ -165,8 +165,13 @@ HTTP without cloud trace headers; they do not assert network silence or remove o
 
 Shared error reporting, logging and PTY log forwarding no longer capture Sentry events or
 breadcrumbs. Local Error/Warn classification, error chains, extra context, once-per-run suppression,
-rotation and panic logging remain. App-level Sentry, native crash SDKs, settings, bundles/bootstrap
-and Cocoa PTY hooks remain for subsequent leaf-to-root removal.
+rotation and panic logging remain.
+
+App-level Sentry forwarding and lifecycle callers are removed, including SQLite/plugin logs,
+profiling attachments, user/experiment/settings/GPU metadata and Cocoa PTY hooks. SQLite retains its
+FFI unwind boundary; explicit local profile/sample saving and crash recovery remain. The SDK and
+its crash-recovery status getter, native stack, packaging and stored privacy settings remain until
+their owning removal increment. No stored data or schema is deleted.
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry,
 and associated bootstrap/settings/UI contracts remain. Classifier heuristics and serialized decision
