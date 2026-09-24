@@ -29,7 +29,6 @@ pub mod block_list_viewport;
 pub mod blockgrid_element;
 mod blockgrid_renderer;
 mod bootstrap;
-mod buy_credits_banner;
 pub mod color;
 pub mod conversation_restoration;
 pub mod dynamic_enum_suggestions;
