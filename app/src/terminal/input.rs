@@ -174,10 +174,6 @@ use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::ai::mcp::TemplatableMCPServerManager;
-use crate::ai::predict::prompt_suggestions::{
-    has_pending_code_or_unit_test_prompt_suggestion,
-    is_accept_prompt_suggestion_bound_to_ctrl_enter,
-};
 use crate::ai::skills::{SkillOpenOrigin, SkillTelemetryEvent};
 use crate::appearance::{Appearance, AppearanceEvent};
 use crate::channel::ChannelState;
@@ -1027,8 +1023,6 @@ pub enum Event {
     },
     InputFocusedFromMiddleClick,
     EditorFocused,
-    UnhandledCmdEnter,
-    CtrlEnter,
     SignupAnonymousUser {
         entrypoint: AnonymousUserSignupEntrypoint,
     },
@@ -2761,8 +2755,6 @@ impl Input {
             // Clones used in render_decorator_elements closure below.
             let prompt_render_helper_clone = prompt_render_helper.clone();
             let model_clone = model.clone();
-            // Clone used in keymap_context_modifier closure below.
-            let terminal_model_for_keymap_context = model.clone();
             let input_render_state_model_handle_clone = input_render_state_model_handle.clone();
 
             let ai_context_model_clone = ai_context_model.clone();
@@ -2905,19 +2897,6 @@ impl Input {
                         context
                             .set
                             .insert(flags::TERMINAL_INPUT_PAGE_KEYS_HANDLED_BY_INPUT);
-
-                        // Pending passive code diffs and suggested prompts must reach the terminal's
-                        // ctrl-enter handler rather than inserting an editor newline.
-                        if is_accept_prompt_suggestion_bound_to_ctrl_enter(app)
-                            && has_pending_code_or_unit_test_prompt_suggestion(
-                                &terminal_model_for_keymap_context.lock(),
-                                app,
-                            )
-                        {
-                            context
-                                .set
-                                .insert(flags::CTRL_ENTER_ACCEPTS_PROMPT_SUGGESTION);
-                        }
 
                         if FeatureFlag::AgentView.is_enabled() {
                             context.set.insert(flags::AGENT_VIEW_ENABLED);
@@ -12704,15 +12683,12 @@ impl Input {
         });
     }
 
-    /// Submits the rich-input buffer on Ctrl+Enter when `submit_on_ctrl_enter` is enabled;
-    /// otherwise emits [`Event::CtrlEnter`]. Exposed `pub(crate)` for unit tests.
+    /// Submits the rich-input buffer on Ctrl+Enter when `submit_on_ctrl_enter` is enabled.
     pub(crate) fn input_ctrl_enter(&mut self, ctx: &mut ViewContext<Self>) {
         if CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id)
             && *AISettings::as_ref(ctx).submit_on_ctrl_enter
         {
             self.emit_submit_cli_agent_input(ctx);
-        } else {
-            ctx.emit(Event::CtrlEnter);
         }
     }
 
@@ -12816,14 +12792,8 @@ impl Input {
                     return;
                 }
 
-                // Cmd+Enter is not a local-submit gesture (Enter is), so only route the
-                // remote/cloud cases here; the local case falls through to the default
-                // unhandled-cmd-enter behavior (e.g. accepting a passive prompt suggestion).
-                if self.maybe_route_ai_query_to_remote_target(ctx) {
-                    return;
-                }
-
-                ctx.emit(Event::UnhandledCmdEnter)
+                // Cmd+Enter is not a local-submit gesture (Enter is).
+                self.maybe_route_ai_query_to_remote_target(ctx);
             }
         }
     }
