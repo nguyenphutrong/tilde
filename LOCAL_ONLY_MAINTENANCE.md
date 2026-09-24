@@ -187,6 +187,11 @@ The AI credit purchase banner, its billing callbacks, experiment, telemetry and 
 state are removed. Remaining pricing and request-usage contracts are unchanged; no purchase or
 account behavior is replaced with a stub. Local input focus and keybindings remain.
 
+The passive AI prompt suggestion banner, its billing/account bridge, static plan suggestion and
+editable acceptance binding are removed. Code-diff and unit-test suggestion handlers and zero-state
+prompt presets still have consumers and remain for separate leaf deletions. Shell-integration and
+ordinary Enter/Ctrl-Enter handling remain covered by focused tests.
+
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions,
 and associated bootstrap/settings/UI contracts remain. Classifier heuristics and serialized decision
 variants still exist. Remove leaf consumers first, then their owning contracts; do not replace removed

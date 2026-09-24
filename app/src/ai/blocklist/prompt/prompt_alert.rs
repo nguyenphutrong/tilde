@@ -225,10 +225,6 @@ impl PromptAlertView {
         matches!(self.state, PromptAlertState::NoAlert)
     }
 
-    pub fn state(&self) -> &PromptAlertState {
-        &self.state
-    }
-
     pub fn does_alert_block_ai_requests(app: &AppContext) -> bool {
         does_alert_block_ai_requests(&Self::determine_state(app))
     }
