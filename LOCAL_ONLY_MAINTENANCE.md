@@ -179,6 +179,10 @@ The crash-reporting setting, command context, telemetry field and account/GraphQ
 Legacy defaults and TOML values remain opaque, including on logout; the legacy sync-exclusion key
 remains to prevent uploading stored values. The historical schema and remote protocol are unchanged.
 
+Repository detection no longer calls the remote daemon. Local sessions use filesystem Git detection;
+remote paths never fall through to local detection, even when the same path exists locally. Local
+repository watcher events, nested repositories and worktrees remain supported.
+
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions,
 and associated bootstrap/settings/UI contracts remain. Classifier heuristics and serialized decision
 variants still exist. Remove leaf consumers first, then their owning contracts; do not replace removed
