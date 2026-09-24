@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use diesel::{Connection, ExpressionMethods, RunQueryDsl};
+use diesel_migrations::MigrationHarness;
 use itertools::Itertools;
 use typed_path::TypedPathBuf;
 use warp_completer::meta::SpannedItem;
@@ -9,8 +11,59 @@ use warpui::App;
 
 use super::*;
 use crate::completer::SessionContext;
+use crate::persistence::schema::commands;
 use crate::terminal::model::session::command_executor::testing::TestCommandExecutor;
 use crate::terminal::model::session::{Session, SessionInfo};
+use crate::terminal::shell::ShellType;
+
+#[test]
+fn similar_history_preserves_session_boundaries_and_chronological_order() {
+    let mut conn = SqliteConnection::establish(":memory:").unwrap();
+    conn.run_pending_migrations(::persistence::MIGRATIONS)
+        .unwrap();
+    for (command, session_id, pwd, exit_code) in [
+        ("build", 1, "/repo", 0),
+        ("", 1, "/repo", 0),
+        ("old-next", 1, "/repo", 0),
+        ("build", 2, "/repo", 0),
+        ("build", 1, "/repo", 0),
+        ("new-next", 1, "/repo", 0),
+        ("build", 3, "/other", 0),
+        ("wrong-directory", 3, "/other", 0),
+        ("build", 4, "/repo", 1),
+        ("wrong-exit-status", 4, "/repo", 0),
+    ] {
+        diesel::insert_into(commands::table)
+            .values((
+                commands::command.eq(command),
+                commands::session_id.eq(session_id),
+                commands::pwd.eq(pwd),
+                commands::exit_code.eq(exit_code),
+                commands::shell.eq("bash"),
+                commands::hostname.eq("host"),
+            ))
+            .execute(&mut conn)
+            .unwrap();
+    }
+    let host = ShellHost {
+        shell_type: ShellType::Bash,
+        user: "user".into(),
+        hostname: "host".into(),
+    };
+    assert_eq!(
+        get_similar_history_context(
+            &mut conn,
+            "build",
+            &Some("/repo".into()),
+            ExitCode::from(0),
+            Some(&host),
+        )
+        .into_iter()
+        .map(|command| command.command)
+        .collect::<Vec<_>>(),
+        ["old-next", "new-next"],
+    );
+}
 
 #[test]
 fn test_find_autosuggestion_from_history_same_directory() {
