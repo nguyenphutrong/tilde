@@ -58,6 +58,9 @@ Endpoint lines are hashed to avoid exposing credentials. Changes and duplicates 
 review removals and shrink the inventory, never bless new cloud entries. The guard is not a general
 secret scanner and cannot detect every dynamically assembled host, new domain, or external client.
 
+The retired palette A/B experiment no longer runs at startup. Local full-text search stays enabled
+directly, avoiding the experiment's synchronous telemetry lookup of cloud workspace state.
+
 ## Remaining scope and data safety
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,
