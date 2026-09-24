@@ -37,7 +37,6 @@ use warpui::{AppContext, EntityId, SingletonEntity, ViewHandle, WindowId};
 
 use super::{render_group_member_icon_collage, select_unique_pane_kinds};
 use crate::ai::agent::conversation::{ConversationStatus, StatusColorStyle};
-use crate::ai::agent_management::AgentNotificationsModel;
 use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::conversation_status_ui::render_status_element;
 use crate::appearance::Appearance;
@@ -949,7 +948,6 @@ struct VerticalTabsSummaryData {
     primary_labels: Vec<VerticalTabsSummaryPrimaryLabel>,
     working_directories: Vec<String>,
     branch_entries: Vec<VerticalTabsSummaryBranchEntry>,
-    has_unread_activity: bool,
 }
 
 impl TabGroupColorMode {
@@ -3367,20 +3365,6 @@ fn resolve_icon_with_status_variant(
     }
 }
 
-fn has_unread_activity(typed: &TypedPane<'_>, app: &AppContext) -> bool {
-    let TypedPane::Terminal(terminal_pane) = typed else {
-        return false;
-    };
-    let terminal_view = terminal_pane.terminal_view(app);
-    has_unread_activity_for_terminal_view(terminal_view.as_ref(app).id(), app)
-}
-
-fn has_unread_activity_for_terminal_view(terminal_view_id: EntityId, app: &AppContext) -> bool {
-    AgentNotificationsModel::as_ref(app)
-        .notifications()
-        .has_unread_for_terminal_view(terminal_view_id)
-}
-
 const INDICATOR_DOT_SIZE: f32 = 8.;
 
 fn render_title_indicator(theme: &WarpTheme) -> Box<dyn Element> {
@@ -3446,17 +3430,14 @@ fn render_shortcut_hint(label: &str, appearance: &Appearance) -> Box<dyn Element
         .finish()
 }
 
-/// Row title line with its trailing indicators — the synchronized-inputs link
-/// icon followed by the unread-activity dot — pinned to the right edge. Returns
-/// `title` untouched when the row has no indicator to show.
+/// Row title with badge, synchronized-input, and shortcut indicators pinned to the right edge.
 fn render_row_title_line(
     title: Box<dyn Element>,
     shows_synced_inputs: bool,
-    shows_activity_indicator: bool,
+    badge: Option<Box<dyn Element>>,
     shortcut_hint: Option<Box<dyn Element>>,
-    theme: &WarpTheme,
 ) -> Box<dyn Element> {
-    if !shows_synced_inputs && !shows_activity_indicator && shortcut_hint.is_none() {
+    if !shows_synced_inputs && badge.is_none() && shortcut_hint.is_none() {
         return title;
     }
 
@@ -3467,8 +3448,8 @@ fn render_row_title_line(
     if shows_synced_inputs {
         indicators.add_child(render_synced_inputs_indicator());
     }
-    if shows_activity_indicator {
-        indicators.add_child(render_title_indicator(theme));
+    if let Some(badge) = badge {
+        indicators.add_child(badge);
     }
     if let Some(hint) = shortcut_hint {
         indicators.add_child(hint);
@@ -3515,8 +3496,7 @@ fn render_pane_row(props: PaneProps<'_>, app: &AppContext) -> Box<dyn Element> {
             app,
         )
     } else {
-        let has_indicator =
-            props.typed.badge(app).is_some() || has_unread_activity(&props.typed, app);
+        let has_indicator = props.typed.badge(app).is_some();
         let mut title_row = Flex::row()
             .with_main_axis_size(MainAxisSize::Max)
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
@@ -3750,7 +3730,6 @@ fn build_vertical_tabs_summary_data(
     let mut working_directories = Vec::new();
     let mut working_directory_seen = HashMap::new();
     let mut branch_entries = Vec::new();
-    let mut has_unread_activity = false;
 
     for pane_id in visible_pane_ids {
         let Some(pane) = pane_group.pane_by_id(*pane_id) else {
@@ -3769,8 +3748,6 @@ fn build_vertical_tabs_summary_data(
             TypedPane::Terminal(terminal_pane) => {
                 let terminal_view = terminal_pane.terminal_view(app);
                 let terminal_view = terminal_view.as_ref(app);
-                has_unread_activity |=
-                    has_unread_activity_for_terminal_view(terminal_view.id(), app);
                 let title_text = terminal_view.terminal_title_from_shell();
                 let working_directory = resolved_terminal_working_directory(terminal_view, app);
                 let working_directory_text = working_directory
@@ -3866,7 +3843,6 @@ fn build_vertical_tabs_summary_data(
         primary_labels,
         working_directories,
         branch_entries: coalesce_summary_branch_entries(branch_entries),
-        has_unread_activity,
     }
 }
 
@@ -4508,9 +4484,8 @@ fn render_terminal_row_content(
     let first_line_element = render_row_title_line(
         first_line,
         row_shows_synced_inputs_indicator(props, app),
-        has_unread_activity(&props.typed, app),
+        None,
         shortcut_hint_label(props, app).map(|label| render_shortcut_hint(&label, appearance)),
-        theme,
     );
 
     let mut content = Flex::column()
@@ -4799,9 +4774,8 @@ fn render_summary_tab_item(
     text_col.add_child(render_row_title_line(
         title_region.finish(),
         row_shows_synced_inputs_indicator(&props, app),
-        summary.has_unread_activity,
+        None,
         shortcut_hint_label(&props, app).map(|label| render_shortcut_hint(&label, appearance)),
-        theme,
     ));
 
     // Working-directory region.
@@ -7233,7 +7207,7 @@ fn render_compact_pane_row(props: PaneProps<'_>, app: &AppContext) -> Box<dyn El
     let main_text_color = theme.main_text_color(theme.background());
     let sub_text_color = theme.sub_text_color(theme.background());
     let font_family = appearance.ui_font_family();
-    let has_indicator = props.typed.badge(app).is_some() || has_unread_activity(&props.typed, app);
+    let has_indicator = props.typed.badge(app).is_some();
 
     let icon = render_pane_icon_with_status(
         resolve_icon_with_status_variant(&props.typed, &props.title, appearance, app),
@@ -7382,9 +7356,8 @@ fn render_compact_pane_row(props: PaneProps<'_>, app: &AppContext) -> Box<dyn El
     let title_row = render_row_title_line(
         title_element,
         row_shows_synced_inputs_indicator(&props, app),
-        has_indicator,
+        has_indicator.then(|| render_title_indicator(theme)),
         shortcut_hint_label(&props, app).map(|label| render_shortcut_hint(&label, appearance)),
-        theme,
     );
 
     // Assemble text column: title + optional subtitle
