@@ -703,6 +703,31 @@ fn copy_model_and_profile_preserves_explicit_model_over_source_profile_default()
 }
 
 #[cfg(feature = "local_fs")]
+fn set_worktree_sidecar_directories(
+    workspace: &ViewHandle<Workspace>,
+    paths: &[PathBuf],
+    app: &mut App,
+) {
+    workspace.update(app, |workspace, ctx| {
+        let pane_group_id = workspace.active_tab_pane_group().id();
+        workspace
+            .working_directories_model
+            .update(ctx, |model, ctx| {
+                model.refresh_working_directories_for_pane_group(
+                    pane_group_id,
+                    paths
+                        .iter()
+                        .map(|path| (pane_group_id, LocalOrRemotePath::Local(path.clone())))
+                        .collect(),
+                    Vec::new(),
+                    None,
+                    ctx,
+                );
+            });
+    });
+}
+
+#[cfg(feature = "local_fs")]
 fn open_worktree_sidecar(workspace: &ViewHandle<Workspace>, app: &mut App) {
     workspace.update(app, |workspace, ctx| {
         workspace.open_new_session_dropdown_menu(
@@ -745,12 +770,7 @@ fn test_worktree_sidecar_hover_takes_precedence_over_selection() {
         std::fs::create_dir_all(&alpha_repo).expect("failed to create alpha repo dir");
         std::fs::create_dir_all(&beta_repo).expect("failed to create beta repo dir");
 
-        workspace.update(&mut app, |_, ctx| {
-            PersistedWorkspace::handle(ctx).update(ctx, |persisted, ctx| {
-                persisted.user_added_workspace(alpha_repo.clone(), ctx);
-                persisted.user_added_workspace(beta_repo.clone(), ctx);
-            });
-        });
+        set_worktree_sidecar_directories(&workspace, &[alpha_repo, beta_repo], &mut app);
 
         open_worktree_sidecar(&workspace, &mut app);
 
@@ -798,12 +818,7 @@ fn test_worktree_sidecar_pointer_entry_does_not_select_top_repo() {
         std::fs::create_dir_all(&alpha_repo).expect("failed to create alpha repo dir");
         std::fs::create_dir_all(&beta_repo).expect("failed to create beta repo dir");
 
-        workspace.update(&mut app, |_, ctx| {
-            PersistedWorkspace::handle(ctx).update(ctx, |persisted, ctx| {
-                persisted.user_added_workspace(alpha_repo.clone(), ctx);
-                persisted.user_added_workspace(beta_repo.clone(), ctx);
-            });
-        });
+        set_worktree_sidecar_directories(&workspace, &[alpha_repo, beta_repo], &mut app);
 
         workspace.update(&mut app, |workspace, ctx| {
             workspace.open_new_session_dropdown_menu(
@@ -867,11 +882,7 @@ fn test_worktree_sidecar_close_via_select_item_executes_from_workspace() {
         let alpha_repo = temp_root.path().join("alpha-repo");
         std::fs::create_dir_all(&alpha_repo).expect("failed to create alpha repo dir");
 
-        workspace.update(&mut app, |_, ctx| {
-            PersistedWorkspace::handle(ctx).update(ctx, |persisted, ctx| {
-                persisted.user_added_workspace(alpha_repo.clone(), ctx);
-            });
-        });
+        set_worktree_sidecar_directories(&workspace, &[alpha_repo], &mut app);
 
         open_worktree_sidecar(&workspace, &mut app);
 
@@ -1072,11 +1083,7 @@ fn test_worktree_sidecar_search_editor_enter_executes_selection() {
         let alpha_repo = temp_root.path().join("alpha-repo");
         std::fs::create_dir_all(&alpha_repo).expect("failed to create alpha repo dir");
 
-        workspace.update(&mut app, |_, ctx| {
-            PersistedWorkspace::handle(ctx).update(ctx, |persisted, ctx| {
-                persisted.user_added_workspace(alpha_repo.clone(), ctx);
-            });
-        });
+        set_worktree_sidecar_directories(&workspace, &[alpha_repo], &mut app);
 
         open_worktree_sidecar(&workspace, &mut app);
 
@@ -3682,12 +3689,7 @@ fn test_worktree_sidecar_search_editor_proxies_navigation_and_escape() {
         std::fs::create_dir_all(&alpha_repo).expect("failed to create alpha repo dir");
         std::fs::create_dir_all(&beta_repo).expect("failed to create beta repo dir");
 
-        workspace.update(&mut app, |_, ctx| {
-            PersistedWorkspace::handle(ctx).update(ctx, |persisted, ctx| {
-                persisted.user_added_workspace(alpha_repo.clone(), ctx);
-                persisted.user_added_workspace(beta_repo.clone(), ctx);
-            });
-        });
+        set_worktree_sidecar_directories(&workspace, &[alpha_repo, beta_repo], &mut app);
 
         open_worktree_sidecar(&workspace, &mut app);
 
@@ -3801,11 +3803,6 @@ fn test_worktree_sidecar_hides_linked_worktrees_from_repo_list() {
         std::fs::create_dir_all(&external_git_dir).expect("failed to create external git dir");
 
         workspace.update(&mut app, |_, ctx| {
-            PersistedWorkspace::handle(ctx).update(ctx, |persisted, ctx| {
-                persisted.user_added_workspace(main_repo.clone(), ctx);
-                persisted.user_added_workspace(linked_worktree.clone(), ctx);
-            });
-
             let main_repo_canon =
                 CanonicalizedPath::try_from(main_repo.as_path()).expect("canonical main repo");
             let linked_worktree_canon = CanonicalizedPath::try_from(linked_worktree.as_path())
@@ -3839,6 +3836,11 @@ fn test_worktree_sidecar_hides_linked_worktrees_from_repo_list() {
             });
         });
 
+        set_worktree_sidecar_directories(
+            &workspace,
+            &[main_repo.clone(), linked_worktree.clone()],
+            &mut app,
+        );
         open_worktree_sidecar(&workspace, &mut app);
 
         workspace.read(&app, |workspace, ctx| {

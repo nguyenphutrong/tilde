@@ -175,7 +175,6 @@ use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::facts::view::AIFactPage;
 use crate::ai::facts::{AIFactManager, AIFactView, AIFactViewEvent};
 use crate::ai::llms::LLMPreferences;
-use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::ai_assistant::AskAIType;
 use crate::ai_assistant::execution_context::execution_context_for_session;
 use crate::app_state::{
@@ -9011,22 +9010,32 @@ impl Workspace {
         let home = dirs::home_dir().map(|p| p.display().to_string());
         let mut items = vec![search_item];
         items.extend(
-            PersistedWorkspace::as_ref(ctx)
-                .workspaces()
-                .filter(|ws| ws.path.exists())
-                .filter(|ws| Self::should_include_worktree_sidecar_repo(&ws.path, ctx))
-                .filter(|ws| {
-                    if query.is_empty() {
-                        true
-                    } else {
-                        ws.path
+            self.tabs
+                .iter()
+                .flat_map(|tab| {
+                    self.working_directories_model
+                        .as_ref(ctx)
+                        .most_recent_directories_for_pane_group(tab.pane_group.id())
+                        .into_iter()
+                        .flatten()
+                })
+                .filter_map(|directory| match directory.path {
+                    LocalOrRemotePath::Local(path) => Some(path),
+                    LocalOrRemotePath::Remote(_) => None,
+                })
+                .sorted()
+                .dedup()
+                .filter(|path| path.is_dir())
+                .filter(|path| Self::should_include_worktree_sidecar_repo(path, ctx))
+                .filter(|path| {
+                    query.is_empty()
+                        || path
                             .to_string_lossy()
                             .to_lowercase()
                             .contains(query.as_str())
-                    }
                 })
-                .map(|ws| {
-                    let path_str = ws.path.to_string_lossy().into_owned();
+                .map(|path| {
+                    let path_str = path.to_string_lossy().into_owned();
                     let display = user_friendly_path(&path_str, home.as_deref()).into_owned();
                     MenuItemFields::new(display)
                         .with_on_select_action(NewSessionSidecarSelection::OpenWorktreeRepo {
@@ -9036,8 +9045,7 @@ impl Workspace {
                         .with_clip_config(ClipConfig::start())
                         .with_tooltip(path_str)
                         .into_item()
-                })
-                .collect::<Vec<_>>(),
+                }),
         );
         items
     }
@@ -9447,8 +9455,7 @@ impl Workspace {
         }
     }
 
-    /// Opens a native folder picker and, when the user selects a folder, upserts it
-    /// into `PersistedWorkspace` and notifies the modal's repo picker at `param_index`.
+    /// Opens a native folder picker and updates the modal's repo picker at `param_index`.
     fn open_repo_picker_for_tab_config_modal(
         &mut self,
         param_index: usize,
@@ -9461,13 +9468,7 @@ impl Workspace {
                 let Some(path) = paths.into_iter().next() else {
                     return;
                 };
-                // Register the chosen directory as a workspace so it appears in
-                // PersistedWorkspace (which is the data source for the repo picker
-                // and also triggers codebase indexing / project rules scanning).
                 let path_buf: PathBuf = path.clone().into();
-                PersistedWorkspace::handle(ctx).update(ctx, |persisted, ctx| {
-                    persisted.user_added_workspace(path_buf.clone(), ctx);
-                });
                 // Refresh the repo picker and pre-select the new path.
                 modal_view.update(ctx, |modal, ctx| {
                     modal.body().update(ctx, |body, ctx| {
@@ -9666,9 +9667,6 @@ impl Workspace {
                     return;
                 };
                 let path_buf: PathBuf = path.clone().into();
-                PersistedWorkspace::handle(ctx).update(ctx, |persisted, ctx| {
-                    persisted.user_added_workspace(path_buf.clone(), ctx);
-                });
                 modal_view.update(ctx, |modal, ctx| {
                     modal.body().update(ctx, |body, ctx| {
                         body.on_new_repo_selected(path_buf, ctx);
@@ -9762,8 +9760,7 @@ impl Workspace {
     #[cfg(not(feature = "local_fs"))]
     fn open_worktree_in_repo(&mut self, _repo_path: String, _ctx: &mut ViewContext<Self>) {}
 
-    /// Opens a native folder picker to add a new repo to PersistedWorkspace,
-    /// triggered from the "+ Add new repo..." item in the New worktree config submenu.
+    /// Opens a native folder picker to create a worktree in a local repo.
     fn open_folder_picker_for_worktree_submenu(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.open_file_picker(
             move |result, ctx| {
@@ -9771,9 +9768,8 @@ impl Workspace {
                 let Some(path) = paths.into_iter().next() else {
                     return;
                 };
-                let path_buf: PathBuf = path.into();
-                PersistedWorkspace::handle(ctx).update(ctx, |persisted, ctx| {
-                    persisted.user_added_workspace(path_buf, ctx);
+                ctx.dispatch_typed_action_deferred(WorkspaceAction::OpenWorktreeInRepo {
+                    repo_path: path,
                 });
             },
             warpui::platform::FilePickerConfiguration::new().folders_only(),
