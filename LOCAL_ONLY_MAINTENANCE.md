@@ -175,6 +175,10 @@ are now removed. The guard rejects `sentry*`, `minidumper` and `crash-handler`, 
 optional target dependencies and transitive lock entries. Stored privacy settings remain; no stored
 data or schema is deleted.
 
+The crash-reporting setting, command context, telemetry field and account/GraphQL sync are removed.
+Legacy defaults and TOML values remain opaque, including on logout; the legacy sync-exclusion key
+remains to prevent uploading stored values. The historical schema and remote protocol are unchanged.
+
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions,
 and associated bootstrap/settings/UI contracts remain. Classifier heuristics and serialized decision
 variants still exist. Remove leaf consumers first, then their owning contracts; do not replace removed
