@@ -1,3 +1,60 @@
+use std::path::Path;
+
+use super::{CommandBuilder, ShellType};
+
+#[test]
+fn omitted_shell_config_flag_does_not_insert_an_empty_argument() {
+    let command = CommandBuilder::ShellType {
+        shell_type: ShellType::PowerShell,
+        local_shell_path: Some(Path::new("powershell.exe")),
+    }
+    .build("Write-Output 'two words'", None);
+
+    assert_eq!(
+        command.get_args().collect::<Vec<_>>(),
+        ["-c", "Write-Output 'two words'"]
+    );
+}
+
+#[test]
+fn configured_shell_flag_precedes_the_intact_command() {
+    let command = CommandBuilder::ShellType {
+        shell_type: ShellType::PowerShell,
+        local_shell_path: Some(Path::new("powershell.exe")),
+    }
+    .build("Write-Output 'two words'", Some("-NoProfile"));
+
+    assert_eq!(
+        command.get_args().collect::<Vec<_>>(),
+        ["-NoProfile", "-c", "Write-Output 'two words'"]
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_powershell_51_executes_login_shell_commands() {
+    futures_lite::future::block_on(async {
+        let executor =
+            super::LocalCommandExecutor::new(Some("powershell.exe".into()), ShellType::PowerShell);
+        let output = executor
+            .execute_local_command_in_login_shell(
+                "if ($PSVersionTable.PSVersion.Major -ne 5) { exit 17 }; Write-Output 'tilde-login-ok'",
+                None,
+                None,
+            )
+            .await
+            .expect("execute Windows PowerShell 5.1");
+        assert!(output.success(), "{output:?}");
+        assert!(
+            output
+                .to_string()
+                .unwrap()
+                .trim_end()
+                .ends_with("tilde-login-ok")
+        );
+    });
+}
+
 #[cfg(unix)]
 mod unix {
     use std::collections::HashMap;
