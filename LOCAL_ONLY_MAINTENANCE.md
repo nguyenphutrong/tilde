@@ -163,6 +163,11 @@ HTTP OpenTelemetry span propagation and its dependencies are removed. The guard 
 dependencies. Local diagnostics remain. Tests build a GitHub updater request and execute loopback
 HTTP without cloud trace headers; they do not assert network silence or remove other Warp headers.
 
+Shared error reporting, logging and PTY log forwarding no longer capture Sentry events or
+breadcrumbs. Local Error/Warn classification, error chains, extra context, once-per-run suppression,
+rotation and panic logging remain. App-level Sentry, native crash SDKs, settings, bundles/bootstrap
+and Cocoa PTY hooks remain for subsequent leaf-to-root removal.
+
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry,
 and associated bootstrap/settings/UI contracts remain. Classifier heuristics and serialized decision
 variants still exist. Remove leaf consumers first, then their owning contracts; do not replace removed
