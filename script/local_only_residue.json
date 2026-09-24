@@ -158,7 +158,6 @@
   "endpoint:app/src/server/server_api/auth_tests.rs:8cc0363d40a64199cc1bec6c1aee2b702812157c637a3721ad7d046e1cdebecd": 1,
   "endpoint:app/src/server/server_api/auth_tests.rs:f593562b7f844a1e8beabade62708876381c62b46b059a82baef7cd7cf63dc61": 1,
   "endpoint:app/src/server/telemetry/events_tests.rs:f9cf25d2d4924d4b6c7360275913b717f4e4d4db964b2af5322242141b54c44a": 1,
-  "endpoint:app/src/terminal/enable_auto_reload_modal.rs:c1efe1303c081ec82bea94df247b6f1ef3c2f71c5cb623be0652a7a83446aee6": 1,
   "endpoint:app/src/terminal/input_tests.rs:02760b6e27e93009d11f844c149bb5d41eab2569e29e799cffc4fe531e4d5013": 1,
   "endpoint:app/src/terminal/input_tests.rs:433110f8a0a48b466abbf76c0f12ab1a7519d972f3cce335122ad444e25f206c": 1,
   "endpoint:app/src/terminal/input_tests.rs:8bdc12e92255892e4ae2c81708ffdec32236ca888be12dc4beec847682c7d5af": 4,
