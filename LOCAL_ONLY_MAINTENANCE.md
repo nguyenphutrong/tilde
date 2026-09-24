@@ -101,6 +101,11 @@ The Drive import/upload modal, directory tree, parsing, upload queue, and person
 are removed. Local terminal-configuration import and native file/directory pickers remain; the local
 Alacritty importer still uses `async-recursion`. The deleted import endpoint leaves the residue inventory.
 
+Terminal secret rendering depends on local safe-mode settings, without account-policy lookups.
+Terminal models/blocks no longer carry AI-UGC telemetry state or expand serialized output for telemetry;
+the existing 50-line local output bound and forced secret-redaction path remain. Local and legacy
+secret-display preferences are preserved, with no database-schema or persisted-record changes.
+
 ## Remaining scope and data safety
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,
