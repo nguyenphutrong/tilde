@@ -204,6 +204,11 @@ retain their existing serialization; shell completion parsing, aliases, history 
 remain. The Unicode-decoration fixture declares its builtin instead of depending on host commands.
 Mode policy/settings transitions remain for their own removal increment.
 
+The terminal AI welcome block, autodetection footer control, classifier command denylist and
+history-matching feature flag are removed. Legacy toolbar arrays still decode retired NLD items
+without exposing them or discarding other saved items. Historical settings and database rows are
+untouched; OSC52 clipboard controls remain registered.
+
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions,
 and associated bootstrap/settings/UI contracts remain. Remove leaf consumers first, then their
 owning contracts; do not replace removed

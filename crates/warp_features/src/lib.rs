@@ -879,13 +879,6 @@ pub enum FeatureFlag {
     /// route eliglible models to GEAP instead of Warp-managed inference.
     GeminiEnterprise,
 
-    /// Gates NLD input classification matching the buffer against agent
-    /// prompt history (in addition to shell command history). Still in
-    /// development; currently disabled on all channels as a mitigation for
-    /// misclassification bug reports (see PR #12586). Re-enable via
-    /// `DOGFOOD_FLAGS` once the underlying issues are resolved.
-    NldPromptHistoryMatch,
-
     /// Gates the custom model router feature, which allows users to define
     /// their own model routers.
     CustomModelRouters,

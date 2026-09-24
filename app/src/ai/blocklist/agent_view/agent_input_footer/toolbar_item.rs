@@ -50,6 +50,7 @@ pub enum AgentToolbarItemKind {
     ContextChip(ContextChipKind),
     // Agent view only
     ModelSelector,
+    // Decode legacy arrays without discarding the other saved toolbar items.
     NLDToggle,
     ContextWindowUsage,
 
@@ -145,7 +146,7 @@ impl AgentToolbarItemKind {
     /// handles runtime conditions that depend on user settings or workspace state.
     pub fn is_available(&self, app: &warpui::AppContext) -> bool {
         match self {
-            Self::ModelSelector => false,
+            Self::ModelSelector | Self::NLDToggle => false,
             // Matches the gating on every other project explorer entry point, so the chip
             // cannot open a tool view the rest of the app hides. See
             // `Workspace::compute_left_panel_views` and the `SHOW_PROJECT_EXPLORER`
@@ -179,7 +180,6 @@ impl AgentToolbarItemKind {
         if FeatureFlag::GithubPrPromptChip.is_enabled() {
             items.push(Self::ContextChip(ContextChipKind::GithubPullRequest));
         }
-        items.push(Self::NLDToggle);
         items
     }
 
@@ -206,7 +206,6 @@ impl AgentToolbarItemKind {
             .map(Self::ContextChip)
             .collect();
         items.extend([
-            Self::NLDToggle,
             Self::VoiceInput,
             Self::FileAttach,
             Self::ContextWindowUsage,

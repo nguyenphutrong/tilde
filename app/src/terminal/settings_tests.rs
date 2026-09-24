@@ -3,6 +3,17 @@ use settings_value::SettingsValue;
 use super::*;
 
 #[test]
+fn terminal_schema_retains_clipboard_control_without_ai_welcome() {
+    let keys: Vec<_> = inventory::iter::<settings::schema::SettingSchemaEntry>
+        .into_iter()
+        .filter(|entry| entry.hierarchy == Some("terminal"))
+        .map(|entry| entry.storage_key)
+        .collect();
+    assert!(keys.contains(&"osc52_clipboard_access"));
+    assert!(!keys.contains(&"show_terminal_zero_state_block"));
+}
+
+#[test]
 fn osc52_default_is_deny() {
     assert_eq!(Osc52ClipboardAccess::default(), Osc52ClipboardAccess::Deny);
 }
