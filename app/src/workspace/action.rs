@@ -344,6 +344,7 @@ pub enum WorkspaceAction {
     ToggleUserMenu,
     ToggleKeybindingsPage,
     ShowCommandSearch(CommandSearchOptions),
+    TriggerExternalCtrlTFileSearch,
     CreatePersonalNotebook,
     ImportToPersonalDrive,
     ImportToTeamDrive,
@@ -938,6 +939,7 @@ impl WorkspaceAction {
             | OpenCloudAgentSetupGuide
             | ToggleKeybindingsPage
             | ShowCommandSearch(_)
+            | TriggerExternalCtrlTFileSearch
             | ToggleMouseReporting
             | ToggleScrollReporting
             | ToggleFocusReporting

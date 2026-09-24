@@ -23,6 +23,7 @@ fn enabled_features() -> HashSet<FeatureFlag> {
     }
 
     flags.extend([
+        FeatureFlag::ShellWidgetHandoff,
         #[cfg(feature = "autoupdate")]
         FeatureFlag::Autoupdate,
         #[cfg(feature = "changelog")]

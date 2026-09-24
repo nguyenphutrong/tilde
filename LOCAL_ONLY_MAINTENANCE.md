@@ -33,9 +33,12 @@ Linux compilation does not verify Windows RDP, Windows shells, or macOS runtime 
 | [9589305a](https://github.com/warpdotdev/warp/commit/9589305a) | Omit unsupported PowerShell login flag on Windows, retaining Unix login flags. Five Linux executor tests passed; the Windows PowerShell 5.1 execution test remains unrun here. |
 
 Shell widget handoff ([bf2364bc](https://github.com/warpdotdev/warp/commit/bf2364bc99c118f562e21b5529c1db492b0b939f))
-remains deferred, not redundant: it needs coordinated shell/DCS/input changes and real fzf/atuin
-selection tests proving selection does not execute a command. Native completion generators, Bash
-shell-plugin payload preservation, and the cosmic-text fallback pin remain unported candidates.
+is recovered across shell bootstrap, DCS, input, and workspace key routing. Matching selections restore
+the draft without executing it; cancellation and stale sessions preserve the original input. Fish
+uses whole-line replacement; Bash/Zsh splice at the captured cursor. Missing widgets leave Ctrl-T as a
+raw PTY keystroke. The Fish helper checks execute shipped functions with a mocked picker; real
+fzf/atuin GUI interaction remains unverified. Native completion generators, Bash shell-plugin payload
+preservation, and the cosmic-text fallback pin remain unported candidates.
 
 ## Removed dependencies and guards
 
