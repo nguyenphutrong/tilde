@@ -110,6 +110,9 @@ Local and SSH-wrapper InitShell events now reach ordinary PTY bootstrap directly
 remote-server flag enabled. The remote-server bootstrap controller and daemon bootstrap notification
 are removed; ordinary PTY writing, resizing, interrupts, and shell initialization remain.
 
+The unused SSH daemon transport, account-token adapter, Oz archive download/cache, and SCP fallback
+installer are removed. Ordinary SSH/SCP support, existing caches, and remote installations are untouched.
+
 ## Remaining scope and data safety
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,

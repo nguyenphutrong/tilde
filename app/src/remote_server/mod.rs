@@ -14,8 +14,6 @@ use crate::ai::{AIRequestUsageModel, AIRequestUsageModelEvent};
 use crate::server::server_api::ServerApiProvider;
 
 #[cfg(not(target_family = "wasm"))]
-pub mod auth_context;
-#[cfg(not(target_family = "wasm"))]
 pub mod codebase_index_model;
 #[cfg(not(target_family = "wasm"))]
 mod codebase_index_status;
@@ -29,8 +27,6 @@ mod ripgrep_search;
 pub mod server_buffer_tracker;
 #[cfg(not(target_family = "wasm"))]
 pub mod server_model;
-#[cfg(not(target_family = "wasm"))]
-pub mod ssh_transport;
 #[cfg(unix)]
 pub mod unix;
 
