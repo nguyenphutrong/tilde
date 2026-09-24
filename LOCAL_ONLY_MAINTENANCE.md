@@ -88,6 +88,11 @@ LSP detection, installation, and startup use a dedicated HTTP client, not `Serve
 auth hooks. Language-server downloads remain enabled with the existing HTTP defaults and interactive
 PATH lookup. Code-review tests construct their views without the server provider.
 
+Agent mailbox, toast implementations, notification model/items, unread tab indicators, and Oz
+desktop-notification summaries are removed along with their actions and subscriptions. Ordinary
+terminal/update toasts, CLI desktop notifications, local tab badges, and synchronized-input indicators
+remain. Saved toolbar notification discriminators remain readable but unavailable.
+
 ## Remaining scope and data safety
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,

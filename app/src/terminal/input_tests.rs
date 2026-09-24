@@ -110,9 +110,7 @@ use crate::workspace::{ActiveSession, ToastStack, WorkspaceRegistry};
 use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{
-    AgentNotificationsModel, GlobalResourceHandles, GlobalResourceHandlesProvider, experiments,
-};
+use crate::{GlobalResourceHandles, GlobalResourceHandlesProvider, experiments};
 
 fn pending_ctrl_r_handoff() -> PendingShellWidgetHandoff {
     PendingShellWidgetHandoff {
@@ -321,7 +319,6 @@ pub fn initialize_app(app: &mut App) {
         crate::ai::blocklist::orchestration_event_streamer::OrchestrationEventStreamer::new,
     );
     app.add_singleton_model(|_| ActiveAgentViewsModel::new());
-    app.add_singleton_model(AgentNotificationsModel::new);
     app.add_singleton_model(BlocklistAIPermissions::new);
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     app.add_singleton_model(AppTelemetryContextProvider::new_context_provider);

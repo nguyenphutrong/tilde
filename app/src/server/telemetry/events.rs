@@ -22,7 +22,6 @@ use crate::ai::agent::{
     AIAgentActionId, AIAgentExchangeId, AIAgentInput as FullAIAgentInput, AIIdentifiers,
     EntrypointType, PassiveSuggestionTrigger, ServerOutputId, SuggestedLoggingId,
 };
-use crate::ai::agent_management::notifications::NotificationSourceAgent;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::{
@@ -479,15 +478,6 @@ pub enum NotificationAgentVariant {
     Oz,
     /// A CLI agent (e.g., Claude Code, Gemini CLI, etc.).
     CLIAgent(CLIAgentType),
-}
-
-impl From<NotificationSourceAgent> for NotificationAgentVariant {
-    fn from(agent: NotificationSourceAgent) -> Self {
-        match agent {
-            NotificationSourceAgent::Oz { .. } => Self::Oz,
-            NotificationSourceAgent::CLI { agent, .. } => Self::CLIAgent(agent.into()),
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]

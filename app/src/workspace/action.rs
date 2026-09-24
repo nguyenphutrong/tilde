@@ -547,8 +547,6 @@ pub enum WorkspaceAction {
     StartNewConversation {
         terminal_view_id: EntityId,
     },
-    /// Jump to the terminal pane of the most recent agent toast
-    JumpToLatestToast,
     /// Open a file in a new tab with a code pane
     OpenFileInNewTab {
         full_path: PathBuf,
@@ -669,9 +667,6 @@ pub enum WorkspaceAction {
     /// Take a process sample of the app (equivalent to Activity Monitor > Sample Process).
     #[cfg(target_os = "macos")]
     SampleProcess,
-    ToggleNotificationMailbox {
-        select_first: bool,
-    },
     /// Show the rewind confirmation dialog before rewinding an AI conversation
     ShowRewindConfirmationDialog {
         ai_block_view_id: EntityId,
@@ -1027,7 +1022,6 @@ impl WorkspaceAction {
             | CancelActiveRename
             | StartNewConversation { .. }
             | UndoRevertInCodeReviewPane { .. }
-            | JumpToLatestToast
             | NavigatePrevPaneOrPanel
             | NavigateNextPaneOrPanel
             | ToggleProjectExplorer
@@ -1037,7 +1031,6 @@ impl WorkspaceAction {
             | OpenGlobalSearch
             | ToggleConversationListView
             | OpenConversationListView
-            | ToggleNotificationMailbox { .. }
             | ToggleAIDocumentPane { .. }
             | HideAIDocumentPanes
             | OpenAIDocumentPane { .. }
