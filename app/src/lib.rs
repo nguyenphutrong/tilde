@@ -386,12 +386,6 @@ impl LaunchMode {
         }
     }
 
-    /// Whether Sentry / crash reporting should be initialized.
-    #[cfg_attr(not(feature = "crash_reporting"), allow(dead_code))]
-    pub(crate) fn needs_crash_reporting(&self) -> bool {
-        true
-    }
-
     /// Whether profiling and tracing should be initialized.
     pub(crate) fn needs_profiling(&self) -> bool {
         true
@@ -656,15 +650,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     // for other entrypoints.
     features::init_feature_flags();
 
-    #[cfg(feature = "crash_reporting")]
-    if launch_mode.needs_crash_reporting() {
-        // Ensure that the main/root Sentry hub is initialized on the main
-        // thread.  PtySpawner creates a background thread to receive logs from
-        // the terminal server process, and we don't want it to be the host of
-        // the primary sentry::Hub.
-        sentry::Hub::main();
-    }
-
     let mut tracing_initialization = launch_mode
         .needs_profiling()
         .then(tracing::init)
@@ -733,17 +718,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
         web_intent_parser::set_context_flags_from_current_url();
     }
 
-    // Collect errors that occur in run_internal() before the Sentry client is initialized,
-    // so they can be replayed to Sentry once it's ready.
-    #[cfg_attr(
-        not(all(
-            feature = "release_bundle",
-            any(windows, any(target_os = "linux", target_os = "freebsd"))
-        )),
-        expect(unused_mut)
-    )]
-    let mut pre_sentry_errors: Vec<anyhow::Error> = Vec::new();
-
     #[cfg(all(
         feature = "release_bundle",
         any(target_os = "linux", target_os = "freebsd")
@@ -764,8 +738,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
             // state where Warp refuses to run even a first instance.
             Err(err) => {
                 let err = anyhow::Error::from(err).context("Failed to forward startup args");
-                report_error!(&err);
-                pre_sentry_errors.push(err);
+                report_error!(err);
             }
         }
     }
@@ -787,8 +760,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
             // state where Warp refuses to run even a first instance.
             Err(err) => {
                 let err = anyhow::Error::from(err).context("Failed to forward startup args");
-                report_error!(&err);
-                pre_sentry_errors.push(err);
+                report_error!(err);
             }
         }
     }
@@ -850,9 +822,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
                 if let Some(initialization) = tracing_initialization.as_mut() {
                     initialization.shutdown();
                 }
-
-                #[cfg(feature = "crash_reporting")]
-                crash_reporting::uninit_sentry();
             })),
             ..Default::default()
         }
@@ -967,8 +936,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
                 ctx,
             )
         });
-        #[cfg(feature = "crash_reporting")]
-        crate::crash_reporting::set_client_type_tag(launch_mode.execution_mode().client_id());
 
         // Add the terminal server singleton to the application.
         #[cfg(feature = "local_tty")]
@@ -988,13 +955,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
         ctx.add_singleton_model(move |ctx| {
             plugin::PluginHost::new(ctx).expect("Could not instantiate PluginHost")
         });
-        let app_state = initialize_app(
-            &launch_mode,
-            timer,
-            startup_toml_parse_error,
-            ctx,
-            pre_sentry_errors,
-        );
+        let app_state = initialize_app(&launch_mode, timer, startup_toml_parse_error, ctx);
 
         FeatureFlag::UseTantivySearch.set_enabled(true);
 
@@ -1025,11 +986,7 @@ pub(crate) fn initialize_app(
     mut timer: IntervalTimer,
     startup_toml_parse_error: Option<warpui_extras::user_preferences::Error>,
     ctx: &mut warpui::AppContext,
-    _pre_sentry_errors: impl IntoIterator<Item = anyhow::Error>,
 ) -> Option<AppState> {
-    // WARNING: Errors that happen here before crash_reporting::init will not be collected in
-    // Sentry. Only the dependencies of crash_reporting should be initialized here. Avoid adding
-    // any other stuff here, as failures will be silent. Push them to pre_sentry_errors instead.
     let data_domain = ChannelState::data_domain();
     let secure_storage_service_name = launch_mode.secure_storage_service_name(&data_domain);
 
@@ -1141,8 +1098,6 @@ pub(crate) fn initialize_app(
         .unwrap_or_default();
 
     ctx.add_singleton_model(AntivirusInfo::new);
-
-    timer.mark_interval_end("INIT_CRASH_REPORTING");
 
     if let LaunchMode::App { .. } = launch_mode {
         autoupdate::check_and_report_update_errors(ctx);
@@ -1431,11 +1386,6 @@ pub(crate) fn app_callbacks(
             if let Some(initialization) = tracing_initialization.as_mut() {
                 initialization.shutdown();
             }
-
-            // Tear down crash reporting as the last thing we do before the application
-            // terminates.
-            #[cfg(feature = "crash_reporting")]
-            crash_reporting::uninit_sentry();
         })),
         on_should_close_window: Some(Box::new(move |window_id, ctx| {
             let general_settings = GeneralSettings::as_ref(ctx);

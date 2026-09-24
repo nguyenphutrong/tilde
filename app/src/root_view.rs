@@ -13,7 +13,6 @@ use warpui::elements::Border;
 use warpui::keymap::{EditableBinding, FixedBinding};
 use warpui::platform::{WindowBounds, WindowStyle};
 use warpui::presenter::ChildView;
-use warpui::rendering::OnGPUDeviceSelected;
 use warpui::windowing::WindowManager;
 use warpui::{
     AddWindowOptions, AppContext, DisplayId, Element, Entity, EntityId, FocusContext,
@@ -319,7 +318,6 @@ pub fn create_transferred_window(
             title: Some(WINDOW_TITLE.to_owned()),
             background_blur_radius_pixels: Some(*window_settings.background_blur_radius),
             background_blur_texture: *window_settings.background_blur_texture,
-            on_gpu_driver_selected: on_gpu_driver_selected_callback(),
             ..Default::default()
         },
         |ctx| {
@@ -357,18 +355,6 @@ pub fn create_transferred_window(
         log::warn!("Failed to find workspace in newly created window {new_window_id:?}");
     }
     new_window_id
-}
-
-#[cfg(feature = "crash_reporting")]
-fn on_gpu_driver_selected_callback() -> Option<Box<OnGPUDeviceSelected>> {
-    Some(Box::new(|gpu_device_info| {
-        crate::crash_reporting::set_gpu_device_info(gpu_device_info)
-    }))
-}
-
-#[cfg(not(feature = "crash_reporting"))]
-fn on_gpu_driver_selected_callback() -> Option<Box<OnGPUDeviceSelected>> {
-    None
 }
 
 fn open_from_restored(arg: &OpenFromRestoredArg, ctx: &mut AppContext) {
@@ -416,7 +402,7 @@ fn open_from_restored(arg: &OpenFromRestoredArg, ctx: &mut AppContext) {
                     background_blur_texture,
                     anchor_new_windows_from_closed_position:
                         NextNewWindowsHasThisWindowsBoundsUponClose::No,
-                    on_gpu_driver_selected: on_gpu_driver_selected_callback(),
+                    on_gpu_driver_selected: None,
                     window_instance: Some(ChannelState::app_id().to_string() + "-hotkey"),
                 },
                 |ctx| {
@@ -499,7 +485,6 @@ fn add_restored_window(
             fullscreen_state: window.fullscreen_state,
             background_blur_radius_pixels,
             background_blur_texture,
-            on_gpu_driver_selected: on_gpu_driver_selected_callback(),
             ..Default::default()
         },
         |ctx| {
@@ -638,7 +623,6 @@ fn default_window_options(window_settings: &WindowSettings, ctx: &AppContext) ->
         title: Some(WINDOW_TITLE.to_owned()),
         background_blur_radius_pixels: Some(*window_settings.background_blur_radius),
         background_blur_texture: *window_settings.background_blur_texture,
-        on_gpu_driver_selected: on_gpu_driver_selected_callback(),
         ..Default::default()
     }
 }
@@ -786,7 +770,6 @@ fn toggle_quake_mode_window(global_resource_handles: &GlobalResourceHandles, ctx
                     background_blur_texture: *window_settings.background_blur_texture,
                     anchor_new_windows_from_closed_position:
                         NextNewWindowsHasThisWindowsBoundsUponClose::No,
-                    on_gpu_driver_selected: on_gpu_driver_selected_callback(),
                     window_instance: Some(ChannelState::app_id().to_string() + "-hotkey"),
                     ..Default::default()
                 },
