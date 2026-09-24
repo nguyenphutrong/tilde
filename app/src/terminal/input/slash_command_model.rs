@@ -1,12 +1,11 @@
 use ai::skills::SkillReference;
-use input_classifier::InputType;
 use settings::Setting as _;
 use warp_core::features::FeatureFlag;
 use warp_search_core::inline_menu::InputDrivenInlineMenuLifecycle;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use crate::ai::blocklist::{
-    BlocklistAIInputEvent, BlocklistAIInputModel, InputTypeAutoDetectionSource,
+    BlocklistAIInputEvent, BlocklistAIInputModel, InputType, InputTypeAutoDetectionSource,
 };
 use crate::search::slash_command_menu::StaticCommand;
 use crate::settings::InputSettings;

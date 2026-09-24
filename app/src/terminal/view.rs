@@ -375,13 +375,12 @@ use crate::terminal::event::{
 use crate::terminal::find::{BlockGridMatch, BlockListMatch, TerminalFindModel};
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::grid_size_util::grid_cell_dimensions;
-use crate::terminal::input::decorations::InputBackgroundJobOptions;
 use crate::terminal::input::inline_menu::InlineMenuPositioner;
 #[cfg(not(target_family = "wasm"))]
 use crate::terminal::input::slash_commands::fork_button_action;
 use crate::terminal::input::{
-    CommandExecutionSource, InputAction, InputEmptyStateChangeReason, InputState, MenuPositioning,
-    MenuPositioningProvider, ShellWidgetApplyMode,
+    CommandExecutionSource, InputAction, InputState, MenuPositioning, MenuPositioningProvider,
+    ShellWidgetApplyMode,
 };
 use crate::terminal::ligature_settings::{LigatureSettings, should_use_ligature_rendering};
 use crate::terminal::links::should_directly_open_link;
@@ -12445,10 +12444,7 @@ impl TerminalView {
             async move { session.load_external_commands().await },
             move |me, _, ctx| {
                 input.update(ctx, |input, ctx| {
-                    input.run_input_background_jobs(
-                        InputBackgroundJobOptions::default().with_command_decoration(),
-                        ctx,
-                    );
+                    input.run_input_background_jobs(ctx);
                 });
                 me.refresh_warp_prompt(ctx);
             },
@@ -19678,7 +19674,7 @@ impl TerminalView {
                 ctx.emit(Event::Escape)
             }
             InputEvent::InputStateChanged(_) => {}
-            InputEvent::InputEmptyStateChanged { is_empty, reason } => {
+            InputEvent::InputEmptyStateChanged { is_empty, .. } => {
                 // Update the universal developer input button bar with the new empty state
                 let universal_developer_input_button_bar = self
                     .input
@@ -19688,34 +19684,6 @@ impl TerminalView {
                 universal_developer_input_button_bar.update(ctx, |button_bar, ctx| {
                     button_bar.update_input_empty_state(*is_empty, ctx);
                 });
-
-                // When AgentView is enabled and the buffer is cleared, reset the input type
-                // based on whether there's an active agent view. Skip for cloud mode v2
-                // where the input is always AI.
-                if FeatureFlag::AgentView.is_enabled()
-                    && *is_empty
-                    && !self.input.as_ref(ctx).is_cloud_mode_input_v2_composing(ctx)
-                    && self
-                        .ai_input_model
-                        .as_ref(ctx)
-                        .should_run_input_autodetection(ctx)
-                {
-                    let is_agent_view_active = self.agent_view_controller.as_ref(ctx).is_active();
-                    let input_type = match reason {
-                        InputEmptyStateChangeReason::UserCommandCompleted => InputType::Shell,
-                        InputEmptyStateChangeReason::Edited => {
-                            if is_agent_view_active {
-                                InputType::AI
-                            } else {
-                                InputType::Shell
-                            }
-                        }
-                    };
-
-                    self.ai_input_model.update(ctx, |model, ctx| {
-                        model.enable_autodetection(input_type, ctx);
-                    });
-                }
             }
             InputEvent::SyncInput(input) => {
                 if !SyncedInputState::as_ref(ctx).is_syncing_any_inputs(ctx.window_id()) {

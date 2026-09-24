@@ -63,7 +63,6 @@ use warp_completer::meta::{HasSpan, Spanned};
 use warp_completer::parsers::LiteCommand;
 use warp_completer::parsers::simple::command_at_cursor_position;
 use warp_completer::signatures::CommandRegistry;
-use warp_completer::util::parse_current_commands_and_tokens;
 use warp_core::r#async::debounce;
 use warp_core::context_flag::ContextFlag;
 use warp_core::ui::theme::AnsiColorIdentifier;
@@ -99,7 +98,6 @@ use warpui::{
     TypedActionView, View, ViewContext, ViewHandle, WeakViewHandle, end_trace, start_trace,
 };
 
-use self::decorations::InputBackgroundJobOptions;
 use super::alias::is_expandable_alias;
 use super::block_list_viewport::InputMode;
 use super::event::{BlockCompletedEvent, BlockType, UserBlockCompleted};
@@ -1532,7 +1530,7 @@ pub struct Input {
     is_voltron_open: bool,
     command_x_ray_description: Option<Arc<Description>>,
     last_parsed_tokens: Option<decorations::ParsedTokensSnapshot>,
-    debounce_input_background_tx: Sender<InputBackgroundJobOptions>,
+    debounce_input_background_tx: Sender<()>,
     /// If true, will submit the command in the editor to the shell upon receiving the
     /// precmd message.
     has_pending_command: bool,
@@ -3064,7 +3062,7 @@ impl Input {
                 DEBOUNCE_INPUT_DECORATION_PERIOD,
                 debounce_input_background_rx,
             ),
-            |me, mode, ctx| me.run_input_background_jobs(mode, ctx),
+            |me, (), ctx| me.run_input_background_jobs(ctx),
             |_me, _ctx| {},
         );
 
@@ -3163,9 +3161,7 @@ impl Input {
         });
 
         ctx.subscribe_to_model(&ai_input_model, |me, _, event, ctx| {
-            let _ = me
-                .debounce_input_background_tx
-                .try_send(InputBackgroundJobOptions::default().with_command_decoration());
+            let _ = me.debounce_input_background_tx.try_send(());
 
             let config = event.updated_config();
             if config.is_locked && me.suggestions_mode_model.as_ref(ctx).is_visible() {
@@ -5659,10 +5655,7 @@ impl Input {
 
     fn handle_theme_change(&mut self, ctx: &mut ViewContext<Self>) {
         if self.should_apply_decorations(ctx) {
-            self.run_input_background_jobs(
-                InputBackgroundJobOptions::default().with_command_decoration(),
-                ctx,
-            );
+            self.run_input_background_jobs(ctx);
         }
         // Recompute the contrast-adjusted editor text colors for the CLI agent
         // rich input, in case the new theme's defaults contrast differently
@@ -5796,16 +5789,9 @@ impl Input {
                 )
             });
 
-        match (
-            input_model.input_type(),
-            input_model.should_run_input_autodetection(app),
-        ) {
-            (InputType::Shell, false) => TERMINAL_INPUT_HINT_TEXT.to_owned(),
-            (InputType::Shell, true) => {
-                // Ensure hint text is cached for new conversations
-                get_stable_agent_mode_hint_text(&mut self.cached_agent_mode_hint_text).to_owned()
-            }
-            (InputType::AI, _) => {
+        match input_model.input_type() {
+            InputType::Shell => TERMINAL_INPUT_HINT_TEXT.to_owned(),
+            InputType::AI => {
                 if let Some(conversation) =
                     self.ai_context_model.as_ref(app).selected_conversation(app)
                     && conversation.is_child_agent_conversation()
@@ -5874,19 +5860,13 @@ impl Input {
                 if !*input_settings.as_ref(ctx).syntax_highlighting.value() {
                     self.clear_decorations(ctx);
                 }
-                self.run_input_background_jobs(
-                    InputBackgroundJobOptions::default().with_command_decoration(),
-                    ctx,
-                );
+                self.run_input_background_jobs(ctx);
             }
             InputSettingsChangedEvent::ErrorUnderliningEnabled { .. } => {
                 if !*input_settings.as_ref(ctx).error_underlining.value() {
                     self.clear_decorations(ctx);
                 }
-                self.run_input_background_jobs(
-                    InputBackgroundJobOptions::default().with_command_decoration(),
-                    ctx,
-                );
+                self.run_input_background_jobs(ctx);
             }
             InputSettingsChangedEvent::InputBoxTypeSetting { .. } => {
                 // Force a re-render when switching between Universal and Classic input modes
@@ -6028,8 +6008,6 @@ impl Input {
                 model.set_input_config(new_config, buffer_text.is_empty(), None, ctx);
             });
         } else {
-            // For non-empty buffer, run the actual auto-detection algorithm
-            // First unlock the input mode to enable auto-detection
             self.ai_input_model.update(ctx, |model, ctx| {
                 let current_config = model.input_config();
                 let new_config = InputConfig {
@@ -6038,12 +6016,6 @@ impl Input {
                 };
                 model.set_input_config(new_config, buffer_text.is_empty(), None, ctx);
             });
-
-            // Then run auto-detection on the current buffer content
-            self.run_input_background_jobs(
-                InputBackgroundJobOptions::default().with_ai_input_detection(),
-                ctx,
-            );
         }
     }
 
@@ -6066,36 +6038,19 @@ impl Input {
 
                 let is_input_buffer_empty = self.editor.as_ref(ctx).buffer_text(ctx).is_empty();
 
-                let switch_to_auto = self.ai_input_model.update(ctx, |model, ctx| {
-                    let is_autodetection_enabled =
-                        AISettings::as_ref(ctx).is_ai_autodetection_enabled(ctx);
-                    let input_type = *input_type;
-
-                    // If the user clicked on the button to "unlock" the current mode,
-                    // we want to enable autodetection.
-                    if input_type == model.input_type()
-                        && is_autodetection_enabled
-                        && model.is_input_type_locked()
-                    {
-                        true
-                    } else {
-                        let new_config = InputConfig {
-                            input_type,
+                self.ai_input_model.update(ctx, |model, ctx| {
+                    model.set_input_config(
+                        InputConfig {
+                            input_type: *input_type,
                             is_locked: true,
-                        };
-                        model.set_input_config(
-                            new_config,
-                            is_input_buffer_empty,
-                            Some(InputTypeAutoDetectionSource::ManualToggle),
-                            ctx,
-                        );
-                        false
-                    }
+                        },
+                        is_input_buffer_empty,
+                        Some(InputTypeAutoDetectionSource::ManualToggle),
+                        ctx,
+                    );
                 });
 
-                if switch_to_auto {
-                    self.set_input_mode_natural_language_detection(ctx);
-                } else if *input_type == InputType::AI {
+                if *input_type == InputType::AI {
                     send_telemetry_from_ctx!(
                         TelemetryEvent::AgentModeClickedEntrypoint {
                             entrypoint: AgentModeEntrypoint::UDITerminalInputSwitcher,
@@ -6369,26 +6324,7 @@ impl Input {
                 ctx.notify();
             }
             AISettingsChangedEvent::AIAutoDetectionEnabled { .. }
-            | AISettingsChangedEvent::NLDInTerminalEnabled { .. } => {
-                // NLD is irrelevant in cloud mode v2 — the input is always AI.
-                if self.is_cloud_mode_input_v2_composing(ctx) {
-                    return;
-                }
-                // The input model handles updating the lock state via its own subscription.
-                // If NLD is now enabled for the current context and the buffer is non-empty,
-                // trigger autodetection on the current buffer contents.
-                if self
-                    .ai_input_model
-                    .as_ref(ctx)
-                    .should_run_input_autodetection(ctx)
-                    && !self.editor.as_ref(ctx).buffer_text(ctx).is_empty()
-                {
-                    self.run_input_background_jobs(
-                        InputBackgroundJobOptions::default().with_ai_input_detection(),
-                        ctx,
-                    );
-                }
-            }
+            | AISettingsChangedEvent::NLDInTerminalEnabled { .. } => {}
             #[cfg(feature = "voice_input")]
             AISettingsChangedEvent::VoiceInputEnabled { .. } => {
                 self.update_voice_transcription_options(ctx);
@@ -8114,22 +8050,9 @@ impl Input {
     ) {
         // If the input suggestions view is already closed, don't refocus the input box.
         if !self.suggestions_mode_model.as_ref(ctx).is_closed() {
-            let was_inline_menu_open = self
-                .suggestions_mode_model
-                .as_ref(ctx)
-                .is_inline_menu_open();
-
             self.suggestions_mode_model.update(ctx, |m, ctx| {
                 m.set_mode(InputSuggestionsMode::Closed, ctx);
             });
-
-            // If we're closing an inline menu, trigger autodetection on the buffer contents
-            if was_inline_menu_open {
-                self.run_input_background_jobs(
-                    InputBackgroundJobOptions::default().with_ai_input_detection(),
-                    ctx,
-                );
-            }
 
             if should_focus_input {
                 self.focus_input_box(ctx);
@@ -8556,8 +8479,6 @@ impl Input {
                     // terminal.
                     self.set_input_mode_terminal(false, ctx);
                 }
-            } else {
-                self.set_input_mode_natural_language_detection(ctx);
             }
             ctx.emit(Event::Escape);
         }
@@ -9446,68 +9367,11 @@ impl Input {
                     self.run_expansion_on_space(ctx);
                 }
 
-                // Don't run NLD autodetection when an inline menu is open (slash commands,
-                // conversation menu, model selector), as the buffer contents are being used as
-                // a search query for the menu rather than as a command/prompt.
-                let is_inline_menu_open = self
-                    .suggestions_mode_model
-                    .as_ref(ctx)
-                    .is_inline_menu_open();
-
-                // NLD autodetection is irrelevant in cloud mode v2 — the input is always AI.
-                let should_run_ai_input_detection = if self.is_cloud_mode_input_v2_composing(ctx) {
-                    false
-                } else {
-                    match edit_origin {
-                        // Edits made by the local user should trigger autodetection, if
-                        // it is enabled.
-                        EditOrigin::UserInitiated
-                        | EditOrigin::UserTyped
-                        | EditOrigin::SyncedTerminalInput => {
-                            !is_inline_menu_open
-                                && self
-                                    .ai_input_model
-                                    .as_ref(ctx)
-                                    .should_run_input_autodetection(ctx)
-                        }
-                        // Remote edits from shared session viewers should trigger autodetection
-                        // on the sharer's side, so that the sharer's input mode adjusts as viewers type.
-                        EditOrigin::RemoteEdit => {
-                            let is_sharer = self.model.lock().shared_session_status().is_sharer();
-                            !is_inline_menu_open
-                                && is_sharer
-                                && self
-                                    .ai_input_model
-                                    .as_ref(ctx)
-                                    .should_run_input_autodetection(ctx)
-                        }
-                        // System edits should never trigger autodetection.
-                        EditOrigin::SystemEdit => false,
-                    }
-                };
-
-                // Abort any autodetection work on the old buffer state.
-                self.ai_input_model.update(ctx, |controller, _| {
-                    controller.abort_in_progress_detection();
-                });
-                if self.should_apply_decorations(ctx)
-                    || should_run_ai_input_detection
-                    || is_ai_input_enabled
-                {
-                    let mut mode = InputBackgroundJobOptions::default();
-
-                    if self.should_apply_decorations(ctx) {
-                        mode = mode.with_command_decoration();
-                    }
-
-                    if should_run_ai_input_detection {
-                        mode = mode.with_ai_input_detection();
-                    }
-
+                if self.should_apply_decorations(ctx) || is_ai_input_enabled {
                     if short_circuit_highlighting {
-                        self.run_input_background_jobs(mode, ctx);
+                        self.run_input_background_jobs(ctx);
                     } else {
-                        let _ = self.debounce_input_background_tx.try_send(mode);
+                        let _ = self.debounce_input_background_tx.try_send(());
                     }
                 }
 
@@ -10296,18 +10160,6 @@ impl Input {
                 // Handle different action types
                 match action {
                     AIContextMenuSearchableAction::InsertText { text } => {
-                        // Only enter AI mode if we're in autodetect mode (not locked in terminal mode)
-                        if self
-                            .ai_input_model
-                            .as_ref(ctx)
-                            .should_run_input_autodetection(ctx)
-                        {
-                            self.enter_ai_mode(
-                                Some(InputTypeAutoDetectionSource::AtContextMenuInsert),
-                                ctx,
-                            );
-                        }
-
                         // For InsertText, we replace the "@" and any filter text with the provided text
                         self.replace_at_symbol_with_text(text, ctx);
                     }
@@ -12634,8 +12486,6 @@ impl Input {
                 && AISettings::as_ref(ctx).is_ai_autodetection_enabled(ctx)
             {
                 self.ai_input_model.update(ctx, |input, ctx| {
-                    input.abort_in_progress_detection();
-
                     // The default input state after executing a shell command is Shell mode with
                     // autodetection enabled.
                     input.set_input_config_for_classic_mode(
@@ -13702,28 +13552,19 @@ impl Input {
             || active_block.is_agent_in_control_or_tagged_in()
     }
 
-    /// Set input mode to natural language detection (auto-detection)
+    /// Unlocks the input mode without changing non-empty input.
     pub fn set_input_mode_natural_language_detection(&mut self, ctx: &mut ViewContext<Self>) {
-        if self.is_input_mode_toggle_disabled() {
-            return;
-        }
-
-        let is_autodetection_enabled = AISettings::as_ref(ctx).is_ai_autodetection_enabled(ctx);
-
-        if !is_autodetection_enabled {
+        if self.is_input_mode_toggle_disabled()
+            || !AISettings::as_ref(ctx).is_ai_autodetection_enabled(ctx)
+        {
             return;
         }
 
         let buffer_text = self.editor.as_ref(ctx).buffer_text(ctx);
-
         self.ai_input_model.update(ctx, |ai_input_model, ctx| {
-            // If we're already configured to do autodetection, there's nothing to do here.
             if ai_input_model.should_run_input_autodetection(ctx) {
                 return;
             }
-
-            // Update the input mode to remove any locks and re-enable autodetection.
-            // If the buffer is empty, this returns the input mode to the default.
             let input_type = if buffer_text.is_empty() {
                 InputType::default()
             } else {
@@ -13731,34 +13572,6 @@ impl Input {
             };
             ai_input_model.enable_autodetection(input_type, ctx);
         });
-
-        // If the buffer is non-empty, we should kick off the autodetection process, in case the
-        // classification doesn't match the previous locked mode.
-        if !buffer_text.is_empty()
-            && let Some(completion_context) = self.completion_session_context(ctx)
-        {
-            let ai_input_model = self.ai_input_model.clone();
-
-            ctx.spawn(
-                async move {
-                    (
-                        parse_current_commands_and_tokens(buffer_text, &completion_context).await,
-                        completion_context,
-                    )
-                },
-                move |_input, (parsed_tokens, completion_context), ctx| {
-                    let session_id = completion_context.session.id();
-                    ai_input_model.update(ctx, |model, ctx| {
-                        model.detect_and_set_input_type(
-                            parsed_tokens,
-                            completion_context,
-                            Some(session_id),
-                            ctx,
-                        );
-                    });
-                },
-            );
-        }
     }
 
     /// Set input mode to Agent Mode (AI input)

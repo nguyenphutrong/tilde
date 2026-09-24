@@ -49,11 +49,12 @@ caches and Git history are not erased.
 
 The standalone `serve-wasm` shared-session/Drive server and `managed_secrets_wasm` credential wrapper,
 their scripts/profiles, and the wrapper-only sealing API/test are removed. Workspace members now
-number 77 (baseline 79); lock packages number 1,427 (baseline 1,544). Native managed-secrets behavior
+number 75 (baseline 79); lock packages number 1,424 (baseline 1,544). Native managed-secrets behavior
 remains: all 31 tests pass. All-target app Clippy passes with existing warnings.
 
 `script/check_local_only.py` rejects `ort`, `ort-sys`, `candle-core`, `candle-nn`, `candle-onnx`, and
-`tokenizers`, plus `serve-wasm` and `managed_secrets_wasm`, in manifests and lockfiles, including
+`tokenizers`, plus `serve-wasm`, `managed_secrets_wasm`, `input_classifier`, and
+`natural_language_detection`, in manifests and lockfiles, including
 renamed, optional, target, build and dev dependencies.
 `script/local_only_residue.json` initially records 280 occurrences: 111 dependency declarations,
 133 endpoint lines and 36 lock entries. This is a debt inventory, not approved product functionality.
@@ -197,9 +198,15 @@ Retired prompt-suggestion Cmd/Ctrl-Enter routing and its editor predicate are re
 Ctrl-Enter still submits and clears the buffer only when enabled; otherwise it preserves the buffer.
 Remaining Cmd-Enter remote routing and passive diff/unit-test UI constants are unchanged.
 
+Natural-language classifier execution, its history-similarity matching, asynchronous cancellation,
+heuristic crates, dictionaries and AI-only Git `difflib` dependency are removed. Explicit input modes
+retain their existing serialization; shell completion parsing, aliases, history and decorations
+remain. The Unicode-decoration fixture declares its builtin instead of depending on host commands.
+Mode policy/settings transitions remain for their own removal increment.
+
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions,
-and associated bootstrap/settings/UI contracts remain. Classifier heuristics and serialized decision
-variants still exist. Remove leaf consumers first, then their owning contracts; do not replace removed
+and associated bootstrap/settings/UI contracts remain. Remove leaf consumers first, then their
+owning contracts; do not replace removed
 consumers with dummy singletons or stubs. Preserve local shell/PTY, history, completion, editor and Git
 helpers. Retain historical migrations and unknown legacy DB rows opaquely; do not DROP old tables.
 Migration replay tests use disposable SQLite data, not every historical production database.
