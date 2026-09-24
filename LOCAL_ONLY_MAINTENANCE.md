@@ -44,8 +44,14 @@ models and tokenizer assets are removed. Model assets fell from 53,470,541 bytes
 optional-runtime deletions do not imply an equivalent reduction in shipped binary size. Cargo/LFS
 caches and Git history are not erased.
 
+The standalone `serve-wasm` shared-session/Drive server and `managed_secrets_wasm` credential wrapper,
+their scripts/profiles, and the wrapper-only sealing API/test are removed. Workspace members now
+number 77 (baseline 79); lock packages number 1,483 (baseline 1,544). Native managed-secrets behavior
+remains: all 31 tests pass. All-target app Clippy passes with existing warnings.
+
 `script/check_local_only.py` rejects `ort`, `ort-sys`, `candle-core`, `candle-nn`, `candle-onnx`, and
-`tokenizers` in manifests and lockfiles, including renamed, optional, target, build and dev dependencies.
+`tokenizers`, plus `serve-wasm` and `managed_secrets_wasm`, in manifests and lockfiles, including
+renamed, optional, target, build and dev dependencies.
 `script/local_only_residue.json` initially records 280 occurrences: 111 dependency declarations,
 133 endpoint lines and 36 lock entries. This is a debt inventory, not approved product functionality.
 Endpoint lines are hashed to avoid exposing credentials. Changes and duplicates fail the guard;

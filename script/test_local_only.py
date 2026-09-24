@@ -27,6 +27,10 @@ class LocalOnlyGuardTests(unittest.TestCase):
         _, forbidden = self.scan("", lock='[[package]]\nname="candle-core"\nversion="1"\n')
         self.assertEqual(forbidden, ["Cargo.lock: candle-core"])
 
+    def test_rejects_removed_cloud_workspace_member(self):
+        _, forbidden = self.scan("", lock='[[package]]\nname="managed_secrets_wasm"\nversion="1"\n')
+        self.assertEqual(forbidden, ["Cargo.lock: managed_secrets_wasm"])
+
     def test_tracks_cloud_dependencies_even_without_feature_activation(self):
         found, forbidden = self.scan('[dependencies]\nai_types = { workspace=true }\n')
         self.assertEqual(found, {"dependency:app/Cargo.toml:ai_types": 1})

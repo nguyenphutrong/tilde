@@ -14,7 +14,10 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = ROOT / "script/local_only_residue.json"
-REMOVED = {"ort", "ort-sys", "candle-core", "candle-nn", "candle-onnx", "tokenizers"}
+REMOVED = {
+    "ort", "ort-sys", "candle-core", "candle-nn", "candle-onnx", "tokenizers",
+    "serve-wasm", "managed_secrets_wasm",
+}
 RESIDUE = {
     "ai", "ai_types", "mcp", "input_classifier", "natural_language_detection",
     "cloud_objects", "cloud_object_client", "cloud_object_models",
