@@ -46,8 +46,6 @@ use crate::code::lsp_telemetry::LspTelemetryEvent;
 use crate::persistence::ModelEvent;
 #[cfg(feature = "local_fs")]
 use crate::send_telemetry_from_ctx;
-#[cfg(feature = "local_fs")]
-use crate::server::server_api::ServerApiProvider;
 use crate::settings::CodeSettings;
 use crate::terminal::TerminalView;
 #[cfg(feature = "local_fs")]
@@ -167,6 +165,8 @@ pub struct PersistedWorkspace {
     /// Global installation status per LSP server type.
     #[cfg(feature = "local_fs")]
     lsp_installation_status: HashMap<LSPServerType, LSPInstallationStatus>,
+    #[cfg(feature = "local_fs")]
+    lsp_http_client: Arc<http_client::Client>,
 }
 
 #[derive(Debug, Clone)]
@@ -212,6 +212,8 @@ impl PersistedWorkspace {
             model_event_sender: None,
             #[cfg(feature = "local_fs")]
             lsp_installation_status: HashMap::new(),
+            #[cfg(feature = "local_fs")]
+            lsp_http_client: Arc::new(http_client::Client::new_for_test()),
         }
     }
 
@@ -338,6 +340,8 @@ impl PersistedWorkspace {
             model_event_sender,
             #[cfg(feature = "local_fs")]
             lsp_installation_status: HashMap::new(),
+            #[cfg(feature = "local_fs")]
+            lsp_http_client: Arc::new(http_client::Client::new()),
         };
 
         // Kick off LSP suggestion scanning for all existing workspaces so that
@@ -551,7 +555,7 @@ impl PersistedWorkspace {
         let path_future = LocalShellState::handle(ctx).update(ctx, |shell_state, ctx| {
             shell_state.get_interactive_path_env_var(ctx)
         });
-        let http_client = ServerApiProvider::as_ref(ctx).get_http_client();
+        let http_client = self.lsp_http_client.clone();
 
         ctx.spawn(
             async move {
@@ -958,7 +962,7 @@ impl PersistedWorkspace {
         let repo_root_clone = repo_root.clone();
         let file_path_clone = file_path.clone();
         let executor = lsp::CommandBuilder::new(path_env_var);
-        let http_client = ServerApiProvider::as_ref(ctx).get_http_client();
+        let http_client = self.lsp_http_client.clone();
         ctx.spawn(
             async move {
                 let candidate = server_type.candidate(http_client);
@@ -1083,7 +1087,7 @@ impl PersistedWorkspace {
             );
             let log_relative_path =
                 crate::code::lsp_logs::relative_log_path(server, &workspace_root);
-            let http_client = ServerApiProvider::as_ref(ctx).get_http_client();
+            let http_client = self.lsp_http_client.clone();
             let config = LspServerConfig::new(
                 server,
                 workspace_root.clone(),
@@ -1240,7 +1244,7 @@ impl PersistedWorkspace {
                     shell_state.get_interactive_path_env_var(ctx)
                 });
 
-                let http_client = ServerApiProvider::as_ref(ctx).get_http_client();
+                let http_client = self.lsp_http_client.clone();
                 ctx.spawn(
                     async move {
                         // Wait for interactive PATH, then check installation
