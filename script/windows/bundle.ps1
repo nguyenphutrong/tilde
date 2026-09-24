@@ -189,8 +189,6 @@ if ($IS_TUI) {
         'oss' { 'tui' }
     }
     $FEATURES = 'release_bundle,standalone,voice_input'
-} else {
-    $FEATURES = "$FEATURES,nld_heuristic_v2"
 }
 
 $BINARY_PATH = "$CARGO_TARGET_OUTPUT_DIR\$BINARY_NAME"

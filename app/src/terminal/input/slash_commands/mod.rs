@@ -49,7 +49,6 @@ use crate::server::ids::SyncId;
 use crate::server::telemetry::{AgentModeAutoDetectionSettingOrigin, SlashCommandAcceptedDetails};
 use crate::settings::AISettings;
 use crate::tab::SelectedTabColor;
-use crate::terminal::input::decorations::InputBackgroundJobOptions;
 use crate::terminal::input::inline_menu::{InlineMenuAction, InlineMenuType};
 use crate::terminal::input::message_bar::Message;
 use crate::terminal::input::models::InlineModelSelectorTab;
@@ -313,9 +312,7 @@ impl Input {
         // detected commands affect syntax highlighting.
         let new_state = self.slash_command_model.as_ref(ctx).state();
         if event.old_state.is_detected_command() != new_state.is_detected_command() {
-            let _ = self
-                .debounce_input_background_tx
-                .try_send(InputBackgroundJobOptions::default().with_command_decoration());
+            let _ = self.debounce_input_background_tx.try_send(());
         }
 
         match self.slash_command_model.as_ref(ctx).state().clone() {

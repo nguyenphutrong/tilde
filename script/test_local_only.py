@@ -41,6 +41,15 @@ class LocalOnlyGuardTests(unittest.TestCase):
         _, forbidden = self.scan("", lock='[[package]]\nname="managed_secrets_wasm"\nversion="1"\n')
         self.assertEqual(forbidden, ["Cargo.lock: managed_secrets_wasm"])
 
+    def test_rejects_removed_classifiers_in_manifests_and_lockfile(self):
+        for name in ["input_classifier", "natural_language_detection"]:
+            with self.subTest(name=name):
+                _, forbidden = self.scan(
+                    f'[dependencies]\nrenamed = {{ package="{name}", version="1" }}\n',
+                    lock=f'[[package]]\nname="{name}"\nversion="1"\n',
+                )
+                self.assertEqual(forbidden, [f"Cargo.lock: {name}", f"app/Cargo.toml: {name}"])
+
     def test_rejects_native_crash_packages_in_manifests_and_lockfile(self):
         for name in ["sentry", "sentry-core", "sentry-new-integration", "minidumper", "crash-handler"]:
             with self.subTest(name=name):

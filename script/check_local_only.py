@@ -18,9 +18,10 @@ REMOVED = {
     "ort", "ort-sys", "candle-core", "candle-nn", "candle-onnx", "tokenizers",
     "serve-wasm", "managed_secrets_wasm",
     "minidumper", "crash-handler",
+    "input_classifier", "natural_language_detection",
 }
 RESIDUE = {
-    "ai", "ai_types", "mcp", "input_classifier", "natural_language_detection",
+    "ai", "ai_types", "mcp",
     "cloud_objects", "cloud_object_client", "cloud_object_models",
     "cloud_object_persistence", "firebase", "warp_graphql", "warp_graphql_schema",
     "warp_server_auth", "warp_server_client", "warp_multi_agent_api",
