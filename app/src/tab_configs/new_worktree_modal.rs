@@ -25,7 +25,6 @@ pub fn init(app: &mut AppContext) {
 
 use warp_core::ui::theme::color::internal_colors;
 
-use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::appearance::Appearance;
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions};
 use crate::modal::ModalAction;
@@ -201,21 +200,9 @@ impl NewWorktreeModal {
             e.clear_buffer_and_reset_undo_stack(ctx);
         });
 
-        // Prefer the active session's cwd; fall back to the first known
-        // workspace so that both pickers start populated even when no
-        // terminal session is active yet.
-        let effective_cwd = cwd.or_else(|| {
-            PersistedWorkspace::as_ref(ctx)
-                .workspaces()
-                .next()
-                .map(|ws| ws.path.clone())
-        });
-
-        let default_repo = effective_cwd
-            .as_ref()
-            .map(|p| p.to_string_lossy().to_string());
+        let default_repo = cwd.as_ref().map(|p| p.to_string_lossy().to_string());
         self.repo_picker = Self::build_repo_picker(default_repo, ctx);
-        self.branch_picker = Self::build_branch_picker(effective_cwd, ctx);
+        self.branch_picker = Self::build_branch_picker(cwd, ctx);
 
         ctx.focus(&self.repo_picker);
         ctx.notify();

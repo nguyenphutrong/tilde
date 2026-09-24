@@ -9,7 +9,6 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
-use crate::ai::persisted_workspace::{PersistedWorkspace, PersistedWorkspaceEvent};
 use crate::appearance::Appearance;
 use crate::tab_configs::PickerStyle;
 use crate::view_components::{DropdownItem, FilterableDropdown};
@@ -19,7 +18,7 @@ const DEFAULT_DROPDOWN_WIDTH: f32 = 380.;
 /// Label for the sticky "Add new repo..." footer at the bottom of the picker.
 const ADD_NEW_REPO_LABEL: &str = "+ Add new repo...";
 
-/// A filterable dropdown listing known repos (from `PersistedWorkspace`), with a
+/// A filterable dropdown showing the selected local repo, with a
 /// sticky "+ Add new repo..." footer that is always visible even when scrolling.
 ///
 /// Emits:
@@ -45,10 +44,7 @@ pub enum RepoPickerEvent {
 }
 
 impl RepoPicker {
-    /// Creates a new picker pre-populated with all known projects.
-    ///
-    /// `default_value` is pre-selected if it appears in the project list (or is
-    /// added as an extra entry if it doesn't).
+    /// Creates a picker with an optional pre-selected local path.
     pub fn new(default_value: Option<String>, ctx: &mut ViewContext<Self>) -> Self {
         Self::new_with_style(default_value, None, ctx)
     }
@@ -58,15 +54,6 @@ impl RepoPicker {
         style: Option<PickerStyle>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        // Subscribe to PersistedWorkspace so the list refreshes when the user
-        // adds a repo via the folder picker.
-        ctx.subscribe_to_model(&PersistedWorkspace::handle(ctx), |me, _, event, ctx| {
-            if let PersistedWorkspaceEvent::WorkspaceAdded { path } = event {
-                let path_str = path.to_string_lossy().to_string();
-                me.refresh_items(Some(&path_str), ctx);
-            }
-        });
-
         let width = style.as_ref().map_or(DEFAULT_DROPDOWN_WIDTH, |s| s.width);
         let bg = style.and_then(|s| s.background);
         let dropdown = ctx.add_typed_action_view(|ctx| {
@@ -136,46 +123,27 @@ impl RepoPicker {
         picker
     }
 
-    /// Refreshes the dropdown list from `PersistedWorkspace` and optionally
-    /// pre-selects a specific path.
+    /// Selects a local path in the dropdown.
     pub fn refresh_and_select(&mut self, path: PathBuf, ctx: &mut ViewContext<Self>) {
         let path_str = path.to_string_lossy().to_string();
         self.refresh_items(Some(&path_str), ctx);
     }
 
     fn refresh_items(&mut self, select_path: Option<&str>, ctx: &mut ViewContext<Self>) {
-        // workspaces() already returns entries sorted by most-recently-touched.
-        // "+ Add new repo..." is a sticky footer (not a list item) so it is
-        // not included here.
-        //
-        // Each item's `display_text` is the full user-friendly form
-        // (`~`-prefixed). The dropdown clips it at render width via
-        // `ClipConfig::start()`, so distinct paths with shared trailing
-        // segments stay readable without character-count approximation.
-        // The action carries the *raw* absolute path so consumers reading
-        // `RepoPickerEvent::Selected` keep getting a real filesystem path.
-        let home = dirs::home_dir().map(|p| p.display().to_string());
-        let items: Vec<DropdownItem<RepoPickerAction>> = PersistedWorkspace::as_ref(ctx)
-            .workspaces()
-            .filter(|ws| ws.path.exists())
-            .map(|ws| {
-                let path_str = ws.path.to_string_lossy().into_owned();
-                let display = user_friendly_path(&path_str, home.as_deref()).into_owned();
-                DropdownItem::new(display, RepoPickerAction::Select(path_str.clone()))
-                    .with_clip_config(ClipConfig::start())
-                    .with_tooltip(path_str)
-            })
-            .collect();
-
         let raw_to_select = select_path
             .or(self.selected.as_deref())
             .map(|s| s.to_owned());
+        let home = dirs::home_dir().map(|p| p.display().to_string());
+        let items = raw_to_select
+            .iter()
+            .map(|path_str| {
+                let display = user_friendly_path(path_str, home.as_deref()).into_owned();
+                DropdownItem::new(display, RepoPickerAction::Select(path_str.clone()))
+                    .with_clip_config(ClipConfig::start())
+                    .with_tooltip(path_str.clone())
+            })
+            .collect();
 
-        // Mirror the raw path into `self.selected` so `selected_value()`
-        // returns a real filesystem path even before the user explicitly
-        // picks something. Load-bearing for `new_worktree_modal::on_open`,
-        // which reads `repo_picker.selected_value()` at modal-open time when
-        // its own `selected_repo` is still `None`.
         if let Some(ref raw) = raw_to_select {
             self.selected = Some(raw.clone());
         }
@@ -245,3 +213,7 @@ impl TypedActionView for RepoPicker {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "repo_picker_tests.rs"]
+mod tests;
