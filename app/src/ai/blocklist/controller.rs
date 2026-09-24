@@ -47,10 +47,10 @@ use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
     AIAgentActionResult, AIAgentActionResultType, AIAgentAttachment, AIAgentContext,
     AIAgentExchangeId, AIAgentInput, AIAgentOutputStatus, AIIdentifiers, CancellationOutcome,
-    CancellationReason, DocumentContentAttachmentSource, EntrypointType, FileContext,
-    FinishedAIAgentOutput, PassiveSuggestionResultType, PassiveSuggestionTrigger,
-    PassiveSuggestionTriggerType, RenderableAIError, RequestCost, RequestMetadata, RunningCommand,
-    StaticQueryType, TransientNetworkErrorKind, UserQueryMode, extract_user_query_mode,
+    CancellationReason, DocumentContentAttachmentSource, EntrypointType, FinishedAIAgentOutput,
+    PassiveSuggestionResultType, PassiveSuggestionTrigger, PassiveSuggestionTriggerType,
+    RenderableAIError, RequestCost, RequestMetadata, RunningCommand, StaticQueryType,
+    TransientNetworkErrorKind, UserQueryMode, extract_user_query_mode,
 };
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::document::ai_document_model::{
@@ -69,9 +69,7 @@ use crate::server::server_api::AIApiError;
 use crate::server::team_scope::RequestTeamScope;
 use crate::server::telemetry::TelemetryEvent;
 use crate::terminal::ShellLaunchData;
-use crate::terminal::model::block::{
-    BlockId, CURSOR_MARKER, formatted_terminal_contents_for_input,
-};
+use crate::terminal::model::block::{CURSOR_MARKER, formatted_terminal_contents_for_input};
 use crate::terminal::model::session::SessionType;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::terminal_model::TerminalModel;
@@ -252,11 +250,6 @@ impl RequestInput {
 
     pub fn all_inputs(&self) -> impl Iterator<Item = &AIAgentInput> {
         self.input_messages.values().flatten()
-    }
-
-    pub fn with_supported_tools(mut self, tools: Vec<ToolType>) -> Self {
-        self.supported_tools_override = Some(tools);
-        self
     }
 
     fn new_with_common_fields(
@@ -1880,220 +1873,6 @@ impl BlocklistAIController {
         });
         self.pending_auto_resume_handles
             .insert(conversation_id, handle);
-    }
-
-    pub fn send_passive_code_diff_request(
-        &mut self,
-        query: String,
-        block_id: &BlockId,
-        file_contexts: Vec<FileContext>,
-        ctx: &mut ModelContext<Self>,
-    ) -> anyhow::Result<(AIConversationId, ResponseStreamId)> {
-        let mut input_context = file_contexts
-            .into_iter()
-            .map(AIAgentContext::File)
-            .collect_vec();
-        if let Some(block_context) = self
-            .context_model
-            .as_ref(ctx)
-            .transform_block_to_context(block_id, false)
-        {
-            input_context.push(block_context);
-        }
-
-        let new_conversation = self.start_new_conversation_for_request(ctx);
-        self.send_request_input(
-            RequestInput::for_task(
-                vec![AIAgentInput::AutoCodeDiffQuery {
-                    query,
-                    context: input_context.into(),
-                }],
-                new_conversation.get_root_task_id().clone(),
-                &self.active_session,
-                self.get_current_response_initiator(),
-                new_conversation.id(),
-                self.terminal_surface_id,
-                ctx,
-            ),
-            Some(RequestMetadata {
-                is_autodetected_user_query: false,
-                entrypoint: EntrypointType::PromptSuggestion {
-                    is_static: false,
-                    is_coding: true,
-                },
-                is_auto_resume_after_error: false,
-            }),
-            RecoveryBudget::fresh(),
-            /*is_queued_prompt*/ false,
-            ctx,
-        )
-    }
-
-    /// Builds request params for an out-of-band passive suggestions request.
-    ///
-    /// This reads conversation state read-only and does NOT create exchanges,
-    /// register response streams, or modify conversation status. The caller
-    /// is responsible for spawning the API call and handling the response.
-    ///
-    /// If `followup_conversation_id` is provided, the conversation's task context
-    /// and server token are included so the server can use prior context.
-    /// Otherwise, a new conversation is created to anchor the request.
-    /// Builds request params for an out-of-band passive suggestions request.
-    ///
-    /// This is read-only and does NOT create exchanges, register response
-    /// streams, or modify conversation history. The caller is responsible for
-    /// spawning the API call and handling the response.
-    ///
-    /// If `followup_conversation_id` is provided, the conversation's task
-    /// context and server token are included so the server can use prior
-    /// context. Otherwise a fresh, ephemeral conversation ID is generated
-    /// without touching the history model.
-    pub fn build_passive_suggestions_request_params(
-        &self,
-        followup_conversation_id: Option<AIConversationId>,
-        trigger: PassiveSuggestionTrigger,
-        supported_tools: Vec<ToolType>,
-        ctx: &ModelContext<Self>,
-    ) -> anyhow::Result<(AIConversationId, api::RequestParams)> {
-        let history_model = BlocklistAIHistoryModel::as_ref(ctx);
-
-        // Resolve conversation state. For follow-ups we read from history;
-        // for new triggers we generate a fresh ID without persisting anything.
-        let (conversation_id, task_id, conversation_data) = if let Some(conversation_id) =
-            followup_conversation_id
-        {
-            let Some(conversation) = history_model.conversation(&conversation_id) else {
-                return Err(anyhow!(
-                    "Tried to build passive suggestions request params for non-existent conversation with ID {conversation_id:?}"
-                ));
-            };
-            let task_id = conversation.get_root_task_id().clone();
-            let conversation_data = api::ConversationData {
-                id: conversation_id,
-                tasks: conversation.compute_active_tasks(),
-                server_conversation_token: conversation.server_conversation_token().cloned(),
-                forked_from_conversation_token: conversation
-                    .forked_from_server_conversation_token()
-                    .cloned(),
-                // Do not tie passive suggestion requests to the cloud agent task, since they are
-                // separate, read-only requests.
-                ambient_agent_task_id: None,
-                existing_suggestions: None,
-            };
-            (conversation_id, task_id, conversation_data)
-        } else if !matches!(
-            trigger,
-            PassiveSuggestionTrigger::AgentResponseCompleted { .. }
-        ) {
-            // Generate a fresh, ephemeral conversation ID without mutating history.
-            let conversation_id = AIConversationId::new();
-            let task_id = TaskId::new(uuid::Uuid::new_v4().to_string());
-            let conversation_data = api::ConversationData {
-                id: conversation_id,
-                tasks: vec![],
-                server_conversation_token: None,
-                forked_from_conversation_token: None,
-                // Do not tie passive suggestion requests to the cloud agent task, since they are
-                // separate, read-only requests.
-                ambient_agent_task_id: None,
-                existing_suggestions: None,
-            };
-            (conversation_id, task_id, conversation_data)
-        } else {
-            return Err(anyhow!(
-                "Tried to use agent response completed trigger to generate passive suggestions without a conversation ID"
-            ));
-        };
-
-        let inputs = vec![AIAgentInput::TriggerPassiveSuggestion {
-            context: input_context_for_request(
-                false,
-                self.context_model.as_ref(ctx),
-                self.active_session.as_ref(ctx),
-                Some(conversation_id),
-                vec![],
-                ctx,
-            ),
-            attachments: vec![],
-            trigger: trigger.clone(),
-        }];
-
-        let request_input = RequestInput::for_task(
-            inputs,
-            task_id,
-            &self.active_session,
-            self.get_current_response_initiator(),
-            conversation_id,
-            self.terminal_surface_id,
-            ctx,
-        )
-        .with_supported_tools(supported_tools);
-
-        let metadata = Some(RequestMetadata {
-            is_autodetected_user_query: false,
-            entrypoint: EntrypointType::TriggerPassiveSuggestion {
-                trigger: Some((&trigger).into()),
-            },
-            is_auto_resume_after_error: false,
-        });
-
-        let scope = self.team_context(ctx);
-        let request_params = api::RequestParams::new(
-            Some(self.terminal_surface_id),
-            SessionContext::from_session(self.active_session.as_ref(ctx), ctx),
-            &request_input,
-            conversation_data,
-            metadata,
-            &scope,
-            ctx,
-        );
-
-        Ok((conversation_id, request_params))
-    }
-
-    pub fn send_unit_test_suggestions_request(
-        &mut self,
-        block_output: String,
-        trigger: PassiveSuggestionTrigger,
-        ctx: &mut ModelContext<Self>,
-    ) -> anyhow::Result<(AIConversationId, ResponseStreamId)> {
-        let attachments = vec![AIAgentAttachment::PlainText(block_output.to_string())];
-        let trigger_type = (&trigger).into();
-        let inputs = vec![AIAgentInput::TriggerPassiveSuggestion {
-            context: input_context_for_request(
-                false,
-                self.context_model.as_ref(ctx),
-                self.active_session.as_ref(ctx),
-                None,
-                vec![],
-                ctx,
-            ),
-            attachments,
-            trigger,
-        }];
-
-        let new_conversation = self.start_new_conversation_for_request(ctx);
-        self.send_request_input(
-            RequestInput::for_task(
-                inputs,
-                new_conversation.get_root_task_id().clone(),
-                &self.active_session,
-                self.get_current_response_initiator(),
-                new_conversation.id(),
-                self.terminal_surface_id,
-                ctx,
-            ),
-            Some(RequestMetadata {
-                is_autodetected_user_query: false,
-                entrypoint: EntrypointType::TriggerPassiveSuggestion {
-                    trigger: Some(trigger_type),
-                },
-                is_auto_resume_after_error: false,
-            }),
-            RecoveryBudget::fresh(),
-            /*is_queued_prompt*/ false,
-            ctx,
-        )
     }
 
     /// Set the ID of the ambient agent task which owns this controller and its backing session.

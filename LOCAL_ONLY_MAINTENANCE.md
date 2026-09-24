@@ -128,8 +128,10 @@ removed. The ANSI hook remains parseable through its default handler. Ordinary S
 remains; a TOML regression verifies that retired extension values survive settings loading and writes.
 
 Background passive-suggestion models and their terminal subscriptions are removed, including passive
-code-diff creation and request cancellation on Clear Blocks. Controller/API request paths and existing
-prompt UI remain for subsequent leaf-to-root removal; local PTY and completion paths are unchanged.
+code-diff creation and request cancellation on Clear Blocks. Their orphaned controller request builders,
+query-suggestion endpoint/schema, and request-only tests are removed. Existing prompt UI, query
+prediction, and request-tool override state remain; local PTY and completion paths are unchanged.
+This removal does not change persistence schemas or establish a usable-GUI or network-silent result.
 
 ## Remaining scope and data safety
 
