@@ -257,18 +257,6 @@ pub static ADD_PROMPT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand 
     argument: None,
 });
 
-pub const ADD_RULE: StaticCommand = StaticCommand {
-    name: "/add-rule",
-    description: "Add a new global rule for the agent",
-    kind: SlashCommandKind::AddRule,
-    supported_surfaces: SlashCommandSurfaces::GuiOnly {
-        icon_path: "bundled/svg/book-open.svg",
-    },
-    availability: Availability::AI_ENABLED,
-    auto_enter_ai_mode: false,
-    argument: None,
-};
-
 pub static EDIT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     name: "/open-file",
     description: "Open a file in Tilde's code editor",
@@ -448,18 +436,6 @@ pub const OPEN_REPO: StaticCommand = StaticCommand {
         icon_path: "bundled/svg/folder.svg",
     },
     availability: Availability::LOCAL.union(Availability::AI_ENABLED),
-    auto_enter_ai_mode: false,
-    argument: None,
-};
-
-pub const OPEN_RULES: StaticCommand = StaticCommand {
-    name: "/open-rules",
-    description: "View all of your global and project rules",
-    kind: SlashCommandKind::OpenRules,
-    supported_surfaces: SlashCommandSurfaces::GuiOnly {
-        icon_path: "bundled/svg/book-open.svg",
-    },
-    availability: Availability::AI_ENABLED,
     auto_enter_ai_mode: false,
     argument: None,
 };
@@ -905,7 +881,6 @@ fn all_commands(settings_mode: settings::SettingsMode) -> Vec<StaticCommand> {
 fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
     let mut commands = vec![
         ADD_PROMPT.clone(),
-        ADD_RULE,
         AUTO_APPROVE,
         COST,
         EXIT,
@@ -918,7 +893,6 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
         MANAGE_BILLING,
         LOGOUT,
         OPEN_PROJECT_RULES,
-        OPEN_RULES,
         AGENT.clone(),
         CLEAR,
         NEW.clone(),

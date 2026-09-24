@@ -66,6 +66,11 @@ directly, avoiding the experiment's synchronous telemetry lookup of cloud worksp
 Release notes use Tilde's GitHub release-tag endpoint directly, without Warp `ServerApi`; unpublished
 local versions return without making a request. This preserves the GitHub Releases updater.
 
+Cloud Rules panes, their manager/views, Drive rows, slash commands, and integration routes are removed.
+Legacy Rules snapshots remain deserializable and restore a local terminal, including when the old
+Rules flag is enabled. Historical Rules data codecs and migrations remain; the local project-rules
+file command is preserved. This does not remove the remaining AI rule/cloud synchronization code.
+
 ## Remaining scope and data safety
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,

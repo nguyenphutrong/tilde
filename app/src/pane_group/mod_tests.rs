@@ -735,6 +735,29 @@ impl pane::PaneContent for PreAttachReturnsFalsePane {
 // }
 
 #[test]
+fn legacy_rules_snapshot_restores_a_local_terminal() {
+    let _rules = FeatureFlag::AIRules.override_enabled(true);
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let pane_group = mock_pane_group(
+            &mut app,
+            MockOptions {
+                layout: PanesLayout::Snapshot(Box::new(PaneNodeSnapshot::Leaf(LeafSnapshot {
+                    is_focused: true,
+                    custom_vertical_tabs_title: None,
+                    contents: LeafContents::AIFact(app_state::AIFactPaneSnapshot::Personal),
+                }))),
+                ..Default::default()
+            },
+        );
+        pane_group.read(&app, |panes, ctx| {
+            assert_eq!(panes.pane_count(), 1);
+            assert!(panes.active_session_view(ctx).is_some());
+        });
+    });
+}
+
+#[test]
 #[allow(clippy::clone_on_copy)]
 fn test_pane_focus_on_close() {
     App::test((), |mut app| async move {

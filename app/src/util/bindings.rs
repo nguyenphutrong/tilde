@@ -120,7 +120,6 @@ pub enum CustomAction {
     NewAgentModePane,
     /// Also applies to legacy Warp AI (attaches the selection to the panel editor)
     AttachSelectionAsAgentModeContext,
-    OpenAIFactCollection,
     ToggleProjectExplorer,
     NewPersonalAIPrompt,
     NewTeamAIPrompt,
@@ -462,7 +461,6 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
         | CustomAction::SearchDrive
         | CustomAction::ShareCurrentSession
         | CustomAction::SharePaneContents
-        | CustomAction::OpenAIFactCollection
         | CustomAction::NewPersonalAIPrompt
         | CustomAction::NewTeamAIPrompt
         | CustomAction::NewAgentTab => None,

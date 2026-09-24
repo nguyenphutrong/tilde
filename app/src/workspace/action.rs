@@ -529,7 +529,6 @@ pub enum WorkspaceAction {
     FixInAgentMode {
         query: String,
     },
-    OpenAIFactCollection,
     ToggleAIDocumentPane {
         document_id: AIDocumentId,
         document_version: AIDocumentVersion,
@@ -1030,7 +1029,6 @@ impl WorkspaceAction {
             | SignInAnonymousWebUser
             | TabHoverWidthStart { .. }
             | TabHoverWidthEnd
-            | OpenAIFactCollection
             | FocusTerminalViewInWorkspace { .. }
             | FocusPane(..)
             | ShiftSelectTabRange { .. }

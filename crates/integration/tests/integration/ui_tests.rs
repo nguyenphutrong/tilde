@@ -329,9 +329,6 @@ integration_tests! {
     test_middle_click_paste,
     test_agent_mode_pane_minimum_size,
 
-    test_rule_creation,
-    test_rule_update,
-    test_rule_pane_opening,
     test_undo_close_stack_timeout_cleanup,
 
     test_file_tree_opens_files_in_warp,

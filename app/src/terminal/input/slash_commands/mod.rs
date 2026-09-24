@@ -483,9 +483,6 @@ impl Input {
             SlashCommandKind::AddPrompt => {
                 ctx.dispatch_typed_action(&TerminalAction::OpenAddPromptPane);
             }
-            SlashCommandKind::AddRule => {
-                ctx.dispatch_typed_action(&TerminalAction::OpenAddRulePane);
-            }
             SlashCommandKind::Agent | SlashCommandKind::New => {
                 if !self
                     .ai_context_model
@@ -863,9 +860,6 @@ impl Input {
             }
             SlashCommandKind::OpenProjectRules => {
                 ctx.dispatch_typed_action(&TerminalAction::OpenProjectRulesPane);
-            }
-            SlashCommandKind::OpenRules => {
-                ctx.dispatch_typed_action(&TerminalAction::OpenRulesPane);
             }
             SlashCommandKind::EditSkill => {
                 if !FeatureFlag::ListSkills.is_enabled() {
