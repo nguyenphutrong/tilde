@@ -17,7 +17,6 @@ use std::fmt;
 
 pub use cloud_objects::drive::CloudObjectTypeAndId;
 pub use index::DriveIndexVariant;
-pub use panel::{DrivePanel, DrivePanelEvent};
 use serde::{Deserialize, Serialize};
 use warp_core::user_preferences::GetUserPreferences as _;
 use warpui::AppContext;
