@@ -88,7 +88,6 @@ pub struct WorkspaceState {
     pub is_prompt_editor_open: bool,
     pub is_agent_toolbar_editor_open: bool,
     pub is_header_toolbar_editor_open: bool,
-    pub is_import_modal_open: bool,
     pub is_close_session_confirmation_dialog_open: bool,
     pub is_rewind_confirmation_dialog_open: bool,
     pub is_delete_conversation_confirmation_dialog_open: bool,
@@ -125,7 +124,6 @@ impl WorkspaceState {
             || self.is_agent_toolbar_editor_open
             || self.is_header_toolbar_editor_open
             || self.is_agent_management_popup_open
-            || self.is_import_modal_open
             || self.is_shared_objects_creation_denied_modal_open
             || self.is_suggested_agent_mode_workflow_modal_open
             || self.is_tab_config_params_modal_open
@@ -155,7 +153,6 @@ impl WorkspaceState {
         self.is_prompt_editor_open = false;
         self.is_agent_toolbar_editor_open = false;
         self.is_header_toolbar_editor_open = false;
-        self.is_import_modal_open = false;
         self.is_shared_objects_creation_denied_modal_open = false;
         self.is_auth_override_modal_open = false;
         self.is_require_login_modal_open = false;

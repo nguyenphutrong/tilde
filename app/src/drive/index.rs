@@ -163,7 +163,6 @@ const INDEX_WORKFLOW_LABEL: &str = "New workflow";
 const INDEX_AGENT_MODE_WORKFLOW_LABEL: &str = "New prompt";
 const INDEX_ENV_VAR_COLLECTION_LABEL: &str = "New environment variables";
 
-const IMPORT_LABEL: &str = "Import";
 const REMOVE_LABEL: &str = "Remove";
 const OFFLINE_BANNER_TEXT: &str = "You are offline. Some files will be read only.";
 
@@ -240,10 +239,6 @@ pub enum DriveIndexAction {
     OpenWorkflowInPane {
         cloud_object_type_and_id: CloudObjectTypeAndId,
         open_mode: WorkflowViewMode,
-    },
-    OpenImportModal {
-        space: Space,
-        initial_folder_id: Option<SyncId>,
     },
     CreateObject {
         object_type: DriveObjectType,
@@ -446,10 +441,6 @@ pub enum DriveIndexEvent {
     },
     DuplicateObject(CloudObjectTypeAndId),
     ExportObject(CloudObjectTypeAndId),
-    OpenImportModal {
-        space: Space,
-        initial_folder_id: Option<SyncId>,
-    },
     RunObject(CloudObjectTypeAndId),
     InvokeEnvVarCollectionInSubshell(CloudObjectTypeAndId),
     FocusWarpDrive,
@@ -3296,16 +3287,6 @@ impl DriveIndex {
                     .into_item(),
             );
 
-            menu_items.push(
-                MenuItemFields::new(IMPORT_LABEL)
-                    .with_on_select_action(DriveIndexAction::OpenImportModal {
-                        space: *space,
-                        initial_folder_id: None,
-                    })
-                    .with_icon(Icon::Import)
-                    .into_item(),
-            );
-
             ctx.update_view(&self.menu, |menu, ctx| {
                 menu.set_items(menu_items, ctx);
             });
@@ -4090,17 +4071,6 @@ impl DriveIndex {
                     }
                 }
 
-                if !FeatureFlag::SharedWithMe.is_enabled() || editability.can_edit() {
-                    menu_items.push(
-                        MenuItemFields::new(IMPORT_LABEL)
-                            .with_on_select_action(DriveIndexAction::OpenImportModal {
-                                space: *space,
-                                initial_folder_id: Some(*folder_id),
-                            })
-                            .with_icon(Icon::Import)
-                            .into_item(),
-                    );
-                }
                 menu_items.push(
                     MenuItemFields::new("Collapse all")
                         .with_on_select_action(DriveIndexAction::CollapseAllInLocation(
@@ -4863,13 +4833,6 @@ impl TypedActionView for DriveIndex {
                     content: Some(content.clone()),
                 });
             }
-            DriveIndexAction::OpenImportModal {
-                space,
-                initial_folder_id,
-            } => ctx.emit(DriveIndexEvent::OpenImportModal {
-                space: *space,
-                initial_folder_id: *initial_folder_id,
-            }),
             DriveIndexAction::RenameFolder { folder_id } => {
                 self.rename_folder(*folder_id, ctx);
             }

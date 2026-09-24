@@ -97,6 +97,10 @@ Workspace no longer subscribes to Drive update/activity, staging-auth, shared-se
 notifications. Cloud toast formatting and the bonus-credit notification model are deleted. Local
 autoupdate/terminal toasts, database tables, and persisted bonus-credit settings remain unchanged.
 
+The Drive import/upload modal, directory tree, parsing, upload queue, and personal/team menu actions
+are removed. Local terminal-configuration import and native file/directory pickers remain; the local
+Alacritty importer still uses `async-recursion`. The deleted import endpoint leaves the residue inventory.
+
 ## Remaining scope and data safety
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,
