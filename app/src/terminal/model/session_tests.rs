@@ -8,6 +8,64 @@ use warpui::{App, AppContext, Element, Entity, ModelHandle, TypedActionView, Vie
 use super::command_executor::testing::TestCommandExecutor;
 use super::{BootstrapSessionType, Session, SessionId, SessionInfo, Sessions, SessionsEvent};
 
+#[cfg(feature = "local_tty")]
+#[test]
+fn local_and_ssh_executors_do_not_require_a_remote_server() {
+    use super::{
+        InBandCommandExecutor, IsSSHWrapperSession, LocalCommandExecutor, RemoteCommandExecutor,
+        new_command_executor_for_session,
+    };
+    use crate::features::FeatureFlag;
+    use crate::terminal::shell::ShellType;
+    use crate::test_util::settings::initialize_settings_for_tests;
+
+    App::test((), |mut app| async move {
+        let _remote_server = FeatureFlag::SshRemoteServer.override_enabled(true);
+        initialize_settings_for_tests(&mut app);
+        let (tx, _) = async_channel::unbounded();
+        let sessions = app.add_model(|_| Sessions::new(tx.clone()));
+        for (ssh, in_band, expected_types) in [
+            (false, false, [true, false, false]),
+            (true, false, [false, true, false]),
+            (true, true, [false, false, true]),
+        ] {
+            let _in_band = FeatureFlag::InBandGeneratorsForSSH.override_enabled(in_band);
+            let mut info = SessionInfo::new_for_test().with_shell_type(ShellType::Bash);
+            info.launch_data = None;
+            info.session_type = if ssh {
+                BootstrapSessionType::WarpifiedRemote
+            } else {
+                BootstrapSessionType::Local
+            };
+            info.is_ssh_wrapper_session = if ssh {
+                IsSSHWrapperSession::Yes {
+                    socket_path: "/tmp/tilde-test-control-master.sock".into(),
+                    external_control_master: true,
+                }
+            } else {
+                IsSSHWrapperSession::No
+            };
+            sessions.update(&mut app, |_, ctx| {
+                let executor = new_command_executor_for_session(
+                    &info,
+                    &tx,
+                    async_channel::unbounded().1,
+                    None,
+                    ctx,
+                );
+                assert_eq!(
+                    [
+                        executor.as_any().is::<LocalCommandExecutor>(),
+                        executor.as_any().is::<RemoteCommandExecutor>(),
+                        executor.as_any().is::<InBandCommandExecutor>(),
+                    ],
+                    expected_types,
+                );
+            });
+        }
+    });
+}
+
 struct TestView {
     events: Vec<SessionsEvent>,
 }

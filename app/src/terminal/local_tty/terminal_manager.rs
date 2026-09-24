@@ -327,7 +327,7 @@ impl<S> TerminalManager<S> {
         let channel_event_proxy = ChannelEventListener::new(wakeups_tx, events_tx, pty_reads_tx);
 
         // Initialize the sessions model.
-        let sessions = ctx.add_model(|ctx| Sessions::new(executor_command_tx.clone(), ctx));
+        let sessions = ctx.add_model(|_| Sessions::new(executor_command_tx.clone()));
 
         let model_events =
             ctx.add_model(|ctx| ModelEventDispatcher::new(events_rx, sessions.clone(), ctx));
