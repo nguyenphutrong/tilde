@@ -92,5 +92,9 @@ jobs:
       - name: Test HTTP and build cache
         run: cargo test --locked -p http_client -p build_cache --lib
 
+      - name: Test local logging
+        # Error tests share the process-global logger.
+        run: cargo test --locked -p warp_errors -p warp_logging --lib -- --test-threads=1
+
       - name: Test terminal TUI
         run: cargo test --locked -p warp_tui --lib

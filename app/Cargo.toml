@@ -460,10 +460,6 @@ crash_reporting = [
     "dep:sentry-log",
     "dep:minidumper",
     "dep:crash-handler",
-    "warp_logging/crash_reporting",
-    "warp_errors/crash_reporting",
-    "warp_terminal/crash_reporting",
-    "ai/crash_reporting",
 ]
 creating_shared_sessions = []
 cross_repo_context = []

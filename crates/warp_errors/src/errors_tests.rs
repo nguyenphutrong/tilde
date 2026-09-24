@@ -2,7 +2,48 @@ use std::sync::{Mutex, OnceLock};
 
 use log::{Level, Log, Metadata, Record};
 
-use crate::{LOG_TARGET, ReportErrorLogMode};
+use crate::{ErrorExt, LOG_TARGET, ReportErrorLogMode, register_error};
+
+#[derive(Debug)]
+struct ExpectedFailure;
+
+impl std::fmt::Display for ExpectedFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("expected failure")
+    }
+}
+
+impl std::error::Error for ExpectedFailure {}
+
+impl ErrorExt for ExpectedFailure {
+    fn is_actionable(&self) -> bool {
+        false
+    }
+}
+register_error!(ExpectedFailure);
+
+#[test]
+fn local_error_reporting_preserves_severity_and_context() {
+    init_logger();
+    report_error!(ExpectedFailure);
+    report_error!(anyhow::Error::new(ExpectedFailure).context("retry failed"), extra: { "attempt" => 2 });
+    report_error!("invariant failed");
+    report_error!("invalid count", extra: { "count" => 7 });
+    let actual: Vec<_> = logs()
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|entry| (entry.target.clone(), entry.level, entry.message.clone()))
+        .collect();
+    let expected = [
+        (Level::Warn, "expected failure"),
+        (Level::Warn, "retry failed: expected failure [attempt=2]"),
+        (Level::Error, "invariant failed"),
+        (Level::Error, "invalid count [count=7]"),
+    ]
+    .map(|(level, message)| (LOG_TARGET.to_owned(), level, message.to_owned()));
+    assert_eq!(actual, expected);
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct LogEntry {
