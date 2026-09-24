@@ -133,6 +133,11 @@ query-suggestion endpoint/schema, and request-only tests are removed. Existing p
 prediction, and request-tool override state remain; local PTY and completion paths are unchanged.
 This removal does not change persistence schemas or establish a usable-GUI or network-silent result.
 
+AI query ghost-text prediction is removed: input debounce/request state, endpoint/schema, setting,
+feature flag, and setting telemetry. A registration test fences the retired setting; historical
+values remain opaque. Local history/completion and prompt/banner UI remain, as does AI next-command
+prediction pending its separate removal.
+
 ## Remaining scope and data safety
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,

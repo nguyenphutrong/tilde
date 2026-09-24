@@ -10,6 +10,18 @@ use crate::auth::AuthStateProvider;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
+#[test]
+fn retired_query_prediction_is_not_a_registered_setting() {
+    assert!(
+        !inventory::iter::<SettingSchemaEntry>
+            .into_iter()
+            .any(|entry| {
+                entry.hierarchy == Some("agents.warp_agent.active_ai")
+                    && entry.storage_key == "natural_language_autosuggestions_enabled"
+            })
+    );
+}
+
 fn create_test_request_limit_info(
     limit: usize,
     used: usize,
