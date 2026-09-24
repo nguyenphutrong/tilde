@@ -119,7 +119,9 @@ records are retained. A typed Settings-view regression checks actions and observ
 
 Terminal SSH-extension install/skip blocks, loading footers, failure banners, focus interception,
 and manager setup/telemetry subscriptions are removed. Ordinary local/SSH shell bootstrap remains;
-session-level daemon executor/setup-state plumbing is still a separate removal step.
+session-level daemon executor/setup-state plumbing and daemon-only integration fixtures are removed.
+Local, ControlMaster SSH, and in-band SSH executor selection is tested without a remote-server model,
+even with the legacy daemon flag enabled. Ordinary SSH integration tests remain.
 
 ## Remaining scope and data safety
 
