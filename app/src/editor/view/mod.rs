@@ -381,7 +381,6 @@ pub fn init(ctx: &mut AppContext) {
             EditorAction::CtrlEnter,
             id!("EditorView")
                 & !id!("IMEOpen")
-                & !id!(flags::CTRL_ENTER_ACCEPTS_PROMPT_SUGGESTION)
                 & !(id!(flags::AGENT_VIEW_ENABLED) & id!(flags::CTRL_ENTER_ENTERS_AGENT_VIEW)),
         ),
         FixedBinding::new(

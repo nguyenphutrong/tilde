@@ -78,20 +78,6 @@ impl UserWorkspaces {
             || ChannelState::channel().is_dogfood()
     }
 
-    /// Whether Prompt Suggestions should be toggleable for the current user, based on the active policies.
-    /// Note that the value may be incorrect if called before the team's billing metadata has been fetched.
-    pub fn is_prompt_suggestions_toggleable(&self) -> bool {
-        self.current_workspace()
-            // If the user has no team, they can toggle prompt suggestions (no restrictions).
-            .is_none_or(|workspace| {
-                workspace
-                    .billing_metadata
-                    .tier
-                    .warp_ai_policy
-                    .is_some_and(|policy| policy.is_prompt_suggestions_toggleable)
-            })
-    }
-
     /// Whether Code Suggestions should be toggleable for the current user, based on the active policies.
     /// Note that the value may be incorrect if called before the team's billing metadata has been fetched.
     pub fn is_code_suggestions_toggleable(&self) -> bool {

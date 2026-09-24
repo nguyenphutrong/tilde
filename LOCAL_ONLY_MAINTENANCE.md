@@ -193,6 +193,10 @@ path, workspace actions and exclusive integration test are also removed. Code-di
 suggestion handlers remain. Shell-integration and ordinary Enter/Ctrl-Enter handling remain covered
 by focused tests. Retired entrypoint variants were outbound metadata, not SQLite/history payloads.
 
+Retired prompt-suggestion Cmd/Ctrl-Enter routing and its editor predicate are removed. CLI-agent
+Ctrl-Enter still submits and clears the buffer only when enabled; otherwise it preserves the buffer.
+Remaining Cmd-Enter remote routing and passive diff/unit-test UI constants are unchanged.
+
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions,
 and associated bootstrap/settings/UI contracts remain. Classifier heuristics and serialized decision
 variants still exist. Remove leaf consumers first, then their owning contracts; do not replace removed
