@@ -127,6 +127,10 @@ Extension-only ExitShell forwarding, tmux deprecation banners, and installation 
 removed. The ANSI hook remains parseable through its default handler. Ordinary SSH opt-out migration
 remains; a TOML regression verifies that retired extension values survive settings loading and writes.
 
+Background passive-suggestion models and their terminal subscriptions are removed, including passive
+code-diff creation and request cancellation on Clear Blocks. Controller/API request paths and existing
+prompt UI remain for subsequent leaf-to-root removal; local PTY and completion paths are unchanged.
+
 ## Remaining scope and data safety
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,
