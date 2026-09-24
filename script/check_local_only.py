@@ -17,6 +17,7 @@ BASELINE = ROOT / "script/local_only_residue.json"
 REMOVED = {
     "ort", "ort-sys", "candle-core", "candle-nn", "candle-onnx", "tokenizers",
     "serve-wasm", "managed_secrets_wasm",
+    "minidumper", "crash-handler",
 }
 RESIDUE = {
     "ai", "ai_types", "mcp", "input_classifier", "natural_language_detection",
@@ -37,11 +38,11 @@ SOURCE_SUFFIXES = {".rs", ".toml", ".sh", ".ps1", ".yml", ".yaml", ".json"}
 
 
 def removed_dependency(name):
-    return name in REMOVED or name.startswith(("opentelemetry", "tracing-opentelemetry"))
+    return name in REMOVED or name.startswith(("opentelemetry", "tracing-opentelemetry", "sentry"))
 
 
 def restricted(name):
-    return name in RESIDUE or name.startswith("sentry")
+    return name in RESIDUE
 
 
 def dependencies(value):

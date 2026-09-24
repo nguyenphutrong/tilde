@@ -19741,10 +19741,6 @@ impl TypedActionView for Workspace {
                 }
             }
             DismissWorkspaceBanner(banner_type) => self.dismiss_workspace_banner(ctx, banner_type),
-            Crash => {
-                #[cfg(feature = "crash_reporting")]
-                crate::crash_reporting::crash();
-            }
             Panic => {
                 panic!("WorkspaceAction::Panic triggered from command palette");
             }

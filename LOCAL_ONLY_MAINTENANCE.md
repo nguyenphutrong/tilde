@@ -49,7 +49,7 @@ caches and Git history are not erased.
 
 The standalone `serve-wasm` shared-session/Drive server and `managed_secrets_wasm` credential wrapper,
 their scripts/profiles, and the wrapper-only sealing API/test are removed. Workspace members now
-number 77 (baseline 79); lock packages number 1,480 (baseline 1,544). Native managed-secrets behavior
+number 77 (baseline 79); lock packages number 1,427 (baseline 1,544). Native managed-secrets behavior
 remains: all 31 tests pass. All-target app Clippy passes with existing warnings.
 
 `script/check_local_only.py` rejects `ort`, `ort-sys`, `candle-core`, `candle-nn`, `candle-onnx`, and
@@ -170,10 +170,12 @@ rotation and panic logging remain.
 App-level Sentry forwarding and lifecycle callers are removed, including SQLite/plugin logs,
 profiling attachments, user/experiment/settings/GPU metadata and Cocoa PTY hooks. SQLite retains its
 FFI unwind boundary; explicit local profile/sample saving and crash recovery remain. The SDK and
-its crash-recovery status getter, native stack, packaging and stored privacy settings remain until
-their owning removal increment. No stored data or schema is deleted.
+its crash-recovery status getter, native stack, worker command, auth-overlay toggle and packaging
+are now removed. The guard rejects `sentry*`, `minidumper` and `crash-handler`, including renamed,
+optional target dependencies and transitive lock entries. Stored privacy settings remain; no stored
+data or schema is deleted.
 
-AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry,
+AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions,
 and associated bootstrap/settings/UI contracts remain. Classifier heuristics and serialized decision
 variants still exist. Remove leaf consumers first, then their owning contracts; do not replace removed
 consumers with dummy singletons or stubs. Preserve local shell/PTY, history, completion, editor and Git

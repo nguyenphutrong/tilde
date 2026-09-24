@@ -18,7 +18,6 @@ fn main() -> Result<()> {
             server_config: WarpServerConfig::offline(),
             oz_config: OzConfig::offline(),
             telemetry_config: None,
-            crash_reporting_config: None,
             autoupdate_config: Some(AutoupdateConfig {
                 releases_base_url: "https://github.com/nguyenphutrong/tilde/releases".into(),
                 show_autoupdate_menu_items: cfg!(all(target_os = "macos", target_arch = "aarch64")),
