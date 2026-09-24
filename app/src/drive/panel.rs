@@ -77,11 +77,6 @@ pub enum DrivePanelEvent {
         owner: Owner,
         initial_folder_id: Option<SyncId>,
     },
-    OpenWorkflowModalWithNew {
-        space: Space,
-        initial_folder_id: Option<SyncId>,
-    },
-    OpenWorkflowModalWithCloudWorkflow(SyncId),
     OpenNotebook(NotebookSource),
     OpenEnvVarCollection(EnvVarCollectionSource),
     OpenWorkflowInPane(WorkflowOpenSource, WorkflowViewMode),
@@ -273,7 +268,7 @@ impl DrivePanel {
                 if let Some(notebook_id) = notebook_id {
                     self.open_existing_notebook(notebook_id, ctx);
                 } else if let Some(workflow) = workflow {
-                    self.open_workflow_modal_with_existing(workflow.id, ctx);
+                    self.open_existing_workflow_in_pane(workflow.id, WorkflowViewMode::Edit, ctx);
                 } else if let Some(env_var_collection_id) = env_var_collection_id {
                     self.open_existing_env_var_collection(env_var_collection_id, ctx);
                 }
@@ -304,13 +299,6 @@ impl DrivePanel {
                         self.invoke_environment_variables(env_var_collection.clone(), false, ctx);
                     }
                 }
-            }
-            DriveIndexEvent::OpenWorkflowModalWithNew {
-                space,
-                initial_folder_id,
-            } => self.open_workflow_modal_with_new(ctx, *space, *initial_folder_id),
-            DriveIndexEvent::OpenWorkflowModalWithCloudWorkflow(workflow_id) => {
-                self.open_workflow_modal_with_existing(*workflow_id, ctx)
             }
             DriveIndexEvent::FocusWarpDrive => ctx.emit(DrivePanelEvent::FocusWarpDrive),
             DriveIndexEvent::OpenSharedObjectsCreationDeniedModal(object_type, team_uid) => ctx
@@ -505,33 +493,10 @@ impl DrivePanel {
         ctx.notify();
     }
 
-    pub fn open_workflow_modal_with_new(
-        &mut self,
-        ctx: &mut ViewContext<Self>,
-        space: Space,
-        initial_folder_id: Option<SyncId>,
-    ) {
-        ctx.emit(DrivePanelEvent::OpenWorkflowModalWithNew {
-            space,
-            initial_folder_id,
-        });
-    }
-
     pub fn open_existing_notebook(&self, notebook_id: SyncId, ctx: &mut ViewContext<Self>) {
         ctx.emit(DrivePanelEvent::OpenNotebook(NotebookSource::Existing(
             notebook_id,
         )));
-        ctx.notify();
-    }
-
-    pub fn open_workflow_modal_with_existing(
-        &mut self,
-        workflow_id: SyncId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        ctx.emit(DrivePanelEvent::OpenWorkflowModalWithCloudWorkflow(
-            workflow_id,
-        ));
         ctx.notify();
     }
 

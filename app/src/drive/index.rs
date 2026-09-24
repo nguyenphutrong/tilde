@@ -303,11 +303,6 @@ pub enum DriveIndexAction {
     ClearDropTarget,
     ToggleSectionCollapsed(DriveIndexSection),
     RunObject(CloudObjectTypeAndId),
-    OpenWorkflowModalWithNew {
-        space: Space,
-        initial_folder_id: Option<SyncId>,
-    },
-    OpenWorkflowModalWithCloudWorkflow(SyncId),
     ToggleFolderOpen(SyncId),
     CollapseAllInLocation(CloudObjectLocation),
     InvokeEnvVarCollectionInSubshell(CloudObjectTypeAndId),
@@ -460,11 +455,6 @@ pub enum DriveIndexEvent {
     },
     RunObject(CloudObjectTypeAndId),
     InvokeEnvVarCollectionInSubshell(CloudObjectTypeAndId),
-    OpenWorkflowModalWithNew {
-        space: Space,
-        initial_folder_id: Option<SyncId>,
-    },
-    OpenWorkflowModalWithCloudWorkflow(SyncId),
     FocusWarpDrive,
     OpenSharedObjectsCreationDeniedModal(DriveObjectType, ServerId),
     AttachPlanAsContext(AIDocumentId),
@@ -5091,7 +5081,7 @@ impl TypedActionView for DriveIndex {
                     }
                     DriveObjectType::Workflow | DriveObjectType::AgentModeWorkflow => {
                         report_error!(
-                            "Use DriveIndexAction::OpenWorkflowModal to open the modal instead"
+                            "Use DriveIndexAction::OpenWorkflowInPane to open the pane instead"
                         )
                     }
                     DriveObjectType::EnvVarCollection => {
@@ -5145,18 +5135,6 @@ impl TypedActionView for DriveIndex {
                 if !matches!(self.index_variant, DriveIndexVariant::Trash) {
                     ctx.emit(DriveIndexEvent::RunObject(*id));
                 }
-            }
-            DriveIndexAction::OpenWorkflowModalWithNew {
-                space,
-                initial_folder_id,
-            } => ctx.emit(DriveIndexEvent::OpenWorkflowModalWithNew {
-                space: *space,
-                initial_folder_id: *initial_folder_id,
-            }),
-            DriveIndexAction::OpenWorkflowModalWithCloudWorkflow(workflow_id) => {
-                ctx.emit(DriveIndexEvent::OpenWorkflowModalWithCloudWorkflow(
-                    *workflow_id,
-                ));
             }
             DriveIndexAction::ToggleFolderOpen(id) => {
                 // If WD is focused, then clicking a folder will set that folder to be focused
