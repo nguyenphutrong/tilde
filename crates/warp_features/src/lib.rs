@@ -443,7 +443,6 @@ pub enum FeatureFlag {
     AmbientAgentsCommandLine,
 
     /// Feature flags for the Build Plan Auto Reload experiment.
-    BuildPlanAutoReloadBannerToggle,
     BuildPlanAutoReloadPostPurchaseModal,
 
     /// Enables inline code review functionality

@@ -37,7 +37,6 @@ pub enum ServerExperiment {
     SuggestedCodeDiffsControl,
     SuggestedCodeDiffsExperiment,
     BuildPlanAutoReloadControl,
-    BuildPlanAutoReloadBannerToggle,
     BuildPlanAutoReloadPostPurchaseModal,
     PromptSuggestionsViaMaaControl,
     PromptSuggestionsViaMaaExperiment,
@@ -103,18 +102,10 @@ impl ServerExperiment {
             Self::SuggestedCodeDiffsExperiment => {}
             Self::SuggestedCodeDiffsControl => {}
             Self::BuildPlanAutoReloadControl => {
-                // Control group - disable both experiment flags
-                FeatureFlag::BuildPlanAutoReloadBannerToggle.set_enabled(false);
-                FeatureFlag::BuildPlanAutoReloadPostPurchaseModal.set_enabled(false);
-            }
-            Self::BuildPlanAutoReloadBannerToggle => {
-                // Experiment variant 1 - enable banner toggle modal
-                FeatureFlag::BuildPlanAutoReloadBannerToggle.set_enabled(true);
                 FeatureFlag::BuildPlanAutoReloadPostPurchaseModal.set_enabled(false);
             }
             Self::BuildPlanAutoReloadPostPurchaseModal => {
                 // Experiment variant 2 - enable post-purchase modal
-                FeatureFlag::BuildPlanAutoReloadBannerToggle.set_enabled(false);
                 FeatureFlag::BuildPlanAutoReloadPostPurchaseModal.set_enabled(true);
             }
             Self::PromptSuggestionsViaMaaControl => {

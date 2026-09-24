@@ -183,6 +183,10 @@ Repository detection no longer calls the remote daemon. Local sessions use files
 remote paths never fall through to local detection, even when the same path exists locally. Local
 repository watcher events, nested repositories and worktrees remain supported.
 
+The AI credit purchase banner, its billing callbacks, experiment, telemetry and exclusive display
+state are removed. Remaining pricing and request-usage contracts are unchanged; no purchase or
+account behavior is replaced with a stub. Local input focus and keybindings remain.
+
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions,
 and associated bootstrap/settings/UI contracts remain. Classifier heuristics and serialized decision
 variants still exist. Remove leaf consumers first, then their owning contracts; do not replace removed

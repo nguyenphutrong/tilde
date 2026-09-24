@@ -21,7 +21,6 @@ impl Display for ServerExperiment {
             Self::SuggestedCodeDiffsControl => "SUGGESTED_CODE_DIFFS_CONTROL",
             Self::SuggestedCodeDiffsExperiment => "SUGGESTED_CODE_DIFFS_EXPERIMENT",
             Self::BuildPlanAutoReloadControl => "BUILD_PLAN_AUTO_RELOAD_CONTROL",
-            Self::BuildPlanAutoReloadBannerToggle => "BUILD_PLAN_AUTO_RELOAD_BANNER_TOGGLE",
             Self::BuildPlanAutoReloadPostPurchaseModal => {
                 "BUILD_PLAN_AUTO_RELOAD_POST_PURCHASE_MODAL"
             }
@@ -55,7 +54,6 @@ impl ServerExperiment {
             "SUGGESTED_CODE_DIFFS_CONTROL" => Ok(Self::SuggestedCodeDiffsControl),
             "SUGGESTED_CODE_DIFFS_EXPERIMENT" => Ok(Self::SuggestedCodeDiffsExperiment),
             "BUILD_PLAN_AUTO_RELOAD_CONTROL" => Ok(Self::BuildPlanAutoReloadControl),
-            "BUILD_PLAN_AUTO_RELOAD_BANNER_TOGGLE" => Ok(Self::BuildPlanAutoReloadBannerToggle),
             "BUILD_PLAN_AUTO_RELOAD_POST_PURCHASE_MODAL" => {
                 Ok(Self::BuildPlanAutoReloadPostPurchaseModal)
             }
@@ -80,9 +78,6 @@ impl TryFrom<Experiment> for ServerExperiment {
             Experiment::SessionSharingExperiment => Ok(Self::SessionSharingExperiment),
             Experiment::SessionSharingControl => Ok(Self::SessionSharingControl),
             Experiment::BuildPlanAutoReloadControl => Ok(Self::BuildPlanAutoReloadControl),
-            Experiment::BuildPlanAutoReloadBannerToggle => {
-                Ok(Self::BuildPlanAutoReloadBannerToggle)
-            }
             Experiment::BuildPlanAutoReloadPostPurchaseModal => {
                 Ok(Self::BuildPlanAutoReloadPostPurchaseModal)
             }
