@@ -1085,6 +1085,7 @@ pub(crate) fn initialize_app(
         )
     });
     AutoupdateState::register(ctx, server_api);
+    ctx.add_singleton_model(|_| changelog_model::ChangelogModel::new(http_client::Client::new()));
     let autoupdate_supported = ChannelState::channel() != channel::Channel::Oss
         || cfg!(all(target_os = "macos", target_arch = "aarch64"));
     if matches!(launch_mode, LaunchMode::App { .. }) && autoupdate_supported {

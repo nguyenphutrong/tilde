@@ -7,6 +7,22 @@ use crate::auth::{AuthManager, AuthStateProvider};
 use crate::server::server_api::ServerApiProvider;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 
+#[test]
+fn unpublished_versions_do_not_request_release_notes() {
+    App::test((), |_| async move {
+        let previous_version = ChannelState::app_version();
+        for version in [None, Some("local"), Some("v0.2023.05.15.08.04.stable_01")] {
+            ChannelState::set_app_version(version);
+            let mut client = http_client::Client::new_for_test();
+            client.set_before_request_fn(Box::new(|_, _| {
+                panic!("unpublished builds must not request release notes");
+            }));
+            assert!(get_current_changelog(&client).await.unwrap().is_none());
+        }
+        ChannelState::set_app_version(previous_version);
+    });
+}
+
 fn initialize_app(app: &mut App) -> ModelHandle<AutoupdateState> {
     let server_api_provider = app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());

@@ -1,88 +1,45 @@
-use std::iter;
-use std::sync::Arc;
+use anyhow::{Context as _, Result};
+use channel_versions::{Changelog, MarkdownSection};
+use chrono::{DateTime, FixedOffset};
+use serde::Deserialize;
 
-use anyhow::Result;
-use channel_versions::{Changelog, ChannelVersions};
-use rand::distributions::Alphanumeric;
-use rand::{Rng as _, thread_rng};
-use warp_errors::report_error;
+use crate::channel::ChannelState;
 
-use super::channel_versions::fetch_channel_versions;
-use super::release_assets_directory_url;
-use crate::channel::{Channel, ChannelState};
-use crate::server::server_api::ServerApi;
+#[derive(Deserialize)]
+struct ReleaseNotes {
+    published_at: DateTime<FixedOffset>,
+    body: Option<String>,
+}
 
-pub async fn get_current_changelog(server_api: Arc<ServerApi>) -> Result<Option<Changelog>> {
-    let rand: String = {
-        let mut rng = thread_rng();
-        iter::repeat(())
-            .map(|()| rng.sample(Alphanumeric))
-            .map(char::from)
-            .take(7)
-            .collect()
+pub async fn get_current_changelog(client: &http_client::Client) -> Result<Option<Changelog>> {
+    let Some(version) = ChannelState::app_version() else {
+        return Ok(None);
     };
-
-    let channel = ChannelState::channel();
-
-    if should_fetch_changelog_json(channel) {
-        log::info!("Attempting to fetch changelog.json");
-        match fetch_current_changelog(server_api.http_client(), rand.as_str()).await {
-            changelog_result @ Ok(_) => {
-                return changelog_result.map(Option::Some);
-            }
-            Err(error) => {
-                report_error!(error.context("Failed to fetch changelog.json"))
-            }
-        };
+    // Local builds have no published release notes.
+    if semver::Version::parse(version.trim_start_matches('v')).is_err() {
+        return Ok(None);
     }
-
-    let versions: ChannelVersions =
-        fetch_channel_versions(rand.as_str(), server_api, true, false).await?;
-
-    let res = versions.changelogs.and_then(|changelogs| {
-        match channel {
-            Channel::Stable => Some(changelogs.stable),
-            Channel::Preview => Some(changelogs.preview),
-            Channel::Dev | Channel::Local => Some(changelogs.dev),
-            // Integration tests and the open-source build don't support autoupdate.
-            Channel::Integration | Channel::Oss => None,
-        }
-        .and_then(|versions| {
-            ChannelState::app_version()
-                .and_then(|running_version| versions.get(running_version))
-                .cloned()
-        })
-    });
-    Ok(res)
-}
-
-/// Fetches the changelog for the running release bundle, using the given http
-/// client and cache-busting nonce.
-async fn fetch_current_changelog(client: &http_client::Client, nonce: &str) -> Result<Changelog> {
-    let app_version = ChannelState::app_version().unwrap_or_default();
-    let url = format!(
-        "{}?r={}",
-        changelog_url(ChannelState::channel(), app_version),
-        nonce
-    );
-    let res = client.get(url.as_str()).send().await?;
-    let changelog: Changelog = res.json().await?;
-    log::info!("Received changelog.json for {app_version}");
-    Ok(changelog)
-}
-
-/// Returns the URL to the changelog for the given version of this release
-/// bundle.
-fn changelog_url(channel: Channel, version: &str) -> String {
-    format!(
-        "{}/changelog.json",
-        release_assets_directory_url(channel, version)
-    )
-}
-
-/// Returns whether the app should fetch changelog.json for the current
-/// build (true), or use the changelog information embedded in
-/// channel_versions.json (false).
-pub fn should_fetch_changelog_json(channel: Channel) -> bool {
-    channel == Channel::Dev
+    let url = format!("https://api.github.com/repos/nguyenphutrong/tilde/releases/tags/{version}");
+    let response = client
+        .get(&url)
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "tilde-terminal")
+        .send()
+        .await?
+        .error_for_status()?;
+    let notes: ReleaseNotes = response
+        .json()
+        .await
+        .context("Failed to parse Tilde release notes")?;
+    Ok(Some(Changelog {
+        date: notes.published_at,
+        sections: Vec::new(),
+        markdown_sections: vec![MarkdownSection {
+            title: "Release notes".to_owned(),
+            markdown: notes.body.unwrap_or_default(),
+        }],
+        image_url: None,
+        oz_updates: Vec::new(),
+        tui_updates: Vec::new(),
+    }))
 }

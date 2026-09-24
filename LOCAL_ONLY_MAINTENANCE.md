@@ -60,6 +60,8 @@ secret scanner and cannot detect every dynamically assembled host, new domain, o
 
 The retired palette A/B experiment no longer runs at startup. Local full-text search stays enabled
 directly, avoiding the experiment's synchronous telemetry lookup of cloud workspace state.
+Release notes use Tilde's GitHub release-tag endpoint directly, without Warp `ServerApi`; unpublished
+local versions return without making a request. This preserves the GitHub Releases updater.
 
 ## Remaining scope and data safety
 
