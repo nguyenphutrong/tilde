@@ -10937,7 +10937,7 @@ impl TerminalView {
                         if self.session_is_local(sid, ctx) {
                             RepoDetectionSessionType::Local
                         } else {
-                            RepoDetectionSessionType::Remote { session_id: sid }
+                            RepoDetectionSessionType::Remote
                         }
                     });
                     if let Some(session_type) = session_type {
