@@ -220,7 +220,7 @@ TARGET_ARCH=""
 DMG_NAME_SUFFIX=""
 # By default we build dev bundles.
 RELEASE_CHANNEL="dev"
-FEATURES="release_bundle,cocoa_sentry,extern_plist"
+FEATURES="release_bundle,extern_plist"
 REGISTER_SERVICES=true
 DEBUG=false
 ARTIFACT="app"
@@ -399,10 +399,6 @@ if [[ $RELEASE_CHANNEL = "local" ]]; then
     WARP_APP_NAME="WarpLocal"
     WARP_SCHEME_NAME="warplocal"
     FEATURES="$FEATURES,agent_mode_debug"
-    # For local builds, use different versions of our bundled frameworks (e.g.:
-    # Sentry).  This needs to be exported so it can be referenced by
-    # app/build.rs later, while running `cargo bundle`.
-    export FRAMEWORK_OVERRIDE="dev"
 elif [[ $RELEASE_CHANNEL = "dev" ]]; then
     WARP_BIN="dev"
     BUNDLE_ID="dev.warp.Warp-Dev"
@@ -413,10 +409,6 @@ elif [[ $RELEASE_CHANNEL = "dev" ]]; then
     FEATURES="$FEATURES,jemalloc_pprof,heap_usage_tracking"
     # Enable the Warp Control CLI wrapper for local scripting/automation.
     FEATURES="$FEATURES,warp_control_cli"
-    # For dev builds, use different versions of our bundled frameworks (e.g.:
-    # Sentry).  This needs to be exported so it can be referenced by
-    # app/build.rs later, while running `cargo bundle`.
-    export FRAMEWORK_OVERRIDE="dev"
     export HANDLE_MARKDOWN=1
 elif [[ $RELEASE_CHANNEL = "preview" ]]; then
     WARP_BIN="preview"
@@ -438,8 +430,6 @@ elif [[ $RELEASE_CHANNEL = "oss" ]]; then
     BUNDLE_ID="bytrong.app.tilde"
     WARP_APP_NAME="Tilde"
     WARP_SCHEME_NAME="tilde"
-    # The OSS channel does not ship Sentry, so drop the cocoa_sentry feature
-    # (which would otherwise pull in the Sentry framework dependency).
     FEATURES="release_bundle,extern_plist"
 fi
 
@@ -518,9 +508,6 @@ elif [[ "$ARTIFACT" == tui ]]; then
     *) WARP_BIN="warp-tui-$RELEASE_CHANNEL" ;;
   esac
   WARP_TUI_FEATURES="release_bundle,standalone"
-  if [[ "$RELEASE_CHANNEL" != "oss" ]]; then
-    WARP_TUI_FEATURES="$WARP_TUI_FEATURES,crash_reporting"
-  fi
 elif [[ "$ARTIFACT" == app ]]; then
   FEATURES="$FEATURES,gui"
 fi
@@ -1093,7 +1080,6 @@ if [ "${GITHUB_ACTIONS}" == "true" ]; then
   fi
 
   echo "dock_tile_plugin_dir=$DOCK_TILE_PLUGIN_DIR" >> "$GITHUB_OUTPUT"
-  echo "frameworks_dir=app/frameworks/${FRAMEWORK_OVERRIDE:-default}" >> "$GITHUB_OUTPUT"
   
   # For full bundles, output DMG information
   if [[ -f "$OUT_DIR/$FINAL_DMG_NAME" ]]; then

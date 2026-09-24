@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn identifies_local_worker_subcommands() {
-    assert!(is_worker_invocation("minidump-server"));
+    assert!(!is_worker_invocation("minidump-server"));
     #[cfg(unix)]
     assert!(is_worker_invocation(&terminal_server_subcommand()));
     #[cfg(feature = "plugin_host")]
@@ -23,6 +23,7 @@ fn help_only_lists_local_terminal_commands() {
         "environment",
         "login",
         "mcp",
+        "minidump-server",
         "provider",
         "run",
         "schedule",

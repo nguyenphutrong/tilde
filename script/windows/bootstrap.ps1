@@ -231,7 +231,7 @@ if (-not $haveMsvcBuildTools) {
 # Needed in wasm compilation for parsing the version of wasm-bindgen
 winget install jqlang.jq
 
-# CMake is needed to build some dependencies, e.g.: sentry-contrib-native.
+# CMake is needed to build native dependencies.
 winget install -e --id Kitware.CMake
 
 # Protoc is required by prost-build for warp-proto-apis generated crates.

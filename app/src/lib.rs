@@ -24,8 +24,6 @@ mod completer;
 mod context_chips;
 #[cfg(enable_crash_recovery)]
 mod crash_recovery;
-#[cfg(feature = "crash_reporting")]
-mod crash_reporting;
 mod debug_dump;
 mod default_terminal;
 mod drive;
@@ -529,17 +527,6 @@ fn run_worker_command(worker: &warp_cli::WorkerCommand) -> Result<()> {
         }
         #[cfg(feature = "plugin_host")]
         warp_cli::WorkerCommand::PluginHost { .. } => crate::run_plugin_host(),
-        #[cfg(feature = "local_tty")]
-        warp_cli::WorkerCommand::MinidumpServer { socket_name } => {
-            cfg_if::cfg_if! {
-                if #[cfg(all(linux_or_windows, feature = "crash_reporting"))] {
-                    crate::crash_reporting::run_minidump_server(socket_name)
-                } else {
-                    let _ = socket_name;
-                    panic!("The minidump server is not supported on this platform");
-                }
-            }
-        }
         #[cfg(not(target_family = "wasm"))]
         warp_cli::WorkerCommand::RipgrepSearch {
             parent,
