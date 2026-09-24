@@ -15,7 +15,7 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::terminal::color;
 use crate::terminal::event_listener::ChannelEventListener;
 use crate::terminal::model::ObfuscateSecrets;
-use crate::terminal::model::ansi::{CompletionMetadata, Handler, Processor};
+use crate::terminal::model::ansi::{CompletionMetadata, ExitShellValue, Handler, Processor};
 use crate::terminal::model::block::BlockId;
 use crate::terminal::model::bootstrap::BootstrapStage;
 use crate::terminal::model::grid::Dimensions as _;

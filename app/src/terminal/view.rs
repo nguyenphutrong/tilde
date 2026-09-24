@@ -37,7 +37,6 @@ pub mod rich_content;
 mod shared_session;
 mod shell_terminated_banner;
 pub mod ssh_file_upload;
-pub(crate) mod ssh_tmux_deprecation_banner;
 mod tab_metadata;
 #[cfg(any(test, feature = "integration_tests"))]
 mod testing;
@@ -458,9 +457,6 @@ pub use crate::terminal::view::rich_content::{
     RichContentMetadata,
 };
 use crate::terminal::view::ssh_file_upload::FileUploadId;
-use crate::terminal::view::ssh_tmux_deprecation_banner::{
-    SshTmuxDeprecationBanner, SshTmuxDeprecationBannerEvent,
-};
 use crate::terminal::view::telemetry::PromptSuggestionFallbackReason;
 use crate::terminal::view::zero_state_block::TerminalViewZeroStateBlock;
 use crate::terminal::warpify::SubshellSource;
@@ -12472,104 +12468,7 @@ impl TerminalView {
                     });
                 }
             }
-            ModelEvent::ExitShell { session_id } => {
-                // Drop the remote server client for this session before the
-                // user's outer ssh tunnel starts closing. The last
-                // `Arc<RemoteServerClient>` carries an owned `Child` for the
-                // `ssh … remote-server-proxy` subprocess; dropping it kills
-                // that child via `kill_on_drop`, which closes the
-                // multiplexed channel on the ControlMaster so the foreground
-                // ssh can exit cleanly instead of hanging.
-                #[cfg(not(target_family = "wasm"))]
-                if FeatureFlag::SshRemoteServer.is_enabled() {
-                    use crate::remote_server::manager::RemoteServerManager;
-                    RemoteServerManager::handle(ctx).update(
-                        ctx,
-                        |mgr: &mut RemoteServerManager, ctx| {
-                            mgr.deregister_session(*session_id, ctx);
-                        },
-                    );
-                }
-                // The remote-server manager only exists on non-wasm targets,
-                // so this handler is a no-op on wasm.
-                #[cfg(target_family = "wasm")]
-                let _ = session_id;
-            }
         }
-    }
-
-    /// Shows the one-time banner informing users who had opted into the deprecated tmux SSH
-    /// wrapper that it has been turned off in favor of the remote-server SSH extension. The
-    /// pending flag is cleared immediately so the banner is shown at most once.
-    fn show_ssh_tmux_deprecation_banner(
-        &mut self,
-        session_id: SessionId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let already_present = self.rich_content_views.iter().any(|view| {
-            matches!(
-                view.metadata(),
-                Some(RichContentMetadata::SshTmuxDeprecationBanner { handle })
-                if handle.as_ref(ctx).session_id() == session_id
-            )
-        });
-        if already_present {
-            return;
-        }
-
-        // Clear the pending flag up front so the notice is shown at most once, even if the
-        // banner is dismissed without interaction or the session ends early.
-        WarpifySettings::handle(ctx).update(ctx, |settings, ctx| {
-            settings.mark_tmux_deprecation_notice_shown(ctx);
-        });
-
-        let banner = ctx.add_typed_action_view(|_| SshTmuxDeprecationBanner::new(session_id));
-
-        ctx.subscribe_to_view(&banner, move |me, _, event, ctx| match event {
-            SshTmuxDeprecationBannerEvent::Dismissed => {
-                me.remove_ssh_tmux_deprecation_banner(session_id, ctx);
-            }
-        });
-
-        self.insert_rich_content(
-            None,
-            banner.clone(),
-            Some(RichContentMetadata::SshTmuxDeprecationBanner { handle: banner }),
-            RichContentInsertionPosition::Append {
-                insert_below_long_running_block: true,
-            },
-            ctx,
-        );
-    }
-
-    /// Removes the tmux deprecation banner for the given session, if present.
-    fn remove_ssh_tmux_deprecation_banner(
-        &mut self,
-        session_id: SessionId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let mut view_ids_to_remove = Vec::new();
-        for rich_content in self.rich_content_views.iter() {
-            if let Some(RichContentMetadata::SshTmuxDeprecationBanner { handle }) =
-                rich_content.metadata()
-                && handle.as_ref(ctx).session_id() == session_id
-            {
-                view_ids_to_remove.push(rich_content.view_id());
-            }
-        }
-
-        if view_ids_to_remove.is_empty() {
-            return;
-        }
-
-        let mut model = self.model.lock();
-        for view_id in &view_ids_to_remove {
-            model.block_list_mut().remove_rich_content(*view_id);
-        }
-        drop(model);
-        self.rich_content_views
-            .retain(|rich_content| !view_ids_to_remove.contains(&rich_content.view_id()));
-        ctx.notify();
     }
 
     /// Handles an OSC 777 event with the `warp://cli-agent` sentinel title.
@@ -12985,22 +12884,10 @@ impl TerminalView {
         // If we were waiting for a successful warpification, it's come. Stop the timeout.
         self.warpify_state.abort_ssh_warpify_timeout();
 
-        let is_warpified_remote = matches!(
-            bootstrap_event.session_type,
-            BootstrapSessionType::WarpifiedRemote
-        );
         if bootstrap_event.subshell_info.is_some() {
             self.add_bootstrap_success_block(bootstrap_event, ctx);
         }
 
-        // Show the one-time tmux deprecation notice when an SSH session successfully
-        // warpifies. The end-of-ssh-login path (`handle_detected_end_of_ssh_login`) only
-        // fires for sessions that stay unwarpified, since warpification replaces the
-        // original ssh block before login detection can confirm completion.
-        if is_warpified_remote && WarpifySettings::as_ref(ctx).should_show_tmux_deprecation_notice()
-        {
-            self.show_ssh_tmux_deprecation_banner(session_id, ctx);
-        }
         self.any_session_contains_restored_remote_blocks = self.contains_restored_remote_blocks();
         self.any_session_contains_remote_blocks |= self.active_block_is_considered_remote(ctx);
         self.update_focused_terminal_info(ctx);
@@ -24903,16 +24790,7 @@ impl TerminalView {
                     },
                 );
             }
-            SshLoginStatus::ReadyToWarpify => {
-                // The tmux-based SSH warpification flow has been removed in favor of the
-                // remote-server SSH extension. If this user had previously opted into the tmux
-                // wrapper, show them a one-time deprecation notice on their next SSH session.
-                if WarpifySettings::as_ref(ctx).should_show_tmux_deprecation_notice()
-                    && let Some(session_id) = self.active_block_session_id()
-                {
-                    self.show_ssh_tmux_deprecation_banner(session_id, ctx);
-                }
-            }
+            SshLoginStatus::ReadyToWarpify => {}
         }
     }
 

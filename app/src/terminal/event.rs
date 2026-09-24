@@ -69,13 +69,6 @@ pub enum Event {
     /// An indication that a successful SSH connection was initiated via the
     /// SSH wrapper.  The argument is the name of the remote shell.
     SSH(String),
-    /// Emitted when the remote shell for a session is about to exit, so
-    /// per-session resources (e.g. the `ssh … remote-server-proxy` child that
-    /// holds a multiplexed channel on the ControlMaster) can be torn down
-    /// before the outer ssh tunnel starts closing.
-    ExitShell {
-        session_id: SessionId,
-    },
     /// Sent when the model detects an SSH ControlMaster error, which means that
     /// completions reliant on command execution will not work.
     SSHControlMasterError,
@@ -467,9 +460,6 @@ impl Debug for Event {
             }
             Event::BootstrapPrecmdDone => write!(f, "BootstrapPrecmdDone"),
             Event::PluggableNotification { .. } => write!(f, "PluggableNotification"),
-            Event::ExitShell { session_id } => {
-                write!(f, "ExitShell(session: {session_id:?})")
-            }
         }
     }
 }
