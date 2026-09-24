@@ -48,7 +48,6 @@ use crate::workspace::WorkspaceAction;
 
 mod about_page;
 mod appearance_page;
-mod directory_color_add_picker;
 pub mod keybindings;
 pub mod pane_manager;
 mod scripting_page;

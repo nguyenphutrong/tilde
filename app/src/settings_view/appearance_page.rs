@@ -32,7 +32,6 @@ use warpui::{
     ViewContext, ViewHandle, WindowId,
 };
 
-use super::directory_color_add_picker::{DirectoryColorAddPicker, DirectoryColorAddPickerEvent};
 use super::settings_page::{
     AdditionalInfo, CONTENT_FONT_SIZE, Category, HEADER_PADDING, LocalOnlyIconState, MatchData,
     PageType, SettingsPageEvent, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget,
@@ -80,7 +79,7 @@ use crate::ui_components::color_dot::{TAB_COLOR_OPTIONS, render_color_dot};
 use crate::ui_components::icons::Icon;
 use crate::user_config::WarpConfig;
 use crate::util::bindings;
-use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme};
+use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme, SecondaryTheme};
 use crate::view_components::{Dropdown, DropdownItem, FilterableDropdown};
 use crate::window_settings::{
     BackgroundBlurRadius, BackgroundBlurTexture, BackgroundOpacity, OpenWindowsAtCustomSize,
@@ -508,6 +507,7 @@ pub enum AppearancePageAction {
     SetTabCloseButtonPosition(TabCloseButtonPosition),
     SetZoomLevel(u16),
     ResetZoomLevel,
+    AddDirectoryTabColor,
     SetDefaultDirectoryTabColor {
         path: PathBuf,
         color: DirectoryTabColor,
@@ -708,6 +708,7 @@ impl TypedActionView for AppearanceSettingsPageView {
                 });
                 ctx.notify();
             }
+            AddDirectoryTabColor => open_directory_tab_color_folder_picker(ctx),
             SetDefaultDirectoryTabColor { path, color } => {
                 let path = path.clone();
                 TabSettings::handle(ctx).update(ctx, |settings, ctx| {
@@ -1432,9 +1433,12 @@ impl AppearanceSettingsPageView {
         }
 
         if FeatureFlag::DirectoryTabColors.is_enabled() {
-            let add_picker = ctx.add_typed_action_view(DirectoryColorAddPicker::new);
-            ctx.subscribe_to_view(&add_picker, |me, _, event, ctx| {
-                me.handle_directory_color_add_picker_event(event, ctx);
+            let add_picker = ctx.add_typed_action_view(|_| {
+                ActionButton::new("Add directory color", SecondaryTheme)
+                    .with_icon(Icon::Plus)
+                    .on_click(|ctx| {
+                        ctx.dispatch_typed_action(AppearancePageAction::AddDirectoryTabColor);
+                    })
             });
             tab_settings_widgets.push(Box::new(DirectoryTabColorsWidget { add_picker }));
         }
@@ -2479,21 +2483,6 @@ impl AppearanceSettingsPageView {
 
             dropdown
         })
-    }
-
-    fn handle_directory_color_add_picker_event(
-        &mut self,
-        event: &DirectoryColorAddPickerEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            DirectoryColorAddPickerEvent::Selected(path) => {
-                add_directory_tab_color_path(path.clone(), ctx);
-            }
-            DirectoryColorAddPickerEvent::RequestAddFromFilePicker => {
-                open_directory_tab_color_folder_picker(ctx);
-            }
-        }
     }
 
     fn handle_tab_settings_event(
@@ -4757,7 +4746,7 @@ fn directory_tab_colors(app: &AppContext) -> Vec<(String, DirectoryTabColor)> {
 }
 
 struct DirectoryTabColorsWidget {
-    add_picker: ViewHandle<DirectoryColorAddPicker>,
+    add_picker: ViewHandle<ActionButton>,
 }
 
 impl SettingsWidget for DirectoryTabColorsWidget {
