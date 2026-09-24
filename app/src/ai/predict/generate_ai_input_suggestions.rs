@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::terminal::TerminalModel;
+use crate::terminal::autosuggestions::HistoryContext;
 use crate::terminal::model::block::BlockState;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,16 +29,6 @@ pub struct ContextMessageInput {
     pub input: String,
     pub output: String,
     pub context: CommandContext,
-}
-
-/// A section of command history that can be used as context for intelligent autosuggestions.
-/// The context includes a consecutive sequence of commands in a session (previous_commands) and the next_command,
-/// previous_commands can be similar to the user's recently run commands, and next_command can be used
-/// to predict the next command.
-#[derive(Clone)]
-pub struct HistoryContext {
-    pub previous_commands: Vec<crate::persistence::model::Command>,
-    pub next_command: crate::persistence::model::Command,
 }
 
 /// Context needed for a Next Command suggestion that remains constant regardless of what

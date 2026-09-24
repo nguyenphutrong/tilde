@@ -138,6 +138,10 @@ feature flag, and setting telemetry. A registration test fences the retired sett
 values remain opaque. Local history/completion and prompt/banner UI remain, as does AI next-command
 prediction pending its separate removal.
 
+Local history lookup, directory-prioritized autosuggestions, and completion-based argument validation
+now live under `terminal::autosuggestions`, with their existing tests. This is a behavior-preserving
+move; the remaining AI model consumes the local helpers rather than owning them.
+
 ## Remaining scope and data safety
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,
