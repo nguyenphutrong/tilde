@@ -18,7 +18,6 @@ use std::str::FromStr;
 use anyhow::Result;
 pub use block_onboarding_layer::BLOCK_ONBOARDING_LAYER;
 use dashmap::DashMap;
-pub use improved_palette_search_layer::{IMPROVED_PALETTE_SEARCH_LAYER, ImprovedPaletteSearch};
 use lazy_static::lazy_static;
 pub use login_layer::{AuthFlowInstructions, LOGIN_LAYER};
 use warp_core::user_preferences::GetUserPreferences as _;
@@ -69,7 +68,6 @@ lazy_static! {
         &*LOGIN_LAYER,
         &*BLOCK_ONBOARDING_LAYER,
         &*rendering::LAYER,
-        &*IMPROVED_PALETTE_SEARCH_LAYER,
     ];
 
     /// Mapping of experiments to their respective layers. The mappings are built up
@@ -416,6 +414,5 @@ pub fn init(ctx: &mut AppContext) {
 #[path = "mod_tests.rs"]
 mod tests;
 
-mod improved_palette_search_layer;
 #[cfg(test)]
 mod validation_tests;
