@@ -187,7 +187,7 @@ use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::ai::predict::next_command_model::{
     NextCommandModel, NextCommandModelEvent, NextCommandSuggestionState, ZeroStateSuggestionInfo,
-    is_command_valid, is_next_command_enabled,
+    is_next_command_enabled,
 };
 use crate::ai::predict::prompt_suggestions::{
     has_pending_code_or_unit_test_prompt_suggestion,
@@ -263,6 +263,11 @@ use crate::suggestions::ignored_suggestions_model::{
     IgnoredSuggestionsModel, IgnoredSuggestionsModelEvent, SuggestionType,
 };
 use crate::terminal::CLIAgent;
+#[cfg(feature = "local_fs")]
+use crate::terminal::autosuggestions::get_similar_history_context;
+use crate::terminal::autosuggestions::{
+    get_reverse_chronological_potential_autosuggestions, is_command_valid,
+};
 use crate::terminal::buy_credits_banner::{BuyCreditsBanner, BuyCreditsBannerEvent};
 use crate::terminal::cli_agent_sessions::{
     CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
@@ -9362,11 +9367,7 @@ impl Input {
             .map(|completion_context| completion_context.session.clone());
 
         let reverse_chronological_potential_autosuggestions =
-            NextCommandModel::get_reverse_chronological_potential_autosuggestions(
-                &buffer_text,
-                &completer_data,
-                ctx,
-            );
+            get_reverse_chronological_potential_autosuggestions(&buffer_text, &completer_data, ctx);
 
         let session_env_vars = self.sessions.read(ctx, |sessions, _| {
             sessions.get_env_vars_for_session(session_id)
@@ -9413,7 +9414,7 @@ impl Input {
                     {
                         let similar_history_contexts = {
                             let mut conn = conn.lock();
-                            NextCommandModel::get_similar_history_context(
+                            get_similar_history_context(
                                 &mut conn,
                                 last_command,
                                 &last_serialized_block.pwd,

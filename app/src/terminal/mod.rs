@@ -20,6 +20,7 @@ pub(crate) mod alt_screen;
 pub mod alt_screen_reporting;
 mod audible_bell;
 pub use audible_bell::AudibleBell;
+pub(crate) mod autosuggestions;
 pub mod available_shells;
 
 mod block_filter;
