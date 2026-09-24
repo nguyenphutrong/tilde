@@ -1264,20 +1264,6 @@ define_settings_group!(AISettings, settings: [
         toml_path: "agents.warp_agent.active_ai.code_suggestions_enabled",
         description: "Controls whether AI code suggestions are enabled.",
     }
-    // This field should not be referenced directly to lookup natural language autosuggestions
-    // enablement -- use the `is_natural_language_autosuggestions_enabled()` getter.
-    // This feature refers to ghosted text for AI input queries.
-    natural_language_autosuggestions_enabled_internal: NaturalLanguageAutosuggestionsEnabled {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "agents.warp_agent.active_ai.natural_language_autosuggestions_enabled",
-        description: "Controls whether ghosted text autosuggestions are shown for AI input queries.",
-        feature_flag: FeatureFlag::PredictAMQueries,
-    }
     // This field should not be referenced directly to lookup shared block title generations
     // enablement -- use the `is_shared_block_title_generation_enabled()` getter.
     // This feature refers to the auto title generation when the user opens the shared block dialog.
@@ -2237,10 +2223,6 @@ impl AISettings {
 
     pub fn is_code_suggestions_enabled(&self, app: &warpui::AppContext) -> bool {
         self.is_active_ai_enabled(app) && *self.code_suggestions_enabled_internal
-    }
-
-    pub fn is_natural_language_autosuggestions_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_active_ai_enabled(app) && *self.natural_language_autosuggestions_enabled_internal
     }
 
     pub fn is_shared_block_title_generation_enabled(&self, app: &warpui::AppContext) -> bool {

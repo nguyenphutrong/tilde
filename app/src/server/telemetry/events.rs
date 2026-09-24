@@ -2071,11 +2071,6 @@ pub enum TelemetryEvent {
         is_code_suggestions_enabled: bool,
     },
 
-    /// Emitted when the user toggles the "Natural Language Autosuggestions" setting in the AI settings page.
-    ToggleNaturalLanguageAutosuggestionsSetting {
-        is_natural_language_autosuggestions_enabled: bool,
-    },
-
     /// Emitted when the user toggles the "Shared Block Title Auto Generation" setting in the AI settings page.
     ToggleSharedBlockTitleGenerationSetting {
         is_shared_block_title_generation_enabled: bool,
@@ -3417,11 +3412,6 @@ impl TelemetryEvent {
                 is_code_suggestions_enabled,
             } => Some(
                 json!({"source": source, "is_code_suggestions_enabled": is_code_suggestions_enabled}),
-            ),
-            TelemetryEvent::ToggleNaturalLanguageAutosuggestionsSetting {
-                is_natural_language_autosuggestions_enabled,
-            } => Some(
-                json!({"is_natural_language_autosuggestions_enabled": is_natural_language_autosuggestions_enabled}),
             ),
             TelemetryEvent::ToggleSharedBlockTitleGenerationSetting {
                 is_shared_block_title_generation_enabled,
@@ -4915,7 +4905,6 @@ impl TelemetryEvent {
             | TelemetryEvent::FileExceededContextLimit { .. }
             | TelemetryEvent::AgentModeError { .. }
             | TelemetryEvent::AgentModeRequestRetrySucceeded { .. }
-            | TelemetryEvent::ToggleNaturalLanguageAutosuggestionsSetting { .. }
             | TelemetryEvent::ToggleSharedBlockTitleGenerationSetting { .. }
             | TelemetryEvent::ToggleGitOperationsAutogenSetting { .. }
             | TelemetryEvent::GrepToolSucceeded
@@ -5403,9 +5392,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             | Self::UnitTestSuggestionShown { .. }
             | Self::UnitTestSuggestionAccepted { .. }
             | Self::UnitTestSuggestionCancelled { .. } => EnablementState::Always,
-            Self::ToggleNaturalLanguageAutosuggestionsSetting => {
-                EnablementState::Flag(FeatureFlag::PredictAMQueries)
-            }
             Self::ToggleSharedBlockTitleGenerationSetting => {
                 EnablementState::Flag(FeatureFlag::SharedBlockTitleGeneration)
             }
@@ -5879,9 +5865,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::UnitTestSuggestionAccepted { .. } => "Suggested Prompt Accepted",
             Self::UnitTestSuggestionCancelled { .. } => "Suggested Prompt Cancelled",
             Self::ToggleCodeSuggestionsSetting => "Toggle Code Suggestions Setting",
-            Self::ToggleNaturalLanguageAutosuggestionsSetting => {
-                "Toggle Natural Language Autosuggestions Setting"
-            }
             Self::ToggleSharedBlockTitleGenerationSetting => "Toggle SharedBlock Title Generation",
             Self::ToggleGitOperationsAutogenSetting => "Toggle Git Operations Autogen Setting",
             Self::AgentModeCodeSuggestionEditedByUser => "AgentMode.Code.SuggestedCodeEditedByUser",
@@ -6577,9 +6560,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             }
             Self::TogglePromptSuggestionsSetting => "Toggled on/off the prompt suggestions setting",
             Self::ToggleCodeSuggestionsSetting => "Toggled on/off the code suggestions setting",
-            Self::ToggleNaturalLanguageAutosuggestionsSetting => {
-                "Toggled on/off the natural language autosuggestions setting"
-            }
             Self::ToggleSharedBlockTitleGenerationSetting => {
                 "Toggled on/off the shared block title generation setting"
             }

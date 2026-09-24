@@ -146,8 +146,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::SuggestedAgentModeWorkflows,
         #[cfg(feature = "command_correction_key")]
         FeatureFlag::CommandCorrectionKey,
-        #[cfg(feature = "predict_am_queries")]
-        FeatureFlag::PredictAMQueries,
         #[cfg(feature = "full_source_code_embedding")]
         FeatureFlag::FullSourceCodeEmbedding,
         #[cfg(feature = "remote_codebase_indexing")]
