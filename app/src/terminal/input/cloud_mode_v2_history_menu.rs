@@ -15,7 +15,7 @@ use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::search::data_source::{Query, QueryFilter};
 use crate::search::mixer::SearchMixer;
 use crate::terminal::input::InputSuggestionsMode;
-use crate::terminal::input::buffer_model::{InputBufferModel, InputBufferUpdateEvent};
+use crate::terminal::input::buffer_model::InputBufferModel;
 use crate::terminal::input::inline_history::{
     AcceptHistoryItem, InlineHistoryMenuDataSource, InlineHistoryMenuEvent,
 };
@@ -43,7 +43,6 @@ pub struct CloudModeV2HistoryMenuView {
     mixer: ModelHandle<SearchMixer<AcceptHistoryItem>>,
     buffer_model: ModelHandle<InputBufferModel>,
     suggestions_mode_model: ModelHandle<InputSuggestionsModeModel>,
-    pending_initial_buffer_sync: bool,
 }
 
 impl CloudModeV2HistoryMenuView {
@@ -120,27 +119,11 @@ impl CloudModeV2HistoryMenuView {
             }
         });
 
-        ctx.subscribe_to_model(&buffer_model, |me, _, _: &InputBufferUpdateEvent, ctx| {
-            if !me
-                .suggestions_mode_model
-                .as_ref(ctx)
-                .is_inline_history_menu()
-            {
-                return;
-            }
-            if !me.pending_initial_buffer_sync {
-                return;
-            }
-            me.pending_initial_buffer_sync = false;
-            me.open_with_current_buffer(ctx);
-        });
-
         Self {
             menu_view,
             mixer,
             buffer_model,
             suggestions_mode_model: input_suggestions_model.clone(),
-            pending_initial_buffer_sync: false,
         }
     }
 
@@ -168,10 +151,6 @@ impl CloudModeV2HistoryMenuView {
     pub fn accept_selected(&self, ctx: &mut ViewContext<Self>) {
         self.menu_view
             .update(ctx, |v, ctx| v.accept_selected_item(false, ctx));
-    }
-
-    pub fn arm_initial_buffer_sync(&mut self, _ctx: &mut ViewContext<Self>) {
-        self.pending_initial_buffer_sync = true;
     }
 
     pub fn has_selection(&self, app: &AppContext) -> bool {

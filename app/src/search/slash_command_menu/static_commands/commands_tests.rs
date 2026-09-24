@@ -3,6 +3,17 @@ use std::collections::HashSet;
 use super::*;
 
 #[test]
+fn retired_conversation_menu_is_not_registered() {
+    for settings_mode in [settings::SettingsMode::Gui, settings::SettingsMode::Tui] {
+        assert!(
+            all_commands(settings_mode)
+                .iter()
+                .all(|command| command.name != "/conversations")
+        );
+    }
+}
+
+#[test]
 fn command_names_and_kinds_are_unique_per_surface() {
     for settings_mode in [settings::SettingsMode::Gui, settings::SettingsMode::Tui] {
         let mut names = HashSet::new();

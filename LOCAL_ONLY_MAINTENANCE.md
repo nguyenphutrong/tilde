@@ -153,6 +153,11 @@ A local-history regression replays real migrations into disposable in-memory SQL
 session boundaries, empty-command skipping, directory/exit-status filtering and chronological order
 with interleaved sessions. CI runs the autosuggestion module.
 
+The inline AI conversation menu, its query ranking, entry points and telemetry are removed.
+`/conversations` is absent from GUI and TUI command registries. The retired serialized menu-height
+key remains so saved shell-history heights still load and round-trip without data loss. Local
+history menus, completion, and the separate cloud prompt-history overlay remain.
+
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,
 and associated bootstrap/settings/UI contracts remain. Classifier heuristics and serialized decision
 variants still exist. Remove leaf consumers first, then their owning contracts; do not replace removed
@@ -180,3 +185,8 @@ assistant integration test is removed and seven launch-config constructors match
 all-target integration checking and Clippy pass without removing local launch-config assertions.
 Linux build and GUI smoke are separate verification requirements; unit checks do not substitute for
 them. Integration compilation does not imply a successful real-display test run.
+
+At the inline-menu recovery increment, 68 selected tests, all-target Clippy, TUI checking and the
+Linux GUI build pass. Xvfb startup exits before creating a window: the login experiment snapshots
+`PrivacySettings`, which still requests unregistered `UserWorkspaces`. No GUI success or rendered
+terminal is established; remove the remaining consumer coupling rather than adding a dummy model.

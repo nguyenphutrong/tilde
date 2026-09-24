@@ -130,7 +130,6 @@ pub mod terminal;
 pub mod themes;
 pub use ai::agent::todos::AIAgentTodoList;
 pub use ai::agent::{AIAgentActionResultType, FileEdit, TodoOperation};
-use ai::agent_conversations_model::AgentConversationsModel;
 use ai::blocklist::BlocklistAIHistoryModel;
 use ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use quit_warning::UnsavedStateSummary;

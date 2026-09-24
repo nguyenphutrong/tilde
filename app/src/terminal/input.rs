@@ -4,7 +4,6 @@ mod classic;
 mod cli_agent;
 mod cloud_mode_v2_history_menu;
 mod common;
-pub mod conversations;
 pub mod decorations;
 pub mod inline_history;
 pub mod inline_menu;
@@ -149,9 +148,6 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
     AIAgentContext, AIAgentExchangeId, CancellationReason, EntrypointType, ImageContext,
 };
-use crate::ai::agent_conversations_model::{
-    AgentConversationNavigationSubject, AgentConversationsModel,
-};
 use crate::ai::attachment_utils::MAX_ATTACHMENT_SIZE_BYTES;
 use crate::ai::blocklist::agent_view::shortcuts::AgentShortcutViewModel;
 use crate::ai::blocklist::agent_view::{
@@ -160,7 +156,6 @@ use crate::ai::blocklist::agent_view::{
 };
 use crate::ai::blocklist::block::cli_controller::{CLISubagentController, CLISubagentEvent};
 use crate::ai::blocklist::block::status_bar::BlocklistAIStatusBar;
-use crate::ai::blocklist::conversation_selection::ConversationSelectionHandle;
 use crate::ai::blocklist::prompt::prompt_alert::{PromptAlertEvent, PromptAlertView};
 use crate::ai::blocklist::telemetry_banner::should_collect_ai_ugc_telemetry;
 use crate::ai::blocklist::{
@@ -267,9 +262,6 @@ use crate::terminal::cli_agent_sessions::{
 };
 use crate::terminal::input::buffer_model::InputBufferModel;
 use crate::terminal::input::cloud_mode_v2_history_menu::CloudModeV2HistoryMenuView;
-use crate::terminal::input::conversations::{
-    InlineConversationMenuEvent, InlineConversationMenuView,
-};
 use crate::terminal::input::inline_history::InlineHistoryMenuView;
 use crate::terminal::input::inline_menu::InlineMenuPositioner;
 use crate::terminal::input::models::{
@@ -332,8 +324,8 @@ use crate::workflows::workflow_enum::EnumVariants;
 use crate::workflows::{self, WorkflowSelectionSource, WorkflowSource, WorkflowType};
 use crate::workspace::sync_inputs::SyncedInputState;
 use crate::workspace::{
-    CommandSearchOptions, ForkFromExchange, ForkedConversationDestination, InitContent,
-    RestoreConversationLayout, ToastStack, WorkspaceAction,
+    CommandSearchOptions, ForkFromExchange, ForkedConversationDestination, InitContent, ToastStack,
+    WorkspaceAction,
 };
 use crate::workspaces::user_workspaces::{TeamContext, UserWorkspaces, UserWorkspacesEvent};
 #[allow(unused_imports)]
@@ -686,9 +678,6 @@ pub enum InputSuggestionsMode {
 
     SlashCommands,
 
-    /// Conversation menu mode for selecting AI conversations.
-    ConversationMenu,
-
     /// Model selector mode for selecting the Agent base model.
     ModelSelector,
     /// Profile selector mode for selecting an execution profile.
@@ -750,7 +739,6 @@ impl InputSuggestionsMode {
         matches!(
             self,
             Self::SlashCommands
-                | Self::ConversationMenu
                 | Self::ModelSelector
                 | Self::PromptsMenu
                 | Self::UserQueryMenu { .. }
@@ -789,7 +777,6 @@ impl InputSuggestionsMode {
                 action: UserQueryMenuAction::Rewind,
                 ..
             } => Some("Search queries to rewind to"),
-            InputSuggestionsMode::ConversationMenu => Some("Search conversations"),
             InputSuggestionsMode::SkillMenu => Some("Search skills"),
             InputSuggestionsMode::ModelSelector => Some("Search models"),
             InputSuggestionsMode::ProfileSelector => Some("Search profiles"),
@@ -826,9 +813,6 @@ impl InputSuggestionsMode {
                 TelemetryInputSuggestionsMode::AIContextMenu
             }
             InputSuggestionsMode::SlashCommands => TelemetryInputSuggestionsMode::SlashCommands,
-            InputSuggestionsMode::ConversationMenu => {
-                TelemetryInputSuggestionsMode::ConversationMenu
-            }
             InputSuggestionsMode::ModelSelector => TelemetryInputSuggestionsMode::ModelSelector,
             InputSuggestionsMode::ProfileSelector => TelemetryInputSuggestionsMode::ProfileSelector,
             InputSuggestionsMode::PromptsMenu => TelemetryInputSuggestionsMode::PromptsMenu,
@@ -1144,9 +1128,6 @@ pub enum InputAction {
     ResetWorkflowState,
 
     ToggleClassicCompletionsMode,
-
-    /// Toggles the inline conversation menu for selecting AI conversations.
-    ToggleConversationsMenu,
 
     StartNewAgentConversation {
         origin: AgentViewEntryOrigin,
@@ -1660,9 +1641,6 @@ pub struct Input {
     cloud_mode_v2_slash_commands_view: Option<ViewHandle<CloudModeV2SlashCommandView>>,
     slash_command_data_source: ModelHandle<GuiSlashCommandDataSource>,
     cloud_mode_composer_slash_command_data_source: Option<ModelHandle<GuiSlashCommandDataSource>>,
-
-    /// Inline conversation menu for selecting AI conversations.
-    inline_conversation_menu_view: ViewHandle<InlineConversationMenuView>,
 
     /// Inline plan menu for selecting among multiple plans.
     inline_plan_menu_view: ViewHandle<InlinePlanMenuView>,
@@ -2523,7 +2501,6 @@ impl Input {
         ai_context_model: ModelHandle<BlocklistAIContextModel>,
         ai_input_model: ModelHandle<BlocklistAIInputModel>,
         ai_action_model: ModelHandle<BlocklistAIActionModel>,
-        conversation_selection: ConversationSelectionHandle,
         cli_subagent_controller: ModelHandle<CLISubagentController>,
         terminal_view_id: EntityId,
         current_repo_path: Option<PathBuf>,
@@ -3467,21 +3444,7 @@ impl Input {
             me.handle_slash_command_model_event(event, ctx);
         });
 
-        let inline_conversation_menu_view = ctx.add_view(|ctx| {
-            InlineConversationMenuView::new(
-                suggestions_mode_model.clone(),
-                agent_view_controller.clone(),
-                conversation_selection,
-                &buffer_model,
-                &inline_terminal_menu_positioner,
-                active_session.clone(),
-                ctx,
-            )
-        });
         if FeatureFlag::AgentView.is_enabled() {
-            ctx.subscribe_to_view(&inline_conversation_menu_view, |me, _, event, ctx| {
-                me.handle_conversation_menu_event(event, ctx);
-            });
             ctx.subscribe_to_model(&inline_terminal_menu_positioner, |_, _, _, ctx| {
                 ctx.notify();
             });
@@ -3795,7 +3758,6 @@ impl Input {
             slash_command_model,
             inline_slash_commands_view,
             cloud_mode_v2_slash_commands_view,
-            inline_conversation_menu_view,
             inline_plan_menu_view,
             inline_repos_menu_view,
             inline_model_selector_view,
@@ -4548,62 +4510,6 @@ impl Input {
         }
     }
 
-    fn handle_conversation_menu_event(
-        &mut self,
-        event: &InlineConversationMenuEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            InlineConversationMenuEvent::NavigateToConversation { item_id } => {
-                let is_in_agent_view = FeatureFlag::AgentView.is_enabled()
-                    && self.agent_view_controller.as_ref(ctx).is_fullscreen();
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::InlineConversationMenuItemSelected { is_in_agent_view },
-                    ctx
-                );
-
-                if self
-                    .suggestions_mode_model
-                    .as_ref(ctx)
-                    .is_conversation_menu()
-                {
-                    self.suggestions_mode_model.update(ctx, |model, ctx| {
-                        model.set_mode(InputSuggestionsMode::Closed, ctx);
-                    });
-                    ctx.notify();
-                }
-                self.clear_buffer_and_reset_undo_stack(ctx);
-                match AgentConversationsModel::resolve_open_action(
-                    AgentConversationNavigationSubject::Entry(*item_id),
-                    Some(RestoreConversationLayout::ActivePane),
-                    ctx,
-                ) {
-                    Some(action) => {
-                        ctx.dispatch_typed_action_deferred(action);
-                    }
-                    _ => {
-                        ctx.emit(Event::ShowToast {
-                            message: "Couldn't navigate to conversation.".to_string(),
-                            flavor: ToastFlavor::Error,
-                        });
-                    }
-                }
-            }
-            InlineConversationMenuEvent::Dismissed => {
-                if self
-                    .suggestions_mode_model
-                    .as_ref(ctx)
-                    .is_conversation_menu()
-                {
-                    self.suggestions_mode_model.update(ctx, |model, ctx| {
-                        model.close_and_restore_buffer(ctx);
-                    });
-                    ctx.notify();
-                }
-            }
-        }
-    }
-
     fn handle_repos_menu_event(
         &mut self,
         event: &InlineReposMenuEvent,
@@ -5006,30 +4912,6 @@ impl Input {
                 }
             }
         }
-    }
-
-    fn open_conversation_menu(&mut self, ctx: &mut ViewContext<Self>) {
-        // Don't open menu if there's a long-running command
-        if self
-            .model
-            .lock()
-            .block_list()
-            .active_block()
-            .is_active_and_long_running()
-        {
-            return;
-        }
-
-        self.suggestions_mode_model.update(ctx, |model, ctx| {
-            model.set_mode(InputSuggestionsMode::ConversationMenu, ctx);
-        });
-        let is_in_agent_view = FeatureFlag::AgentView.is_enabled()
-            && self.agent_view_controller.as_ref(ctx).is_fullscreen();
-        send_telemetry_from_ctx!(
-            TelemetryEvent::InlineConversationMenuOpened { is_in_agent_view },
-            ctx
-        );
-        ctx.notify();
     }
 
     fn open_repos_menu(&mut self, ctx: &mut ViewContext<Self>) {
@@ -8138,10 +8020,6 @@ impl Input {
                         // Slash commands selection is handled separately
                         // This shouldn't be reached since slash commands doesn't use InputSuggestions
                     }
-                    InputSuggestionsMode::ConversationMenu => {
-                        // Conversation menu selection is handled separately
-                        // This shouldn't be reached since conversation menu doesn't use InputSuggestions
-                    }
                     InputSuggestionsMode::ModelSelector => {
                         // Model selector selection is handled separately
                         // This shouldn't be reached since model selector doesn't use InputSuggestions
@@ -8299,10 +8177,6 @@ impl Input {
             InputSuggestionsMode::SlashCommands => {
                 // Slash commands selection is handled separately
                 // For now, just close the menu
-                false
-            }
-            InputSuggestionsMode::ConversationMenu => {
-                // Conversation menu selection is handled separately
                 false
             }
             InputSuggestionsMode::ModelSelector => {
@@ -8592,12 +8466,6 @@ impl Input {
                         view.select_up(ctx);
                     });
                 }
-                true
-            }
-            InputSuggestionsMode::ConversationMenu => {
-                self.inline_conversation_menu_view.update(ctx, |view, ctx| {
-                    view.select_up(ctx);
-                });
                 true
             }
             InputSuggestionsMode::UserQueryMenu {
@@ -8955,12 +8823,6 @@ impl Input {
                         view.select_down(ctx);
                     });
                 }
-                true
-            }
-            InputSuggestionsMode::ConversationMenu => {
-                self.inline_conversation_menu_view.update(ctx, |view, ctx| {
-                    view.select_down(ctx);
-                });
                 true
             }
             InputSuggestionsMode::UserQueryMenu {
@@ -10132,9 +9994,6 @@ impl Input {
                     InputSuggestionsMode::SlashCommands => {
                         // empty for now
                     }
-                    InputSuggestionsMode::ConversationMenu => {
-                        // Conversation menu handles its own state
-                    }
                     InputSuggestionsMode::ModelSelector => {
                         // Model selector handles its own state
                     }
@@ -10284,9 +10143,6 @@ impl Input {
                             if cursor_pos == 0 {
                                 self.close_input_suggestions(true, ctx);
                             }
-                        }
-                        InputSuggestionsMode::ConversationMenu => {
-                            // Conversation menu handles its own selection state
                         }
                         InputSuggestionsMode::ModelSelector => {
                             // Model selector handles its own selection state
@@ -12148,16 +12004,6 @@ impl Input {
                     return;
                 }
             }
-            // If the conversation menu is open and has multiple tabs,
-            // shift + tab should cycle between them.
-            InputSuggestionsMode::ConversationMenu => {
-                if self
-                    .inline_conversation_menu_view
-                    .update(ctx, |view, ctx| view.select_next_tab(ctx))
-                {
-                    return;
-                }
-            }
             // If we're in CompletionSuggestions mode, shift tab moves to the previous selection.
             InputSuggestionsMode::CompletionSuggestions { .. } => {
                 self.input_suggestions.update(ctx, |suggestions, ctx| {
@@ -12707,14 +12553,6 @@ impl Input {
                     });
                 }
             });
-            return;
-        } else if self
-            .suggestions_mode_model
-            .as_ref(ctx)
-            .is_conversation_menu()
-        {
-            self.inline_conversation_menu_view
-                .update(ctx, |view, ctx| view.accept_selected_item(ctx));
             return;
         } else if self.suggestions_mode_model.as_ref(ctx).is_skill_menu() {
             self.inline_skill_selector_view
@@ -15313,20 +15151,6 @@ impl TypedActionView for Input {
                     }
                 });
             }
-            InputAction::ToggleConversationsMenu => {
-                if self
-                    .suggestions_mode_model
-                    .as_ref(ctx)
-                    .is_conversation_menu()
-                {
-                    self.suggestions_mode_model.update(ctx, |model, ctx| {
-                        model.close_and_restore_buffer(ctx);
-                    });
-                    ctx.notify();
-                } else {
-                    self.open_conversation_menu(ctx);
-                }
-            }
             InputAction::ToggleInputAutoDetection => {
                 if let Ok(new_value) =
                     AISettings::handle(ctx).update(ctx, |ai_settings, model_ctx| {
@@ -15592,12 +15416,6 @@ impl View for Input {
             InputSuggestionsMode::AIContextMenu { .. }
         ) {
             ctx.set.insert("AIContextMenuOpen");
-        } else if self
-            .suggestions_mode_model
-            .as_ref(app)
-            .is_conversation_menu()
-        {
-            ctx.set.insert(flags::OPEN_INLINE_CONVERSATION_MENU);
         }
 
         if self
