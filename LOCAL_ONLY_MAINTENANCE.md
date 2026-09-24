@@ -79,6 +79,11 @@ Agent Management views, the agent-type selector, and the Oz setup guide are remo
 filters round-trip unchanged through workspace snapshots without applying filters or fetching tasks.
 The setup guide's three endpoint entries are removed from the residue inventory.
 
+Code review no longer submits comments or attaches selected text, files, or hunks to agents. Its
+send/debug controls, keybindings, AI-credit subscription, and codebase-indexing zero state are removed.
+Local diff editing/revert, Git operations, comment edit/copy/delete, the focused-terminal provider,
+and Cmd/Ctrl-Enter for saving comments remain. Terminal-owned diff attachments remain for later removal.
+
 ## Remaining scope and data safety
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,

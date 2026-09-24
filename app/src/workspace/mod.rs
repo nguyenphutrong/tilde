@@ -103,12 +103,6 @@ pub fn init(app: &mut AppContext) {
             EditableBinding::new("workspace:crash", crash_description, WorkspaceAction::Crash)
                 .with_context_predicate(id!("Workspace")),
             EditableBinding::new(
-                "workspace:log_review_comment_send_status_for_active_tab",
-                "[Debug] Log review comment send status for active tab",
-                WorkspaceAction::LogReviewCommentSendStatusForActiveTab,
-            )
-            .with_context_predicate(id!("Workspace")),
-            EditableBinding::new(
                 "workspace:panic",
                 "Trigger a panic (for testing sentry-rust)",
                 WorkspaceAction::Panic,
