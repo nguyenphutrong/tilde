@@ -1,0 +1,81 @@
+# Tilde local-only maintenance
+
+Tilde is a local terminal, not an ADE or an agent hub. **Cloud/AI removal is incomplete.**
+Disabling a feature does not remove its source or dependencies, and this audit is not proof of
+network silence. GitHub Releases updates and necessary local networking remain.
+
+## Recovery and upstream policy
+
+Recovery starts from [v0.1.4](https://github.com/nguyenphutrong/tilde/commit/42cab8f9), using the
+[lost work transcript](https://ampcode.com/threads/T-01a090cf-5832-75de-bf88-03f6638f68e6).
+The original upstream comparison used ancestor
+[a45efa09](https://github.com/warpdotdev/warp/commit/a45efa093ef2bfcb42717b1d29f2966651a68545)
+and tip [76761c22](https://github.com/warpdotdev/warp/commit/76761c22e3251307949c24e3ade134e575c4e426).
+
+Never merge upstream wholesale. Review full diffs and tests before importing terminal grid/ANSI,
+editor, WarpUI/rendering, PTY/shell, completion/history, or platform correctness fixes. Reject
+AI/Oz/MCP/agents, teams, collaboration, accounts/auth, cloud/server, GraphQL and telemetry additions,
+including additions hidden inside otherwise eligible commits. New product UI is not a platform fix.
+Check ancestry and current behavior; patch conflicts do not prove a fix is already present. Port
+only the relevant behavior, reproduce the boundary case, and commit each verified coherent change.
+Linux compilation does not verify Windows RDP, Windows shells, or macOS runtime behavior.
+
+## Recovered correctness fixes
+
+| Upstream | Behavior and recovery evidence |
+| --- | --- |
+| [a7326f8f](https://github.com/warpdotdev/warp/commit/a7326f8fecd6a52050a735da1e9979822b46c71b) | Wide-character EOL promotion; five regressions failed before the fix, then 557 terminal tests passed with two existing skips. |
+| [58d94a53](https://github.com/warpdotdev/warp/commit/58d94a53b308b8e7ab1541f194ce5ffef29742c6) | Reject reversed smart-select bounds before clamp; regression failed before, both tests passed after. |
+| [83e270f1](https://github.com/warpdotdev/warp/commit/83e270f1d17a9505f7aa32fdcccf9067752faa40) | Use glyph advance when bounds are absent; three regressions failed before, five selected font tests passed after. Windows rendering remains unverified. |
+| [ad28e590](https://github.com/warpdotdev/warp/commit/ad28e590f8781cac00c8b762425a19971a8549da) | Route Windows RDP validation failure through existing device-loss recovery. Linux lint and resource tests passed; Windows RDP remains unverified. |
+| [17f43202](https://github.com/warpdotdev/warp/commit/17f4320276f9baaf272119f0c319db96a3aba183) | Avoid Bash PS1 double expansion. Syntax/direct branch checks passed: honor mode expands zero times, preview once. Integration build has nine pre-existing stale AI/launch-config errors. |
+| [742ca57b](https://github.com/warpdotdev/warp/commit/742ca57b50a034d5f7ddcdd9e7791367ab7624c0) | Remove disposable editor layout caches, retaining frame/placeholder caches, BOM stripping and fallback requests. 500 editor tests passed before and after; platform-boundary BOM regression passed. Recovery includes the corrected harness directly. |
+| [9589305a](https://github.com/warpdotdev/warp/commit/9589305a) | Omit unsupported PowerShell login flag on Windows, retaining Unix login flags. Five Linux executor tests passed; the Windows PowerShell 5.1 execution test remains unrun here. |
+
+Shell widget handoff ([bf2364bc](https://github.com/warpdotdev/warp/commit/bf2364bc99c118f562e21b5529c1db492b0b939f))
+remains deferred, not redundant: it needs coordinated shell/DCS/input changes and real fzf/atuin
+selection tests proving selection does not execute a command. Native completion generators, Bash
+shell-plugin payload preservation, and the cosmic-text fallback pin remain unported candidates.
+
+## Removed dependencies and guards
+
+ORT, Candle/ONNX inference, model initialization/features, classifier evaluation binary, three BERT
+models and tokenizer assets are removed. Model assets fell from 53,470,541 bytes to zero. These
+optional-runtime deletions do not imply an equivalent reduction in shipped binary size. Cargo/LFS
+caches and Git history are not erased.
+
+`script/check_local_only.py` rejects `ort`, `ort-sys`, `candle-core`, `candle-nn`, `candle-onnx`, and
+`tokenizers` in manifests and lockfiles, including renamed, optional, target, build and dev dependencies.
+`script/local_only_residue.json` initially records 280 occurrences: 111 dependency declarations,
+133 endpoint lines and 36 lock entries. This is a debt inventory, not approved product functionality.
+Endpoint lines are hashed to avoid exposing credentials. Changes and duplicates fail the guard;
+review removals and shrink the inventory, never bless new cloud entries. The guard is not a general
+secret scanner and cannot detect every dynamically assembled host, new domain, or external client.
+
+## Remaining scope and data safety
+
+AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,
+and associated bootstrap/settings/UI contracts remain. Classifier heuristics and serialized decision
+variants still exist. Remove leaf consumers first, then their owning contracts; do not replace removed
+consumers with dummy singletons or stubs. Preserve local shell/PTY, history, completion, editor and Git
+helpers. Retain historical migrations and unknown legacy DB rows opaquely; do not DROP old tables.
+Migration replay tests use disposable SQLite data, not every historical production database.
+
+## Verification
+
+```sh
+python3 script/test_local_only.py
+python3 script/check_local_only.py
+./script/format --check
+cargo check --locked -p warp --bin tilde --features gui
+cargo clippy --locked -p warp --all-targets
+cargo nextest run --locked -p warp_terminal -p warp_editor -p warpui_core -p persistence
+cargo test --locked -p warp_cli --lib
+cargo test --locked -p warp_tui --lib
+```
+
+Recovery uses owner-authorized warning-allowing Clippy plus focused checks for each commit/push.
+Strict presubmit `-D warnings` fails on pre-existing unused/dead-code warnings; these are not fixed or
+suppressed as part of recovery. Ordinary Clippy passing does not mean warning-clean. Full integration
+tests remain blocked by stale AI assistant imports and seven removed launch-config fields. Linux
+build and GUI smoke are separate verification requirements; unit checks do not substitute for them.

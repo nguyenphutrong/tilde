@@ -1,9 +1,12 @@
 # Tilde
 
-**A slim, independent, AI-free terminal.**
+**An independent terminal focused on local use.**
 
-Tilde focuses on the local terminal experience. It does not require an account and does not send
-telemetry, crash reports, or terminal data to a hosted service.
+Tilde focuses on the local terminal experience and does not require an account. Legacy cloud/AI
+source and dependencies are still being removed. GitHub Releases updates and necessary local
+networking remain; this is not a verified claim of network silence. See the
+[local-only maintenance policy and audit](LOCAL_ONLY_MAINTENANCE.md) for the removal ledger,
+upstream backport allowlist, dependency guard, and remaining work.
 
 Tilde is an independent derivative of the
 [open-source Warp client](https://github.com/warpdotdev/warp). It is not affiliated with, endorsed
