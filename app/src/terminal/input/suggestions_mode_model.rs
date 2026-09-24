@@ -140,10 +140,6 @@ impl InputSuggestionsModeModel {
         matches!(self.mode, InputSuggestionsMode::SlashCommands)
     }
 
-    pub fn is_conversation_menu(&self) -> bool {
-        matches!(self.mode, InputSuggestionsMode::ConversationMenu)
-    }
-
     pub fn is_inline_model_selector(&self) -> bool {
         matches!(self.mode, InputSuggestionsMode::ModelSelector)
     }

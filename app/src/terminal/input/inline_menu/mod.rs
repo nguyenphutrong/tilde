@@ -38,6 +38,7 @@ use super::{InputSuggestionsMode, UserQueryMenuAction};
 pub enum InlineMenuType {
     SlashCommands,
     ModelSelector,
+    /// Retained for decoding saved menu heights.
     ConversationMenu,
     ProfileSelector,
     PromptsMenu,
@@ -70,7 +71,6 @@ impl InlineMenuType {
         match mode {
             InputSuggestionsMode::SlashCommands => Some(InlineMenuType::SlashCommands),
             InputSuggestionsMode::ModelSelector => Some(InlineMenuType::ModelSelector),
-            InputSuggestionsMode::ConversationMenu => Some(InlineMenuType::ConversationMenu),
             InputSuggestionsMode::ProfileSelector => Some(InlineMenuType::ProfileSelector),
             InputSuggestionsMode::PromptsMenu => Some(InlineMenuType::PromptsMenu),
             InputSuggestionsMode::SkillMenu => Some(InlineMenuType::SkillMenu),

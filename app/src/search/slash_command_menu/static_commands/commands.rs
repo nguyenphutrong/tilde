@@ -713,18 +713,6 @@ pub const COST: StaticCommand = StaticCommand {
     argument: None,
 };
 
-pub const CONVERSATIONS: StaticCommand = StaticCommand {
-    name: "/conversations",
-    description: "Open conversation history",
-    kind: SlashCommandKind::Conversations,
-    supported_surfaces: SlashCommandSurfaces::GuiAndTui {
-        icon_path: "bundled/svg/conversation.svg",
-    },
-    availability: Availability::AI_ENABLED,
-    auto_enter_ai_mode: false,
-    argument: None,
-};
-
 pub static PROMPTS: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     name: "/prompts",
     description: "Search saved prompts",
@@ -905,7 +893,6 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
         NATURAL_LANGUAGE_DETECTION,
         THEME,
         VIM_MODE,
-        CONVERSATIONS,
         EXPORT_TO_CLIPBOARD,
         COPY_DEBUGGING_ID,
         MODEL.clone(),

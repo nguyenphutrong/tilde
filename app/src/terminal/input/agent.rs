@@ -246,12 +246,6 @@ impl Input {
             column.add_child(ChildView::new(&self.inline_slash_commands_view).finish());
         } else if self.suggestions_mode_model.as_ref(app).is_prompts_menu() {
             column.add_child(ChildView::new(&self.inline_prompts_menu_view).finish());
-        } else if self
-            .suggestions_mode_model
-            .as_ref(app)
-            .is_conversation_menu()
-        {
-            column.add_child(ChildView::new(&self.inline_conversation_menu_view).finish());
         } else if FeatureFlag::ListSkills.is_enabled()
             && self.suggestions_mode_model.as_ref(app).is_skill_menu()
         {

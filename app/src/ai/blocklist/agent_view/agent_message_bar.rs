@@ -70,7 +70,6 @@ pub struct AgentMessageBarMouseStates {
     pub toggle_shortcuts: MouseStateHandle,
     pub toggle_slash_commands: MouseStateHandle,
     pub toggle_plan: MouseStateHandle,
-    pub toggle_conversation_menu: MouseStateHandle,
     pub toggle_code_review: MouseStateHandle,
     pub clear_attached_context: MouseStateHandle,
     /// Mouse state handle for the "Get Figma MCP" contextual button.
@@ -562,11 +561,7 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
             return None;
         }
 
-        let AgentViewState::Active {
-            original_conversation_length,
-            ..
-        } = agent_view_controller.agent_view_state()
-        else {
+        let AgentViewState::Active { .. } = agent_view_controller.agent_view_state() else {
             return None;
         };
 
@@ -655,25 +650,6 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
             .get_all_documents_for_conversation(active_conversation.id())
             .len();
         let has_plan = plan_count > 0;
-        let has_conversation_been_updated_since_agent_view_entry =
-            *original_conversation_length != active_conversation.exchange_count();
-
-        if !is_cloud_agent
-            && !has_conversation_been_updated_since_agent_view_entry
-            && let Some(conversations_keystroke) =
-                keybinding_name_to_keystroke(commands::CONVERSATIONS.name, app)
-        {
-            items.push(MessageItem::clickable(
-                vec![
-                    MessageItem::keystroke(conversations_keystroke),
-                    MessageItem::text("open conversation"),
-                ],
-                |ctx| {
-                    ctx.dispatch_typed_action(InputAction::ToggleConversationsMenu);
-                },
-                mouse_states.toggle_conversation_menu.clone(),
-            ));
-        }
 
         // Code review only works locally.
         #[cfg(not(target_family = "wasm"))]

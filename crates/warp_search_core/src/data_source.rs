@@ -219,9 +219,6 @@ pub enum QueryFilter {
 
     /// Filter results for full terminal use (CLI) models in the inline model selector.
     FullTerminalUseModels,
-
-    /// Include only conversations whose most recent directory matches the session's current working directory.
-    CurrentDirectoryConversations,
 }
 
 impl QueryFilter {
@@ -259,9 +256,6 @@ impl QueryFilter {
             QueryFilter::Skills => "Search skills",
             QueryFilter::BaseModels => "Search base models",
             QueryFilter::FullTerminalUseModels => "Search full terminal use models",
-            QueryFilter::CurrentDirectoryConversations => {
-                "Search conversations in current directory"
-            }
         }
     }
 
@@ -293,7 +287,6 @@ impl QueryFilter {
             QueryFilter::Skills => &NO_FILTER_ATOM,
             QueryFilter::BaseModels => &NO_FILTER_ATOM,
             QueryFilter::FullTerminalUseModels => &NO_FILTER_ATOM,
-            QueryFilter::CurrentDirectoryConversations => &NO_FILTER_ATOM,
         }
     }
 
@@ -325,7 +318,6 @@ impl QueryFilter {
             QueryFilter::Skills => "skills",
             QueryFilter::BaseModels => "base models",
             QueryFilter::FullTerminalUseModels => "full terminal use models",
-            QueryFilter::CurrentDirectoryConversations => "current directory conversations",
         }
     }
 
@@ -364,7 +356,6 @@ impl QueryFilter {
             QueryFilter::Skills => None,
             QueryFilter::BaseModels => None,
             QueryFilter::FullTerminalUseModels => None,
-            QueryFilter::CurrentDirectoryConversations => None,
         }
     }
 }

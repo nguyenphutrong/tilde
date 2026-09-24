@@ -103,7 +103,6 @@ pub enum SlashCommandKind {
     ContinueLocally,
     RemoteControl,
     Cost,
-    Conversations,
     Prompts,
     Rewind,
     ExportToClipboard,
