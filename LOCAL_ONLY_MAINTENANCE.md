@@ -71,6 +71,10 @@ Legacy Rules snapshots remain deserializable and restore a local terminal, inclu
 Rules flag is enabled. Historical Rules data codecs and migrations remain; the local project-rules
 file command is preserved. This does not remove the remaining AI rule/cloud synchronization code.
 
+The left panel contains only the local file tree and project search. Drive and conversation-list
+views are no longer constructed or polled. Legacy saved cloud-tab names remain readable and restore
+the local file tree; stored cloud preferences and historical data are not erased.
+
 ## Remaining scope and data safety
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,
