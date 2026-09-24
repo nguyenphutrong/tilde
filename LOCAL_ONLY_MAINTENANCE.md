@@ -75,6 +75,10 @@ The left panel contains only the local file tree and project search. Drive and c
 views are no longer constructed or polled. Legacy saved cloud-tab names remain readable and restore
 the local file tree; stored cloud preferences and historical data are not erased.
 
+Agent Management views, the agent-type selector, and the Oz setup guide are removed. Saved agent
+filters round-trip unchanged through workspace snapshots without applying filters or fetching tasks.
+The setup guide's three endpoint entries are removed from the residue inventory.
+
 ## Remaining scope and data safety
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,
