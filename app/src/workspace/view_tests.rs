@@ -223,9 +223,6 @@ pub(crate) fn initialize_app(app: &mut App) {
 
     app.update(experiments::init);
 
-    app.add_singleton_model(
-        crate::workspace::bonus_grant_notification_model::BonusGrantNotificationModel::new,
-    );
     app.add_singleton_model(|ctx| {
         CodebaseIndexManager::new_for_test(ServerApiProvider::as_ref(ctx).get(), ctx)
     });

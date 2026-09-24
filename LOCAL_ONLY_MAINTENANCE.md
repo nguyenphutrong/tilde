@@ -93,6 +93,10 @@ desktop-notification summaries are removed along with their actions and subscrip
 terminal/update toasts, CLI desktop notifications, local tab badges, and synchronized-input indicators
 remain. Saved toolbar notification discriminators remain readable but unavailable.
 
+Workspace no longer subscribes to Drive update/activity, staging-auth, shared-session, or bonus-credit
+notifications. Cloud toast formatting and the bonus-credit notification model are deleted. Local
+autoupdate/terminal toasts, database tables, and persisted bonus-credit settings remain unchanged.
+
 ## Remaining scope and data safety
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,
