@@ -32,14 +32,11 @@ use crate::pane_group::PaneGroup;
 use crate::prompt::editor_modal::OpenSource as PromptEditorOpenSource;
 use crate::search;
 use crate::server::ids::SyncId;
-use crate::server::telemetry::{
-    AddTabWithShellSource, AgentModeEntrypoint, PaletteSource, SharingDialogSource,
-};
+use crate::server::telemetry::{AddTabWithShellSource, PaletteSource, SharingDialogSource};
 use crate::settings_view::{SettingsAction as SettingsTabAction, SettingsSection};
 use crate::tab::{NewSessionMenuItem, SelectedTabColor};
 use crate::tab_configs::TabConfig;
 use crate::terminal::available_shells::AvailableShell;
-use crate::terminal::view::inline_banner::ZeroStatePromptSuggestionType;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::themes::theme_chooser::ThemeChooserMode;
 use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
@@ -497,20 +494,6 @@ pub enum WorkspaceAction {
         /// Whether to ensure agent mode is enabled when inserting content
         ensure_agent_mode: bool,
     },
-    /// Open a new tab with its input in AI mode.
-    NewTabInAgentMode {
-        /// The entrypoint that triggered this action.
-        entrypoint: AgentModeEntrypoint,
-        /// The type of zero state prompt suggestion to start with (optional).
-        zero_state_prompt_suggestion_type: Option<ZeroStatePromptSuggestionType>,
-    },
-    /// Open a new pane with its input in AI mode.
-    NewPaneInAgentMode {
-        /// The entrypoint that triggered this action.
-        entrypoint: AgentModeEntrypoint,
-        /// The type of zero state prompt suggestion to start with (optional).
-        zero_state_prompt_suggestion_type: Option<ZeroStatePromptSuggestionType>,
-    },
     AttemptLoginGatedAIUpgrade,
     /// Dismisses the Wayland crash recovery banner and opens a link to our docs page with more
     /// information.
@@ -854,8 +837,6 @@ impl WorkspaceAction {
             | AddWindow
             | AddWindowWithShell { .. }
             | CloseWindow
-            | NewTabInAgentMode { .. }
-            | NewPaneInAgentMode { .. }
             | FixInAgentMode { .. }
             | OpenNotebook { .. }
             | RunWorkflow { .. }

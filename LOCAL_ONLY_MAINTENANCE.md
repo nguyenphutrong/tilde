@@ -188,9 +188,10 @@ state are removed. Remaining pricing and request-usage contracts are unchanged; 
 account behavior is replaced with a stub. Local input focus and keybindings remain.
 
 The passive AI prompt suggestion banner, its billing/account bridge, static plan suggestion and
-editable acceptance binding are removed. Code-diff and unit-test suggestion handlers and zero-state
-prompt presets still have consumers and remain for separate leaf deletions. Shell-integration and
-ordinary Enter/Ctrl-Enter handling remain covered by focused tests.
+editable acceptance binding are removed. Zero-state prompt presets, their auto-attach/submission
+path, workspace actions and exclusive integration test are also removed. Code-diff and unit-test
+suggestion handlers remain. Shell-integration and ordinary Enter/Ctrl-Enter handling remain covered
+by focused tests. Retired entrypoint variants were outbound metadata, not SQLite/history payloads.
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions,
 and associated bootstrap/settings/UI contracts remain. Classifier heuristics and serialized decision

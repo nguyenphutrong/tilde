@@ -327,7 +327,6 @@ integration_tests! {
     // Middle-click-paste is only implemented for Linux right now.
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     test_middle_click_paste,
-    test_agent_mode_pane_minimum_size,
 
     test_undo_close_stack_timeout_cleanup,
 
