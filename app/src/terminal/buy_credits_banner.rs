@@ -177,15 +177,6 @@ impl BuyCreditsBanner {
                     .addon_credits_options
                     .get(self.selected_denomination_index)
                     .map(|option| option.credits);
-                let has_admin_permissions = {
-                    let auth_state = AuthStateProvider::as_ref(ctx).get();
-                    let current_team = UserWorkspaces::as_ref(ctx).team_for_view(ctx);
-                    auth_state
-                        .user_email()
-                        .zip(current_team)
-                        .map(|(email, team)| team.has_admin_permissions(&email))
-                        .unwrap_or_default()
-                };
 
                 // Things we always do:
                 // - emit telemetry
@@ -206,16 +197,8 @@ impl BuyCreditsBanner {
                     ai_request_usage_model.dismiss_buy_credits_banner(ctx);
                 });
 
-                // Experiment-specific behavior:
-                // - Banner toggle flow: optionally enable auto-reload immediately.
-                // - Post-purchase modal flow: show the modal.
                 if banner_toggle_flag_enabled {
                     self.enable_auto_reload_if_requested(ctx);
-                } else if has_admin_permissions && post_purchase_modal_flag_enabled {
-                    // Default selection in the modal should match the denomination the user clicked "buy" on.
-                    ctx.emit(BuyCreditsBannerEvent::OpenAutoReloadModal {
-                        purchased_credits: selected_credits.unwrap_or(0),
-                    });
                 }
 
                 ctx.notify();
@@ -956,7 +939,6 @@ impl BuyCreditsBanner {
 pub enum BuyCreditsBannerEvent {
     OpenBillingPortal { team_uid: ServerId },
     RefocusInput,
-    OpenAutoReloadModal { purchased_credits: i32 },
     ShowAutoReloadError { error_message: &'static str },
 }
 

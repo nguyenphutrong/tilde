@@ -1090,9 +1090,6 @@ pub enum Event {
         document_id: AIDocumentId,
         document_version: AIDocumentVersion,
     },
-    OpenAutoReloadModal {
-        purchased_credits: i32,
-    },
     AuthSecretDeleteConfirmationDialogToggled {
         is_open: bool,
     },
@@ -3683,11 +3680,6 @@ impl Input {
             }
             BuyCreditsBannerEvent::RefocusInput => {
                 ctx.focus(&me.editor);
-            }
-            BuyCreditsBannerEvent::OpenAutoReloadModal { purchased_credits } => {
-                ctx.emit(Event::OpenAutoReloadModal {
-                    purchased_credits: *purchased_credits,
-                });
             }
             BuyCreditsBannerEvent::ShowAutoReloadError { error_message } => {
                 ctx.emit(Event::ShowToast {
