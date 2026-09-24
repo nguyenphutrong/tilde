@@ -1,8 +1,66 @@
 use settings::{Setting, SyncToCloud};
 use warpui::{App, SingletonEntity};
 
-use super::{EnableSshWrapper, UseSshTmuxWrapper, WarpifySettings};
+use super::{EnableSshWrapper, WarpifySettings};
 use crate::test_util::settings::initialize_settings_for_tests;
+
+#[cfg(feature = "local_fs")]
+#[test]
+fn retired_extension_settings_survive_ssh_settings_loading_and_writes() {
+    use settings::{PrivatePreferences, PublicPreferences, SettingsManager};
+    use warp_core::features::FeatureFlag;
+    use warpui_extras::user_preferences::UserPreferences;
+    use warpui_extras::user_preferences::in_memory::InMemoryPreferences;
+    use warpui_extras::user_preferences::toml_backed::TomlBackedUserPreferences;
+
+    App::test((), |mut app| async move {
+        let _settings_file = FeatureFlag::SettingsFile.override_enabled(true);
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("settings.toml");
+        std::fs::write(
+            &path,
+            "[warpify.ssh]\n\
+             enable_legacy_ssh_wrapper = false\n\
+             use_ssh_tmux_wrapper = true\n\
+             ssh_tmux_deprecation_notice_pending = true\n\
+             ssh_extension_install_mode = 'always_install'\n",
+        )
+        .unwrap();
+        let (preferences, error) = TomlBackedUserPreferences::new(path.clone());
+        assert!(error.is_none());
+        app.add_singleton_model(|_| PublicPreferences::new(Box::new(preferences)));
+        app.add_singleton_model(|_| PrivatePreferences::new(Box::<InMemoryPreferences>::default()));
+        app.add_singleton_model(|_| SettingsManager::default());
+        app.update(WarpifySettings::register);
+
+        WarpifySettings::handle(&app).update(&mut app, |settings, ctx| {
+            assert!(!*settings.enable_ssh_warpification.value());
+            assert!(*settings.enable_ssh_wrapper.value());
+            settings
+                .enable_ssh_warpification
+                .set_value(true, ctx)
+                .unwrap();
+        });
+
+        let (saved, error) = TomlBackedUserPreferences::new(path);
+        assert!(error.is_none());
+        for (key, value) in [
+            ("use_ssh_tmux_wrapper", "true"),
+            ("ssh_tmux_deprecation_notice_pending", "true"),
+            ("ssh_extension_install_mode", "\"always_install\""),
+            ("enable_ssh_warpification", "true"),
+            ("enable_legacy_ssh_wrapper", "true"),
+        ] {
+            assert_eq!(
+                saved
+                    .read_value_with_hierarchy(key, Some("warpify.ssh"))
+                    .unwrap(),
+                Some(value.to_owned()),
+                "{key}",
+            );
+        }
+    });
+}
 
 #[test]
 fn test_parsed_subshell_commands_updated_via_self_subscription() {
@@ -109,11 +167,6 @@ fn test_deprecated_ssh_wrapper_migration_triggers_are_not_synced() {
         SyncToCloud::Never,
         "enable_legacy_ssh_wrapper must not sync — a stale synced value re-arms the \
          migration and re-disables enable_ssh_warpification (#13228)"
-    );
-    assert_eq!(
-        UseSshTmuxWrapper::sync_to_cloud(),
-        SyncToCloud::Never,
-        "use_ssh_tmux_wrapper must not sync — same re-arm hazard for the tmux notice"
     );
 }
 

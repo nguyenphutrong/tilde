@@ -223,7 +223,6 @@ impl ModelEventDispatcher {
             Event::PluggableNotification { title, body } => {
                 ModelEvent::PluggableNotification { title, body }
             }
-            Event::ExitShell { session_id } => ModelEvent::ExitShell { session_id },
             Event::LifecycleRecovery(record) => {
                 crate::send_telemetry_from_ctx!(LifecycleTelemetryEvent::Recovery(record), ctx);
                 return;
@@ -359,12 +358,6 @@ pub enum ModelEvent {
     PluggableNotification {
         title: Option<String>,
         body: String,
-    },
-    /// Emitted right before the remote shell for a session exits. Used to
-    /// tear down per-session resources (e.g. the remote-server-proxy ssh
-    /// child) before the outer ssh tunnel starts closing.
-    ExitShell {
-        session_id: SessionId,
     },
 }
 

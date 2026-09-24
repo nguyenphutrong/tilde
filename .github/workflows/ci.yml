@@ -77,6 +77,12 @@ jobs:
       - name: Test migration replay and persistence compatibility
         run: cargo test --locked -p persistence --lib
 
+      - name: Test SSH bootstrap and settings preservation
+        run: |
+          cargo test --locked -p warp --lib terminal::model_events::
+          cargo test --locked -p warp --lib terminal::warpify::settings::
+          cargo test --locked -p warp --lib local_and_ssh_executors_do_not_require_a_remote_server
+
       - name: Test terminal CLI
         run: cargo test --locked -p warp_cli --lib
 

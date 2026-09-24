@@ -64,10 +64,9 @@ use crate::terminal::event_listener::ChannelEventListener;
 pub use crate::terminal::history::HistoryEntry;
 use crate::terminal::model::ansi;
 use crate::terminal::model::ansi::{
-    ClearValue, CommandFinishedValue, CompletionMetadata, ExitShellValue,
-    ExternalShellWidgetSelectionValue, Handler, InitShellValue, InitSubshellValue,
-    PreInteractiveSSHSessionValue, PrecmdValue, PreexecValue, PromptMetadata, SSHValue,
-    SourcedRcFileForWarpValue,
+    ClearValue, CommandFinishedValue, CompletionMetadata, ExternalShellWidgetSelectionValue,
+    Handler, InitShellValue, InitSubshellValue, PreInteractiveSSHSessionValue, PrecmdValue,
+    PreexecValue, PromptMetadata, SSHValue, SourcedRcFileForWarpValue,
 };
 use crate::terminal::model::bootstrap::BootstrapStage;
 use crate::terminal::model::completions::{
@@ -3087,16 +3086,6 @@ impl ansi::Handler for TerminalModel {
             self.pending_ssh_wrapper_session = Some(value);
             self.event_proxy.send_app_event(Event::SSH(remote_shell));
         }
-    }
-
-    fn exit_shell(&mut self, data: ExitShellValue) {
-        log::info!(
-            "Received ExitShell hook from shell for session_id: {:?}",
-            data.session_id
-        );
-        self.event_proxy.send_app_event(Event::ExitShell {
-            session_id: data.session_id,
-        });
     }
 
     fn init_shell(&mut self, data: InitShellValue) {

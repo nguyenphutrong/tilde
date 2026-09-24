@@ -1629,15 +1629,6 @@ pub enum TelemetryEvent {
     ToggleSshWarpification {
         enabled: bool,
     },
-    /// User changed the SSH extension install mode.
-    SetSshExtensionInstallMode {
-        mode: &'static str,
-    },
-    /// User toggled the "Don't ask me this again" checkbox on the SSH
-    /// remote-server choice block.
-    SshRemoteServerChoiceDoNotAskAgainToggled {
-        checked: bool,
-    },
     WarpifyFooterShown {
         is_ssh: bool,
     },
@@ -3348,10 +3339,6 @@ impl TelemetryEvent {
                 Some(json!({"enabled": enabled}))
             }
             TelemetryEvent::ToggleSshWarpification { enabled } => Some(json!({"enabled": enabled})),
-            TelemetryEvent::SetSshExtensionInstallMode { mode } => Some(json!({"mode": mode})),
-            TelemetryEvent::SshRemoteServerChoiceDoNotAskAgainToggled { checked } => {
-                Some(json!({"checked": checked}))
-            }
             TelemetryEvent::JoinedSharedSession {
                 session_id,
                 source_type,
@@ -4916,8 +4903,6 @@ impl TelemetryEvent {
             | TelemetryEvent::MCPToolCallAccepted { .. }
             | TelemetryEvent::ExecutedWarpDrivePrompt { .. }
             | TelemetryEvent::ToggleSshWarpification { .. }
-            | TelemetryEvent::SetSshExtensionInstallMode { .. }
-            | TelemetryEvent::SshRemoteServerChoiceDoNotAskAgainToggled { .. }
             | TelemetryEvent::SettingsImportInitiated
             | TelemetryEvent::AgentModeCreatedAIBlock { .. }
             | TelemetryEvent::AgentModeRatedResponse { .. }
@@ -5323,8 +5308,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AddDenylistedSubshellCommand => EnablementState::Always,
             Self::RemoveDenylistedSubshellCommand => EnablementState::Always,
             Self::ToggleSshWarpification => EnablementState::Always,
-            Self::SetSshExtensionInstallMode => EnablementState::Always,
-            Self::SshRemoteServerChoiceDoNotAskAgainToggled => EnablementState::Always,
             Self::WarpifyFooterShown
             | Self::AgentToolbarDismissed
             | Self::WarpifyFooterAcceptedWarpify => EnablementState::Always,
@@ -5801,10 +5784,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::RemoveAddedSubshellCommand => "Remove Added Subshell Command",
             Self::ReceivedSubshellRcFileDcs => "Received Subshell RC File DCS",
             Self::ToggleSshWarpification => "Toggle SSH Warpification",
-            Self::SetSshExtensionInstallMode => "Set SSH Extension Install Mode",
-            Self::SshRemoteServerChoiceDoNotAskAgainToggled => {
-                "SSH Remote Server Choice Do Not Ask Again Toggled"
-            }
             Self::WarpifyFooterShown => "Warpify Footer Shown",
             Self::AgentToolbarDismissed => "Agent Toolbar Dismissed",
             Self::WarpifyFooterAcceptedWarpify => "Warpify Footer Accepted Warpify",
@@ -6462,12 +6441,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             }
             Self::ReceivedSubshellRcFileDcs => "Spawned a subshell to be automatically Warpified",
             Self::ToggleSshWarpification => "Changed the setting for SSH sessions to be warified",
-            Self::SetSshExtensionInstallMode => {
-                "Changed the SSH extension install mode (always ask / always allow / always skip)"
-            }
-            Self::SshRemoteServerChoiceDoNotAskAgainToggled => {
-                "Toggled the 'Don't ask me this again' checkbox on the SSH remote-server choice block"
-            }
             Self::AgentModeRatedResponse => "User rated an Agent Mode response",
             Self::WarpifyFooterShown => {
                 "Displayed the warpify footer for a detected subshell or SSH session"

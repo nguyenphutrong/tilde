@@ -123,6 +123,10 @@ session-level daemon executor/setup-state plumbing and daemon-only integration f
 Local, ControlMaster SSH, and in-band SSH executor selection is tested without a remote-server model,
 even with the legacy daemon flag enabled. Ordinary SSH integration tests remain.
 
+Extension-only ExitShell forwarding, tmux deprecation banners, and installation preferences are
+removed. The ANSI hook remains parseable through its default handler. Ordinary SSH opt-out migration
+remains; a TOML regression verifies that retired extension values survive settings loading and writes.
+
 ## Remaining scope and data safety
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,
