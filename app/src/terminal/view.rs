@@ -243,7 +243,6 @@ use crate::ai::blocklist::model::{
 };
 use crate::ai::blocklist::orchestration_topology::OrchestrationNavigationDirection;
 use crate::ai::blocklist::suggested_agent_mode_workflow_modal::SuggestedAgentModeWorkflowAndId;
-use crate::ai::blocklist::suggested_rule_modal::SuggestedRuleAndId;
 use crate::ai::blocklist::summarization_cancel_dialog::SummarizationCancelDialog;
 use crate::ai::blocklist::telemetry_banner::{TelemetryBanner, should_collect_ai_ugc_telemetry};
 use crate::ai::blocklist::usage::conversation_usage_view::{
@@ -1693,13 +1692,6 @@ pub enum Event {
     OpenWarpDriveObjectInPane(ObjectUid),
     OpenSuggestedAgentModeWorkflowModal {
         workflow_and_id: SuggestedAgentModeWorkflowAndId,
-    },
-    OpenSuggestedRuleDialog {
-        rule_and_id: SuggestedRuleAndId,
-    },
-    OpenAIFactCollection {
-        /// If set, open the fact collection to the specific rule.
-        sync_id: Option<SyncId>,
     },
     ToggleAIDocumentPane {
         document_id: AIDocumentId,
@@ -20229,9 +20221,6 @@ impl TerminalView {
                     ctx.open_url(&url);
                 }
             },
-            AIBlockEvent::OpenAIFactCollection { sync_id } => {
-                ctx.emit(Event::OpenAIFactCollection { sync_id: *sync_id });
-            }
             AIBlockEvent::OpenWorkflow { sync_id } => {
                 if let Some(object) = CloudModel::as_ref(ctx).get_workflow(sync_id) {
                     ctx.emit(Event::OpenWarpDriveObjectInPane(object.uid()));
@@ -20240,11 +20229,6 @@ impl TerminalView {
             AIBlockEvent::OpenSuggestedAgentModeWorkflowModal { workflow_and_id } => {
                 ctx.emit(Event::OpenSuggestedAgentModeWorkflowModal {
                     workflow_and_id: workflow_and_id.clone(),
-                });
-            }
-            AIBlockEvent::OpenSuggestedRuleDialog { rule_and_id } => {
-                ctx.emit(Event::OpenSuggestedRuleDialog {
-                    rule_and_id: rule_and_id.clone(),
                 });
             }
             AIBlockEvent::FocusTerminal => {

@@ -165,9 +165,7 @@ pub(crate) struct Props<'a> {
     pub(crate) find_context: Option<FindContext<'a>>,
     pub(super) is_references_section_open: bool,
     pub(super) autonomy_setting_speedbump: &'a AutonomySettingSpeedbump,
-    pub(super) suggested_rules: &'a Vec<ViewHandle<SuggestionChipView>>,
     pub(super) suggested_agent_mode_workflow: &'a Option<ViewHandle<SuggestionChipView>>,
-    pub(super) manage_rules_button: &'a ViewHandle<ActionButton>,
     pub(super) keyboard_navigable_buttons: Option<&'a ViewHandle<KeyboardNavigableButtons>>,
     pub(super) response_rating: &'a OnceCell<AIBlockResponseRating>,
     pub(super) request_refunded_count: Option<i32>,
@@ -177,7 +175,6 @@ pub(crate) struct Props<'a> {
     pub(super) review_changes_button: &'a ViewHandle<ActionButton>,
     pub(super) open_all_comments_button: &'a ViewHandle<ActionButton>,
     pub(super) dismiss_suggestion_button: &'a ViewHandle<ActionButton>,
-    pub(super) disable_rule_suggestions_button: &'a ViewHandle<ActionButton>,
     pub(super) current_todo_list: Option<&'a AIAgentTodoList>,
     pub(super) has_accepted_edits: bool,
     pub(super) finish_reason: Option<&'a FinishReason>,
@@ -1125,10 +1122,10 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                     }
                 }
 
-                // Only render suggested rules and prompts if the response is complete.
+                // Only render suggested prompts if the response is complete.
                 if should_render_suggestions
-                    && FeatureFlag::SuggestedRules.is_enabled()
-                    && let Some(suggestions) = render_suggested_rules_and_prompts_footer(props, app)
+                    && FeatureFlag::SuggestedAgentModeWorkflows.is_enabled()
+                    && let Some(suggestions) = render_suggested_prompts_footer(props, app)
                 {
                     output_items.add_child(suggestions);
                 }
@@ -3310,11 +3307,8 @@ fn render_references_footer(
     Some(column.finish().with_agent_output_item_spacing(app).finish())
 }
 
-/// Renders the suggested rules footer at the bottom of the block.
-fn render_suggested_rules_and_prompts_footer(
-    props: Props,
-    app: &AppContext,
-) -> Option<Box<dyn Element>> {
+/// Renders the suggested prompts footer at the bottom of the block.
+fn render_suggested_prompts_footer(props: Props, app: &AppContext) -> Option<Box<dyn Element>> {
     // Filter out dismissed suggestions
     let dismissed_ids = props
         .model
@@ -3322,22 +3316,13 @@ fn render_suggested_rules_and_prompts_footer(
         .map(|c| c.dismissed_suggestion_ids().clone())
         .unwrap_or_default();
 
-    let suggested_rules = props
-        .suggested_rules
-        .iter()
-        .filter(|chip| {
-            let logging_id = chip.as_ref(app).logging_id();
-            !dismissed_ids.contains(&logging_id)
-        })
-        .collect_vec();
-
     let suggested_prompt = props.suggested_agent_mode_workflow.as_ref().filter(|chip| {
         let logging_id = chip.as_ref(app).logging_id();
         !dismissed_ids.contains(&logging_id)
     });
 
     // If no visible suggestions, don't render the footer
-    if suggested_rules.is_empty() && suggested_prompt.is_none() {
+    if suggested_prompt.is_none() {
         return None;
     }
 
@@ -3353,50 +3338,23 @@ fn render_suggested_rules_and_prompts_footer(
     .with_selectable(false)
     .finish();
 
-    let has_suggested_rules = !suggested_rules.is_empty();
-
-    let right_buttons = {
-        let mut row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
-        if has_suggested_rules {
-            row.add_child(
-                Container::new(ChildView::new(props.disable_rule_suggestions_button).finish())
-                    .with_margin_right(4.)
-                    .finish(),
-            );
-        }
-        row.add_child(ChildView::new(props.dismiss_suggestion_button).finish());
-        row.finish()
-    };
-
     let title = Container::new(
         Flex::row()
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(Expanded::new(1.0, title_text).finish())
-            .with_child(right_buttons)
+            .with_child(ChildView::new(props.dismiss_suggestion_button).finish())
             .finish(),
     )
     .with_margin_bottom(8.)
     .finish();
 
-    let suggested_rules = suggested_rules
-        .iter()
-        .map(|rule| ChildView::new(rule).finish())
-        .collect_vec();
-
     let suggested_agent_mode_workflows = suggested_prompt
         .iter()
         .map(|workflow| ChildView::new(workflow).finish())
         .collect_vec();
-    let has_suggested_agent_mode_workflow = !suggested_agent_mode_workflows.is_empty();
 
-    let mut prompts_row = Wrap::row()
-        .with_children(suggested_rules)
-        .with_children(suggested_agent_mode_workflows);
-
-    if has_suggested_rules && !has_suggested_agent_mode_workflow {
-        prompts_row.add_child(ChildView::new(props.manage_rules_button).finish());
-    }
+    let prompts_row = Wrap::row().with_children(suggested_agent_mode_workflows);
 
     Some(
         Flex::column()

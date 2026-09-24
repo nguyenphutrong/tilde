@@ -97,7 +97,6 @@ pub struct WorkspaceState {
     pub is_native_quit_modal_open: bool,
     pub is_shared_objects_creation_denied_modal_open: bool,
     pub is_suggested_agent_mode_workflow_modal_open: bool,
-    pub is_suggested_rule_modal_open: bool,
     pub is_notification_mailbox_open: bool,
     pub is_agent_management_view_open: bool,
     pub is_tab_config_params_modal_open: bool,
@@ -132,7 +131,6 @@ impl WorkspaceState {
             || self.is_agent_management_popup_open
             || self.is_import_modal_open
             || self.is_shared_objects_creation_denied_modal_open
-            || self.is_suggested_rule_modal_open
             || self.is_suggested_agent_mode_workflow_modal_open
             || self.is_tab_config_params_modal_open
             || self.is_session_config_modal_open
@@ -165,7 +163,6 @@ impl WorkspaceState {
         self.is_shared_objects_creation_denied_modal_open = false;
         self.is_auth_override_modal_open = false;
         self.is_require_login_modal_open = false;
-        self.is_suggested_rule_modal_open = false;
         self.is_suggested_agent_mode_workflow_modal_open = false;
         self.is_tab_config_params_modal_open = false;
         self.is_session_config_modal_open = false;
