@@ -113,6 +113,10 @@ are removed; ordinary PTY writing, resizing, interrupts, and shell initializatio
 The unused SSH daemon transport, account-token adapter, Oz archive download/cache, and SCP fallback
 installer are removed. Ordinary SSH/SCP support, existing caches, and remote installations are untouched.
 
+SSH extension installation settings UI and daemon auth-token, crash-preference, and AI-limit forwarding
+are removed. SSH shell integration and reuse of existing ControlMaster remain; legacy install-mode
+records are retained. A typed Settings-view regression checks actions and observers without a server.
+
 ## Remaining scope and data safety
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,
