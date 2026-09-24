@@ -117,6 +117,10 @@ SSH extension installation settings UI and daemon auth-token, crash-preference, 
 are removed. SSH shell integration and reuse of existing ControlMaster remain; legacy install-mode
 records are retained. A typed Settings-view regression checks actions and observers without a server.
 
+Terminal SSH-extension install/skip blocks, loading footers, failure banners, focus interception,
+and manager setup/telemetry subscriptions are removed. Ordinary local/SSH shell bootstrap remains;
+session-level daemon executor/setup-state plumbing is still a separate removal step.
+
 ## Remaining scope and data safety
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,

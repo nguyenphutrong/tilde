@@ -87,17 +87,6 @@ impl ModelEventDispatcher {
                     is_subshell,
                 })
             }
-            Event::RemoteServerReady { session_id } => {
-                log::info!("Remote server ready for session {session_id:?}");
-                return;
-            }
-            Event::RemoteServerFailed { session_id, error } => {
-                log::warn!(
-                    "Remote server setup failed for session {session_id:?}, falling back to \
-                     ControlMaster: {error}"
-                );
-                return;
-            }
             Event::Handler(HandlerEvent::PromptStart) => {
                 self.last_start_prompt_marker = Some(PromptKind::Left);
                 ModelEvent::Handler(AnsiHandlerEvent::StartPrompt)
@@ -268,15 +257,6 @@ impl ModelEventDispatcher {
             );
         });
     }
-
-    /// Emits an event so `TerminalView` can render the remote server block.
-    pub fn request_remote_server_block(
-        &mut self,
-        session_id: SessionId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        ctx.emit(ModelEvent::RemoteServerBlockRequested { session_id });
-    }
 }
 
 /// The type of prompt for which a `PromptStart` event has been received.
@@ -379,17 +359,6 @@ pub enum ModelEvent {
     PluggableNotification {
         title: Option<String>,
         body: String,
-    },
-    /// Emitted when an SSH session's `InitShell` is intercepted by the
-    /// `SshRemoteServer` feature flag. `RemoteServerController` subscribes to
-    /// this instead of `Handler(InitShell)` so `PtyController` never sees it.
-    SshInitShell {
-        pending_session_info: Box<SessionInfo>,
-    },
-    /// Emitted by `ModelEventDispatcher::request_remote_server_block`
-    /// when the remote-server binary is missing and the user must choose.
-    RemoteServerBlockRequested {
-        session_id: SessionId,
     },
     /// Emitted right before the remote shell for a session exits. Used to
     /// tear down per-session resources (e.g. the remote-server-proxy ssh
