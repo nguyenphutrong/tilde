@@ -84,6 +84,10 @@ send/debug controls, keybindings, AI-credit subscription, and codebase-indexing 
 Local diff editing/revert, Git operations, comment edit/copy/delete, the focused-terminal provider,
 and Cmd/Ctrl-Enter for saving comments remain. Terminal-owned diff attachments remain for later removal.
 
+LSP detection, installation, and startup use a dedicated HTTP client, not `ServerApiProvider` or its
+auth hooks. Language-server downloads remain enabled with the existing HTTP defaults and interactive
+PATH lookup. Code-review tests construct their views without the server provider.
+
 ## Remaining scope and data safety
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,

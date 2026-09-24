@@ -32,7 +32,6 @@ use crate::code_review::editor_state::CodeReviewEditorState;
 use crate::code_review::git_repo_model::GitRepoModels;
 use crate::notebooks::editor::keys::NotebookKeybindings;
 use crate::pane_group::WorkingDirectoriesModel;
-use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::team::MockTeamClient;
 use crate::server::server_api::workspace::MockWorkspaceClient;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
@@ -93,7 +92,6 @@ fn initialize_test_app(app: &mut App) {
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|_| ActiveSession::default());
     app.add_singleton_model(NotebookKeybindings::new);
-    app.add_singleton_model(|_| ServerApiProvider::new_for_test());
 }
 
 /// Creates a LocalCodeEditorView with the given content
