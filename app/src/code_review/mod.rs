@@ -48,18 +48,6 @@ pub struct CodeReviewPanelArg {
     pub cli_agent: Option<CLIAgent>,
 }
 
-/// Scope for diff set context attachment
-#[derive(Clone, Debug, PartialEq)]
-pub enum DiffSetScope {
-    All,
-    /// A single repo-relative file path in the diff set.
-    File(String),
-}
-
-/// The keystroke that submits in the code review panel. Meant to mirror the keystroke for
-/// [`EditorViewEvent::CmdEnter`].
-pub const CODE_REVIEW_SUBMIT_KEYSTROKE: &str = "cmdorctrl-enter";
-
 /// Register keybindings for code review functionality.
 pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
@@ -88,20 +76,12 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| crate::features::FeatureFlag::GitOperationsInCodeReview.is_enabled()),
     ]);
 
-    app.register_fixed_bindings([
-        FixedBinding::custom(
-            CustomAction::Undo,
-            CodeReviewAction::UndoRevert,
-            "Undo",
-            id!("CodeReviewView") & !id!("IMEOpen"),
-        ),
-        FixedBinding::new(
-            CODE_REVIEW_SUBMIT_KEYSTROKE,
-            CodeReviewAction::SubmitReviewComments,
-            id!("CodeReviewView_NotEditing"),
-        )
-        .with_command_description("Send code review comments to agent"),
-    ]);
+    app.register_fixed_bindings([FixedBinding::custom(
+        CustomAction::Undo,
+        CodeReviewAction::UndoRevert,
+        "Undo",
+        id!("CodeReviewView") & !id!("IMEOpen"),
+    )]);
 
     diff_menu::init(app);
     diff_selector::init(app);

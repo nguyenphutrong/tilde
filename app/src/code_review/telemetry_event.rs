@@ -116,56 +116,6 @@ impl Display for CodeReviewPaneEntrypoint {
     }
 }
 
-/// Origin of an "Add to context" action.
-#[derive(Clone, Copy, Debug, Serialize)]
-pub enum AddToContextOrigin {
-    /// User selected text and added it to context.
-    #[serde(rename = "selected_text")]
-    SelectedText,
-    /// User clicked the gutter to add a line/hunk to context.
-    #[serde(rename = "gutter")]
-    Gutter,
-    /// User clicked the "Add diff set as context" button in code review header.
-    #[serde(rename = "code_review_header")]
-    #[allow(unused)]
-    CodeReviewHeader,
-}
-
-/// Where code review content was sent after the user action.
-#[derive(Clone, Copy, Debug, Serialize)]
-pub enum CodeReviewContextDestination {
-    /// Written directly to the terminal PTY for an active CLI agent.
-    #[serde(rename = "pty")]
-    Pty,
-    /// Inserted into the Warp AI input buffer as plain text.
-    #[serde(rename = "agent_input")]
-    AgentInput,
-    /// Registered as an AI attachment and referenced from the input.
-    #[serde(rename = "agent_attachment")]
-    AgentAttachment,
-    /// Inserted into the active command buffer while a command is running.
-    #[serde(rename = "active_command_buffer")]
-    ActiveCommandBuffer,
-    /// Submitted as an inline code review request through the Warp AI path.
-    #[serde(rename = "agent_review")]
-    AgentReview,
-    /// Inserted into CLI agent rich input.
-    #[serde(rename = "rich_input")]
-    RichInput,
-}
-
-/// Scope of a diff set attachment initiated from code review.
-#[derive(Clone, Copy, Debug, Serialize)]
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
-pub enum DiffSetContextScope {
-    /// Attach the full diff set for the current review.
-    #[serde(rename = "all")]
-    All,
-    /// Attach the diff set for a single file.
-    #[serde(rename = "file")]
-    File,
-}
-
 /// Pane state change for minimize/maximize events.
 #[derive(Clone, Copy, Debug, Serialize)]
 pub enum PaneStateChange {
@@ -189,13 +139,6 @@ pub enum CodeReviewTelemetryEvent {
         is_code_mode_v2: bool,
         /// The CLI agent type if opened from a CLI agent footer (e.g., Claude Code).
         cli_agent: Option<CLIAgentType>,
-    },
-    /// Emitted when a user adds content to AI context from code review.
-    AddToContext {
-        is_local: Option<bool>,
-        origin: AddToContextOrigin,
-        destination: CodeReviewContextDestination,
-        diff_set_scope: Option<DiffSetContextScope>,
     },
     /// Emitted when a user clicks the revert hunk button.
     RevertHunkClicked { is_local: Option<bool> },
@@ -281,16 +224,6 @@ pub enum CodeReviewTelemetryEvent {
         /// Number of comments currently in the list.
         comment_count: usize,
     },
-    /// Emitted when the user submits an inline review to the agent.
-    ReviewSubmitted {
-        is_local: Option<bool>,
-        /// Number of comments in the submitted review.
-        comment_count: usize,
-        /// Number of unique files with comments.
-        file_count: usize,
-        /// Where the review was submitted.
-        destination: CodeReviewContextDestination,
-    },
     /// Emitted when a comment in the list view is clicked to jump to its location.
     CommentListItemClicked { is_local: Option<bool> },
     /// Emitted when one or more comments fail to be precisely relocated after code changes.
@@ -359,17 +292,6 @@ impl TelemetryEvent for CodeReviewTelemetryEvent {
                 "entrypoint": entrypoint,
                 "is_code_mode_v2": is_code_mode_v2,
                 "agent_name": cli_agent,
-            })),
-            CodeReviewTelemetryEvent::AddToContext {
-                is_local,
-                origin,
-                destination,
-                diff_set_scope,
-            } => Some(json!({
-                "is_local": is_local,
-                "origin": origin,
-                "destination": destination,
-                "diff_set_scope": diff_set_scope,
             })),
             CodeReviewTelemetryEvent::RevertHunkClicked { is_local } => {
                 Some(json!({ "is_local": is_local }))
@@ -456,17 +378,6 @@ impl TelemetryEvent for CodeReviewTelemetryEvent {
                 is_local,
                 comment_count,
             } => Some(json!({ "is_local": is_local, "comment_count": comment_count })),
-            CodeReviewTelemetryEvent::ReviewSubmitted {
-                is_local,
-                comment_count,
-                file_count,
-                destination,
-            } => Some(json!({
-                "is_local": is_local,
-                "comment_count": comment_count,
-                "file_count": file_count,
-                "destination": destination,
-            })),
             CodeReviewTelemetryEvent::CommentListItemClicked { is_local } => {
                 Some(json!({ "is_local": is_local }))
             }
@@ -541,7 +452,6 @@ impl TelemetryEventDesc for CodeReviewTelemetryEventDiscriminants {
     fn name(&self) -> &'static str {
         match self {
             Self::PaneOpened => "CodeReview.PaneOpened",
-            Self::AddToContext => "CodeReview.AddToContext",
             Self::RevertHunkClicked => "CodeReview.RevertHunkClicked",
             Self::FileSaved => "CodeReview.FileSaved",
             Self::PaneStateChanged => "CodeReview.PaneStateChanged",
@@ -557,7 +467,6 @@ impl TelemetryEventDesc for CodeReviewTelemetryEventDiscriminants {
             Self::CommentEdited => "CodeReview.CommentEdited",
             Self::CommentDeleted => "CodeReview.CommentDeleted",
             Self::CommentListExpanded => "CodeReview.CommentListExpanded",
-            Self::ReviewSubmitted => "CodeReview.ReviewSubmitted",
             Self::CommentListItemClicked => "CodeReview.CommentListItemClicked",
             Self::CommentRelocationFailed => "CodeReview.CommentRelocationFailed",
             Self::CommentResolved => "CodeReview.CommentResolved",
@@ -571,7 +480,6 @@ impl TelemetryEventDesc for CodeReviewTelemetryEventDiscriminants {
     fn description(&self) -> &'static str {
         match self {
             Self::PaneOpened => "Code review pane opened",
-            Self::AddToContext => "Content added to AI context from code review",
             Self::RevertHunkClicked => "Revert hunk button clicked",
             Self::FileSaved => "File saved in code review pane",
             Self::PaneStateChanged => "Code review pane minimized or maximized",
@@ -587,7 +495,6 @@ impl TelemetryEventDesc for CodeReviewTelemetryEventDiscriminants {
             Self::CommentEdited => "Inline code review comment edited",
             Self::CommentDeleted => "Inline code review comment deleted",
             Self::CommentListExpanded => "Inline code review comment list expanded",
-            Self::ReviewSubmitted => "Inline code review submitted to agent",
             Self::CommentListItemClicked => "Inline code review comment list item clicked",
             Self::CommentRelocationFailed => {
                 "Inline code review comment relocation fell back to approximate line"

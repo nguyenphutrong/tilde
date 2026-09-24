@@ -291,8 +291,6 @@ use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{CloudObject, GenericStringObjectFormat, JsonObjectType};
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
-#[cfg(feature = "local_fs")]
-use crate::code_review::DiffSetScope;
 use crate::code_review::comments::{
     AttachedReviewComment, PendingImportedReviewComment, convert_insert_review_comments,
 };
@@ -7141,11 +7139,8 @@ impl TerminalView {
 
         // Create attachment reference and key using the shared function
         let main_branch_name = metadata.map(|m| m.main_branch_name.clone());
-        let (attachment_reference, diff_set_key) = create_attachment_reference_and_key(
-            &DiffSetScope::All,
-            &diff_mode,
-            main_branch_name.as_deref(),
-        );
+        let (attachment_reference, diff_set_key) =
+            create_attachment_reference_and_key(&diff_mode, main_branch_name.as_deref());
 
         // Insert the reference into the terminal input immediately
         self.input.update(ctx, |input, ctx| {

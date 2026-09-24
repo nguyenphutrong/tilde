@@ -458,13 +458,6 @@ impl CodeEditorView {
         ctx.notify();
     }
 
-    /// Enables the add context button (plus icon) in diff hunks. Only enable this for code review views.
-    pub fn with_add_context_button(mut self) -> Self {
-        self.display_options.diff_hunk_as_context =
-            Some(AddAsContextButton::new(true /* enabled */));
-        self
-    }
-
     /// Enables the "revert" button on diff hunks. Only enable this for code review views.
     pub fn with_revert_diff_hunk_button(mut self) -> Self {
         self.display_options.revert_diff_hunk =

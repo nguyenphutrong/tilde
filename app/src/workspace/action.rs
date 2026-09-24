@@ -490,8 +490,6 @@ pub enum WorkspaceAction {
     CloseWindow,
     /// Help the user call the Warp executable with the [`crate::args::DEBUG_DUMP_FLAG`].
     DumpDebugInfo,
-    /// Log review comment send eligibility for panes in the active tab.
-    LogReviewCommentSendStatusForActiveTab,
     ToggleRecordingMode,
     ToggleInBandGenerators,
     ToggleDebugNetworkStatus,
@@ -1004,7 +1002,6 @@ impl WorkspaceAction {
             | FocusLeftPanel
             | FocusRightPanel
             | DumpDebugInfo
-            | LogReviewCommentSendStatusForActiveTab
             | ToggleRecordingMode
             | ToggleInBandGenerators
             | ToggleDebugNetworkStatus
