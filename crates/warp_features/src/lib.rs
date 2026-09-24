@@ -38,6 +38,9 @@ pub enum FeatureFlag {
     /// If set, generators are executed using cmd.exe on Windows.
     RunGeneratorsWithCmdExe,
 
+    /// Hands history and file search to configured fzf/atuin shell widgets.
+    ShellWidgetHandoff,
+
     /// Gates a bindable keyboard action for accepting command corrections.
     CommandCorrectionKey,
 
