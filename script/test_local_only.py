@@ -27,6 +27,16 @@ class LocalOnlyGuardTests(unittest.TestCase):
         _, forbidden = self.scan("", lock='[[package]]\nname="candle-core"\nversion="1"\n')
         self.assertEqual(forbidden, ["Cargo.lock: candle-core"])
 
+    def test_rejects_all_opentelemetry_packages_in_manifests_and_lockfile(self):
+        for name in ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp",
+                     "opentelemetry-new-exporter", "tracing-opentelemetry"]:
+            with self.subTest(name=name):
+                _, forbidden = self.scan(
+                    f'[build-dependencies]\nrenamed = {{ package="{name}", version="1" }}\n',
+                    lock=f'[[package]]\nname="{name}"\nversion="1"\n',
+                )
+                self.assertEqual(forbidden, [f"Cargo.lock: {name}", f"app/Cargo.toml: {name}"])
+
     def test_rejects_removed_cloud_workspace_member(self):
         _, forbidden = self.scan("", lock='[[package]]\nname="managed_secrets_wasm"\nversion="1"\n')
         self.assertEqual(forbidden, ["Cargo.lock: managed_secrets_wasm"])

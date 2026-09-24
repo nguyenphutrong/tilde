@@ -49,7 +49,7 @@ caches and Git history are not erased.
 
 The standalone `serve-wasm` shared-session/Drive server and `managed_secrets_wasm` credential wrapper,
 their scripts/profiles, and the wrapper-only sealing API/test are removed. Workspace members now
-number 77 (baseline 79); lock packages number 1,483 (baseline 1,544). Native managed-secrets behavior
+number 77 (baseline 79); lock packages number 1,480 (baseline 1,544). Native managed-secrets behavior
 remains: all 31 tests pass. All-target app Clippy passes with existing warnings.
 
 `script/check_local_only.py` rejects `ort`, `ort-sys`, `candle-core`, `candle-nn`, `candle-onnx`, and
@@ -158,7 +158,12 @@ The inline AI conversation menu, its query ranking, entry points and telemetry a
 key remains so saved shell-history heights still load and round-trip without data loss. Local
 history menus, completion, and the separate cloud prompt-history overlay remain.
 
-AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,
+HTTP OpenTelemetry span propagation and its dependencies are removed. The guard rejects the entire
+`opentelemetry*` and `tracing-opentelemetry*` package families, including renamed and transitive
+dependencies. Local diagnostics remain. Tests build a GitHub updater request and execute loopback
+HTTP without cloud trace headers; they do not assert network silence or remove other Warp headers.
+
+AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry,
 and associated bootstrap/settings/UI contracts remain. Classifier heuristics and serialized decision
 variants still exist. Remove leaf consumers first, then their owning contracts; do not replace removed
 consumers with dummy singletons or stubs. Preserve local shell/PTY, history, completion, editor and Git

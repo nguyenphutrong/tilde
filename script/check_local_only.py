@@ -24,7 +24,7 @@ RESIDUE = {
     "cloud_object_persistence", "firebase", "warp_graphql", "warp_graphql_schema",
     "warp_server_auth", "warp_server_client", "warp_multi_agent_api",
     "warp_multi_agent_client", "remote_server", "computer_use", "voice_input",
-    "oauth2", "cynic", "graphql-ws-client", "tracing-opentelemetry",
+    "oauth2", "cynic", "graphql-ws-client",
 }
 ENDPOINT = re.compile(
     r"(?:https?|wss?)://[^\s\"'<>]*"
@@ -36,8 +36,12 @@ ENDPOINT = re.compile(
 SOURCE_SUFFIXES = {".rs", ".toml", ".sh", ".ps1", ".yml", ".yaml", ".json"}
 
 
+def removed_dependency(name):
+    return name in REMOVED or name.startswith(("opentelemetry", "tracing-opentelemetry"))
+
+
 def restricted(name):
-    return name in RESIDUE or name.startswith(("sentry", "opentelemetry"))
+    return name in RESIDUE or name.startswith("sentry")
 
 
 def dependencies(value):
@@ -58,7 +62,7 @@ def inventory(root, paths):
             continue
         if path.name == "Cargo.toml":
             for name in dependencies(tomllib.loads(path.read_text())):
-                if name in REMOVED:
+                if removed_dependency(name):
                     forbidden.add(f"{relative}: {name}")
                 elif restricted(name):
                     found[f"dependency:{relative}:{name}"] += 1
@@ -72,7 +76,7 @@ def inventory(root, paths):
                     found[f"endpoint:{relative}:{digest}"] += 1
     for package in tomllib.loads((root / "Cargo.lock").read_text())["package"]:
         name = package["name"]
-        if name in REMOVED:
+        if removed_dependency(name):
             forbidden.add(f"Cargo.lock: {name}")
         elif restricted(name):
             found[f"lock:{name}:{package['version']}"] += 1

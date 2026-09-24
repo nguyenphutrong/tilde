@@ -89,5 +89,8 @@ jobs:
       - name: Test terminal CLI
         run: cargo test --locked -p warp_cli --lib
 
+      - name: Test HTTP and build cache
+        run: cargo test --locked -p http_client -p build_cache --lib
+
       - name: Test terminal TUI
         run: cargo test --locked -p warp_tui --lib
