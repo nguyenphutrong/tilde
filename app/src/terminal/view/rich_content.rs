@@ -249,7 +249,6 @@ pub enum RichContentMetadata {
     },
     InlineAgentViewHeader,
     AgentViewZeroState,
-    TerminalViewZeroState,
     PendingUserQuery {
         pending_user_query_block_handle: ViewHandle<PendingUserQueryBlock>,
     },
@@ -274,15 +273,13 @@ impl TerminalView {
         position: RichContentInsertionPosition,
         ctx: &mut ViewContext<Self>,
     ) {
-        // Agent view entry blocks, inline agent view headers, and terminal zero state blocks
+        // Agent view entry blocks and inline agent view headers
         // should not be associated with any conversation, as they always belong in the top-level
         // terminal view and should be hidden while agent view is active.
         let is_agent_view_scoped_terminal_content = matches!(
             metadata,
             Some(
-                RichContentMetadata::AgentViewEntry(_)
-                    | RichContentMetadata::InlineAgentViewHeader
-                    | RichContentMetadata::TerminalViewZeroState
+                RichContentMetadata::AgentViewEntry(_) | RichContentMetadata::InlineAgentViewHeader
             )
         );
         let is_use_agent_footer = handle.id() == self.use_agent_footer.id();

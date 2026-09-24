@@ -87,6 +87,8 @@ jobs:
           cargo test --locked -p warp --lib retired_input_predictions_are_not_registered_settings
           cargo test --locked -p warp --lib terminal::autosuggestions::tests::
           cargo test --locked -p warp --lib retired_conversation_menu
+          cargo test --locked -p warp --lib terminal::settings::tests::
+          cargo test --locked -p warp --lib retired_autodetection_decodes_without_becoming_available
 
       - name: Test terminal CLI
         run: cargo test --locked -p warp_cli --lib

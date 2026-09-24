@@ -514,7 +514,6 @@ grep_tool = []
 # For the most part, including GUI code in headless builds is fine; the main use case is
 # for things that pull in external dependencies.
 gui = []
-nld_prompt_history_match = []
 msys2_shells = []
 file_backed_execution_profiles = []
 file_retrieval_tools = []

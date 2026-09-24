@@ -42,7 +42,6 @@ mod tab_metadata;
 mod testing;
 mod tooltips;
 pub mod use_agent_footer;
-mod zero_state_block;
 
 use std::any::Any;
 use std::borrow::Cow;
@@ -445,7 +444,6 @@ pub use crate::terminal::view::rich_content::{
     RichContentMetadata,
 };
 use crate::terminal::view::ssh_file_upload::FileUploadId;
-use crate::terminal::view::zero_state_block::TerminalViewZeroStateBlock;
 use crate::terminal::warpify::SubshellSource;
 use crate::terminal::warpify::render::render_subshell_separator;
 use crate::terminal::warpify::settings::WarpifySettings;
@@ -12481,29 +12479,6 @@ impl TerminalView {
         self.update_pane_configuration(ctx);
 
         self.ignore_next_set_title_event = true;
-
-        if FeatureFlag::AgentView.is_enabled()
-            && TerminalSettings::as_ref(ctx).should_show_zero_state_block(ctx)
-            && !self.model.lock().block_list().is_restored_session()
-            && !is_subshell_or_ssh
-        {
-            let agent_view_zero_state = ctx.add_typed_action_view(|ctx| {
-                TerminalViewZeroStateBlock::new(
-                    &self.agent_view_controller,
-                    &self.model_events_handle,
-                    ctx,
-                )
-            });
-            self.insert_rich_content(
-                Some(RichContentType::TerminalViewZeroState),
-                agent_view_zero_state,
-                Some(RichContentMetadata::TerminalViewZeroState),
-                RichContentInsertionPosition::Append {
-                    insert_below_long_running_block: false,
-                },
-                ctx,
-            );
-        }
 
         // Now that the session is bootstrapped, update any restored AI blocks that were
         // created before bootstrapping with the shell launch data. This enables file link

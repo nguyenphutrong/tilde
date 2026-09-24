@@ -22,6 +22,8 @@ fn retired_input_predictions_are_not_registered_settings() {
                         "natural_language_autosuggestions_enabled"
                             | "intelligent_autosuggestions_enabled"
                     )
+                    || entry.hierarchy == Some("agents.warp_agent.input")
+                        && entry.storage_key == "ai_command_denylist"
             })
     );
 }

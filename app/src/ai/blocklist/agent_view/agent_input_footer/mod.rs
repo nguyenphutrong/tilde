@@ -12,7 +12,6 @@ use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::{Vector2F, vec2f};
 #[cfg(feature = "voice_input")]
 use settings::Setting;
-use settings::ToggleableSetting;
 use toolbar_item::AgentToolbarItemKind;
 #[cfg(feature = "voice_input")]
 use voice_input::{
@@ -27,7 +26,6 @@ use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::{AnsiColorIdentifier, Fill};
 #[cfg(feature = "voice_input")]
 use warp_errors::report_error;
-use warp_errors::report_if_error;
 use warpui::r#async::{SpawnedFutureHandle, Timer};
 use warpui::elements::{
     ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
@@ -65,8 +63,10 @@ use crate::server::server_api::TranscribeError;
 #[cfg(feature = "voice_input")]
 use crate::server::team_scope::RequestTeamScope;
 use crate::server::telemetry::TelemetryEvent;
+#[cfg(feature = "voice_input")]
+use crate::settings::AISettingsChangedEvent;
 use crate::settings::{
-    AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent, PrivacySettings,
+    AISettings, CodeSettings, CodeSettingsChangedEvent, PrivacySettings,
     PrivacySettingsChangedEvent,
 };
 use crate::terminal::cli_agent_sessions::{
@@ -93,9 +93,6 @@ use crate::view_components::action_button::{
 use crate::workspace::ToastStack;
 use crate::workspace::view::TOGGLE_PROJECT_EXPLORER_BINDING_NAME;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-
-const ENABLE_NLD_TOOLTIP: &str = "Enable terminal command autodetection";
-const DISABLE_NLD_TOOLTIP: &str = "Disable terminal command autodetection";
 
 const FAST_FORWARD_ON_TOOLTIP: &str = "Turn off auto-approve all agent actions";
 const FAST_FORWARD_OFF_TOOLTIP: &str = "Auto-approve all agent actions for this task";
@@ -126,7 +123,7 @@ fn is_conversation_transcript_context(
 /// Footer control bar at the bottom of the agent input.
 ///
 /// Renders in two modes:
-/// - **Agent View mode** (default): model selector, NLD toggle, chips, etc.
+/// - **Agent View mode** (default): model selector, chips, etc.
 /// - **CLI agent mode**: agent icon, image, mic, file explorer, view changes, rich input.
 ///
 /// The mode is determined by reading `CLIAgentSessionsModel` at render time.
@@ -136,7 +133,6 @@ pub struct AgentInputFooter {
     terminal_view_id: EntityId,
     #[cfg_attr(not(feature = "voice_input"), allow(unused))]
     mic_button: ViewHandle<ActionButton>,
-    nld_button: ViewHandle<ActionButton>,
     file_button: ViewHandle<ActionButton>,
     start_remote_control_button: ViewHandle<ActionButton>,
     stop_remote_control_button: ViewHandle<ActionButton>,
@@ -267,44 +263,6 @@ impl AgentInputFooter {
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let button_size = ButtonSize::AgentInputButton;
-
-        let nld_button = ctx.add_typed_action_view(|ctx| {
-            let is_nld_enabled = AISettings::as_ref(ctx).is_ai_autodetection_enabled(ctx);
-            let mut button = ActionButton::new("", NLDButtonTheme)
-                .with_icon(Icon::NLD)
-                .with_size(button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AgentInputFooterAction::ToggleAutodetectionSetting);
-                });
-            button.set_active(is_nld_enabled, ctx);
-            button.set_tooltip(
-                Some(if is_nld_enabled {
-                    DISABLE_NLD_TOOLTIP
-                } else {
-                    ENABLE_NLD_TOOLTIP
-                }),
-                ctx,
-            );
-            button
-        });
-        ctx.subscribe_to_model(&AISettings::handle(ctx), |me, settings, event, ctx| {
-            let AISettingsChangedEvent::AIAutoDetectionEnabled { .. } = event else {
-                return;
-            };
-            let is_nld_enabled = settings.as_ref(ctx).is_ai_autodetection_enabled(ctx);
-            me.nld_button.update(ctx, |button, ctx| {
-                button.set_active(is_nld_enabled, ctx);
-                button.set_tooltip(
-                    Some(if is_nld_enabled {
-                        DISABLE_NLD_TOOLTIP
-                    } else {
-                        ENABLE_NLD_TOOLTIP
-                    }),
-                    ctx,
-                );
-            });
-        });
 
         let mic_button = ctx.add_typed_action_view(|_ctx| {
             let button = ActionButton::new("", ActiveMicButtonTheme)
@@ -534,11 +492,6 @@ impl AgentInputFooter {
         ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |_, _, _, ctx| {
             ctx.notify()
         });
-        ctx.subscribe_to_model(&AISettings::handle(ctx), |_, _, event, ctx| {
-            if matches!(event, AISettingsChangedEvent::AIAutoDetectionEnabled { .. }) {
-                ctx.notify()
-            }
-        });
         ctx.subscribe_to_model(&PrivacySettings::handle(ctx), |_, _, event, ctx| {
             if matches!(
                 event,
@@ -656,7 +609,6 @@ impl AgentInputFooter {
         let mut me = Self {
             terminal_view_id,
             ambient_agent_view_model: None,
-            nld_button,
             mic_button,
             file_button,
             file_explorer_button,
@@ -1539,7 +1491,7 @@ impl AgentInputFooter {
                     || *SessionSettings::as_ref(app).show_model_selectors_in_prompt;
                 show.then(|| ChildView::new(&self.model_selector).finish())
             }
-            AgentToolbarItemKind::NLDToggle => Some(ChildView::new(&self.nld_button).finish()),
+            AgentToolbarItemKind::NLDToggle => None,
             AgentToolbarItemKind::VoiceInput => {
                 #[cfg(feature = "voice_input")]
                 {
@@ -1793,7 +1745,6 @@ pub enum AgentInputFooterAction {
     ToggleCodeReview,
     ToggleFileExplorer,
     ToggleRichInput,
-    ToggleAutodetectionSetting,
     StartRemoteControl,
     StopRemoteControl,
     ShowContextMenu {
@@ -1862,16 +1813,6 @@ impl TypedActionView for AgentInputFooter {
                 } else {
                     ctx.emit(AgentInputFooterEvent::OpenRichInput);
                 }
-            }
-            AgentInputFooterAction::ToggleAutodetectionSetting => {
-                let ai_settings = AISettings::handle(ctx);
-                ai_settings.update(ctx, |settings, ctx| {
-                    report_if_error!(
-                        settings
-                            .ai_autodetection_enabled_internal
-                            .toggle_and_save_value(ctx)
-                    );
-                });
             }
             AgentInputFooterAction::StartRemoteControl => {
                 ctx.emit(AgentInputFooterEvent::StartRemoteControl);
@@ -2103,38 +2044,5 @@ impl ActionButtonTheme for FastForwardLockedTheme {
 
     fn should_opt_out_of_contrast_adjustment(&self) -> bool {
         FastForwardButtonTheme.should_opt_out_of_contrast_adjustment()
-    }
-}
-
-/// Same as `AgentInputButtonTheme`, except with one-off special active styling for the NLD button.
-struct NLDButtonTheme;
-
-impl ActionButtonTheme for NLDButtonTheme {
-    fn background(&self, hovered: bool, appearance: &Appearance) -> Option<Fill> {
-        AgentInputButtonTheme.background(hovered, appearance)
-    }
-
-    fn text_color(
-        &self,
-        hovered: bool,
-        _background: Option<Fill>,
-        appearance: &Appearance,
-    ) -> ColorU {
-        if hovered {
-            appearance.theme().ansi_fg_blue()
-        } else {
-            appearance
-                .theme()
-                .disabled_text_color(appearance.theme().surface_1())
-                .into_solid()
-        }
-    }
-
-    fn border(&self, appearance: &Appearance) -> Option<ColorU> {
-        AgentInputButtonTheme.border(appearance)
-    }
-
-    fn should_opt_out_of_contrast_adjustment(&self) -> bool {
-        true
     }
 }
