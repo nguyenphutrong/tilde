@@ -44,7 +44,7 @@ use crate::terminal::model::terminal_model::BlockIndex;
 use crate::terminal::model::terminal_model::ExitReason;
 #[cfg(unix)]
 use crate::terminal::model_events::ModelEvent as TerminalModelEvent;
-use crate::terminal::model_events::{ModelEventDispatcher, SshRemoteServerSupport};
+use crate::terminal::model_events::ModelEventDispatcher;
 use crate::terminal::session_settings::{SessionSettings, ToolbarChipSelection};
 use crate::terminal::shared_session::sharer::network::Network;
 use crate::terminal::shared_session::{IsSharedSessionCreator, SharedSessionStatus};
@@ -53,7 +53,7 @@ use crate::terminal::terminal_manager::BlockSpacing;
 use crate::terminal::warpify::settings::WarpifySettings;
 use crate::terminal::writeable_pty::pty_controller::{EventLoopSendError, EventLoopSender};
 use crate::terminal::writeable_pty::terminal_manager_util::{
-    init_pty_controller_model, init_remote_server_controller, wire_up_pty_controller_with_surface,
+    init_pty_controller_model, wire_up_pty_controller_with_surface,
 };
 use crate::terminal::writeable_pty::{self, Message, PtyIntentEvent, TerminalSurface};
 use crate::terminal::{
@@ -62,8 +62,6 @@ use crate::terminal::{
 };
 
 type PtyController = writeable_pty::PtyController<mio_channel::Sender<Message>>;
-type RemoteServerController =
-    writeable_pty::remote_server_controller::RemoteServerController<mio_channel::Sender<Message>>;
 
 struct AppPtySpawnHooks {
     is_crash_reporting_enabled: bool,
@@ -114,9 +112,6 @@ pub struct TerminalManager<S> {
     /// The manager is responsible for managing the lifetime
     /// of the PTY controller.
     pty_controller: ModelHandle<PtyController>,
-
-    /// The manager is responsible for managing the lifetime of the remote server controller.
-    remote_server_controller: ModelHandle<RemoteServerController>,
 
     /// The process ID of the PTY. Purely used for integration tests. None if the PTY has not yet
     /// been started.
@@ -247,7 +242,6 @@ impl<S> TerminalManager<S> {
             model_event_sender,
             chosen_shell,
             BlockSpacing::for_gui(ctx),
-            SshRemoteServerSupport::Enabled,
             ctx,
             create_surface,
             |manager| Box::new(manager),
@@ -288,7 +282,6 @@ impl<S> TerminalManager<S> {
             model_event_sender,
             chosen_shell,
             block_spacing,
-            SshRemoteServerSupport::Disabled,
             ctx,
             create_surface,
             |manager| Box::new(TuiTerminalManager(manager)),
@@ -307,7 +300,6 @@ impl<S> TerminalManager<S> {
         model_event_sender: Option<SyncSender<ModelEvent>>,
         chosen_shell: Option<AvailableShell>,
         block_spacing: BlockSpacing,
-        ssh_remote_server_support: SshRemoteServerSupport,
         ctx: &mut AppContext,
         create_surface: impl FnOnce(
             TerminalSurfaceInit,
@@ -337,14 +329,8 @@ impl<S> TerminalManager<S> {
         // Initialize the sessions model.
         let sessions = ctx.add_model(|ctx| Sessions::new(executor_command_tx.clone(), ctx));
 
-        let model_events = ctx.add_model(|ctx| {
-            ModelEventDispatcher::new_with_ssh_remote_server_support(
-                events_rx,
-                sessions.clone(),
-                ssh_remote_server_support,
-                ctx,
-            )
-        });
+        let model_events =
+            ctx.add_model(|ctx| ModelEventDispatcher::new(events_rx, sessions.clone(), ctx));
 
         let preferred_shell = chosen_shell.unwrap_or_else(|| {
             AvailableShells::handle(ctx)
@@ -409,9 +395,6 @@ impl<S> TerminalManager<S> {
             ctx,
         );
 
-        // Initialize the RemoteServerController.
-        let remote_server_controller =
-            init_remote_server_controller(&pty_controller, &model_events, ctx);
         let size_info = model.lock().block_list().size().to_owned();
         let TerminalSurfaceResult { surface, post_wire } = create_surface(
             TerminalSurfaceInit {
@@ -441,7 +424,6 @@ impl<S> TerminalManager<S> {
             #[cfg(unix)]
             terminal_attributes_poller: None,
             pty_controller,
-            remote_server_controller,
             #[cfg(feature = "integration_tests")]
             pid: None,
             inactive_pty_reads_rx,
@@ -503,11 +485,6 @@ impl<S> TerminalManager<S> {
     /// Returns the terminal model owned by this manager.
     pub(crate) fn model(&self) -> Arc<FairMutex<TerminalModel>> {
         self.model.clone()
-    }
-
-    /// Returns the remote server controller owned by this manager.
-    pub(super) fn remote_server_controller(&self) -> ModelHandle<RemoteServerController> {
-        self.remote_server_controller.clone()
     }
 
     /// Sends a shutdown message to the PTY event loop and waits for it to

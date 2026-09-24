@@ -106,6 +106,10 @@ Terminal models/blocks no longer carry AI-UGC telemetry state or expand serializ
 the existing 50-line local output bound and forced secret-redaction path remain. Local and legacy
 secret-display preferences are preserved, with no database-schema or persisted-record changes.
 
+Local and SSH-wrapper InitShell events now reach ordinary PTY bootstrap directly, even with the old
+remote-server flag enabled. The remote-server bootstrap controller and daemon bootstrap notification
+are removed; ordinary PTY writing, resizing, interrupts, and shell initialization remain.
+
 ## Remaining scope and data safety
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,

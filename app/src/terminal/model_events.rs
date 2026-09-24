@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_channel::Receiver;
-use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity};
+use warpui::{Entity, ModelContext, ModelHandle};
 
 use super::event::{BootstrappedEvent, SshLoginStatus};
 use super::model::ansi;
@@ -9,10 +9,8 @@ use super::model::ansi::{ExternalShellWidgetSelectionValue, FinishUpdateValue};
 use super::model::block::BlockId;
 use super::model::completions::ShellCompletion;
 use super::model::lifecycle::LifecycleTelemetryEvent;
-use super::model::session::{IsSSHWrapperSession, SessionId, SessionInfo};
+use super::model::session::{SessionId, SessionInfo};
 use super::model::terminal_model::{CommandType, ExitReason, HandlerEvent};
-use crate::features::FeatureFlag;
-use crate::remote_server::manager::RemoteServerManager;
 use crate::server::telemetry::ImageProtocol;
 use crate::terminal::ClipboardType;
 use crate::terminal::event::{
@@ -22,18 +20,6 @@ use crate::terminal::event::{
 };
 use crate::terminal::model::session::Sessions;
 use crate::terminal::shell::ShellType;
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SshRemoteServerSupport {
-    Enabled,
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    Disabled,
-}
-
-impl SshRemoteServerSupport {
-    fn should_use_remote_server(self, feature_enabled: bool, is_ssh_wrapper_session: bool) -> bool {
-        matches!(self, Self::Enabled) && feature_enabled && is_ssh_wrapper_session
-    }
-}
 
 /// Model that dispatches events that have been emitted by the [`crate::terminal::TerminalModel`],
 /// allowing other models/views to subscribe to `TerminalModel` events like it would any other
@@ -42,27 +28,12 @@ pub struct ModelEventDispatcher {
     last_start_prompt_marker: Option<PromptKind>,
     active_session_id: Option<SessionId>,
     sessions: ModelHandle<Sessions>,
-    ssh_remote_server_support: SshRemoteServerSupport,
 }
 
 impl ModelEventDispatcher {
     pub fn new(
         model_events_rx: Receiver<Event>,
         sessions: ModelHandle<Sessions>,
-        ctx: &mut ModelContext<Self>,
-    ) -> Self {
-        Self::new_with_ssh_remote_server_support(
-            model_events_rx,
-            sessions,
-            SshRemoteServerSupport::Enabled,
-            ctx,
-        )
-    }
-
-    pub(crate) fn new_with_ssh_remote_server_support(
-        model_events_rx: Receiver<Event>,
-        sessions: ModelHandle<Sessions>,
-        ssh_remote_server_support: SshRemoteServerSupport,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
         ctx.spawn_stream_local(
@@ -74,14 +45,7 @@ impl ModelEventDispatcher {
             active_session_id: None,
             last_start_prompt_marker: None,
             sessions,
-            ssh_remote_server_support,
         }
-    }
-    fn should_use_ssh_remote_server(&self, is_ssh_wrapper_session: bool) -> bool {
-        self.ssh_remote_server_support.should_use_remote_server(
-            FeatureFlag::SshRemoteServer.is_enabled(),
-            is_ssh_wrapper_session,
-        )
     }
 
     /// Returns the active session to which the PTY is currently attached.
@@ -108,31 +72,14 @@ impl ModelEventDispatcher {
                 self.sessions.update(ctx, |sessions, ctx| {
                     sessions.register_pending_session(pending_session_info.as_ref(), ctx);
                 });
-                let is_ssh_wrapper_session = matches!(
-                    pending_session_info.is_ssh_wrapper_session,
-                    IsSSHWrapperSession::Yes { .. }
-                );
-                if self.should_use_ssh_remote_server(is_ssh_wrapper_session) {
-                    ModelEvent::SshInitShell {
-                        pending_session_info,
-                    }
-                } else {
-                    ModelEvent::Handler(AnsiHandlerEvent::InitShell {
-                        pending_session_info,
-                    })
-                }
+                ModelEvent::Handler(AnsiHandlerEvent::InitShell {
+                    pending_session_info,
+                })
             }
             Event::Handler(HandlerEvent::Bootstrapped(bootstrapped_event)) => {
                 let session_id = bootstrapped_event.session_info.session_id;
                 let is_subshell = bootstrapped_event.session_info.subshell_info.is_some();
 
-                // Always initialize the session synchronously. When the
-                // `SshRemoteServer` flag is enabled, the remote-server client
-                // is wired up independently: `Sessions::new` subscribes to
-                // `RemoteServerManagerEvent::SessionConnected` and attaches the
-                // client to the session's `RemoteServerCommandExecutor` when
-                // the connection lands, so it's safe to initialize the session
-                // before the remote server finishes connecting.
                 self.complete_bootstrapped_session(bootstrapped_event, ctx);
 
                 ModelEvent::Handler(AnsiHandlerEvent::Bootstrapped {
@@ -299,17 +246,6 @@ impl ModelEventDispatcher {
     }
 
     /// Finalizes session initialization by calling `Sessions::initialize_bootstrapped_session`.
-    ///
-    /// For SSH wrapper sessions with the `SshRemoteServer` flag, this also
-    /// sends the `SessionBootstrapped` notification to the remote server via
-    /// the manager.
-    ///
-    /// The `SessionBootstrapped` notification is sent **before** initializing
-    /// the session so the daemon creates the `LocalCommandExecutor` before any
-    /// subscriber (e.g. `TerminalView::handle_session_bootstrapped`) can queue
-    /// a `RunCommand` request. Without this ordering, a race exists where the
-    /// daemon receives `RunCommand` before the executor is ready, producing
-    /// "No executor for RunCommand, session was never initialized" errors.
     fn complete_bootstrapped_session(
         &mut self,
         event: BootstrappedEvent,
@@ -321,31 +257,6 @@ impl ModelEventDispatcher {
             restored_block_commands,
             rcfiles_duration_seconds,
         } = event;
-
-        let (is_ssh_wrapper_session, session_id, shell_type_name, shell_path) = (
-            matches!(
-                session_info.is_ssh_wrapper_session,
-                IsSSHWrapperSession::Yes { .. }
-            ),
-            session_info.session_id,
-            session_info.shell.shell_type().name().to_owned(),
-            session_info.shell.shell_path().clone(),
-        );
-
-        // Send the SessionBootstrapped notification to the daemon BEFORE
-        // initializing the session. `initialize_bootstrapped_session` emits
-        // `SessionsEvent::SessionBootstrapped`, which causes subscribers to
-        // immediately queue `RunCommand` requests (e.g. `load_external_commands`).
-        // The daemon must have the executor ready before those requests arrive.
-        if self.should_use_ssh_remote_server(is_ssh_wrapper_session) {
-            RemoteServerManager::handle(ctx).update(ctx, |mgr, _ctx| {
-                mgr.notify_session_bootstrapped(
-                    session_id,
-                    &shell_type_name,
-                    shell_path.as_deref(),
-                );
-            });
-        }
 
         self.sessions.update(ctx, |sessions, ctx| {
             sessions.initialize_bootstrapped_session(
