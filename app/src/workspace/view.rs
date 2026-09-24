@@ -172,8 +172,6 @@ use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel};
 use crate::ai::execution_profiles::ExecutionProfileId;
 use crate::ai::execution_profiles::editor::ExecutionProfileEditorManager;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
-use crate::ai::facts::view::AIFactPage;
-use crate::ai::facts::{AIFactManager, AIFactView, AIFactViewEvent};
 use crate::ai::llms::LLMPreferences;
 use crate::ai_assistant::AskAIType;
 use crate::ai_assistant::execution_context::execution_context_for_session;
@@ -246,7 +244,7 @@ use crate::palette::PaletteMode;
 use crate::pane_group::FilePane;
 use crate::pane_group::pane::ActionOrigin;
 use crate::pane_group::{
-    self, AIFactPane, AnyPaneContent, ChildAgentOrigin, CodeDiffPane, CodePane, CodeReviewPanelArg,
+    self, AnyPaneContent, ChildAgentOrigin, CodeDiffPane, CodePane, CodeReviewPanelArg,
     CustomRouterEditorPane, Direction as PaneGroupDirection, Direction, ExecutionProfileEditorPane,
     NetworkLogPane, NewTerminalOptions, PaneGroup, PaneId, PanesLayout, TabBarHoverIndex,
     TerminalPaneId,
@@ -283,8 +281,8 @@ use crate::server::network_log_pane_manager::NetworkLogPaneManager;
 use crate::server::server_api::{ServerApi, ServerApiProvider, ServerTime};
 use crate::server::telemetry::{
     AddTabWithShellSource, AnonymousUserSignupEntrypoint, CloseTarget, EnvVarTelemetryMetadata,
-    FileTreeSource, KnowledgePaneEntrypoint, NotificationsTurnedOnSource, PaletteSource,
-    SharingDialogSource, TabRenameEvent, TierLimitHitEvent, WarpDriveSource,
+    FileTreeSource, NotificationsTurnedOnSource, PaletteSource, SharingDialogSource,
+    TabRenameEvent, TierLimitHitEvent, WarpDriveSource,
 };
 use crate::session_management::{SessionNavigationData, SessionSource, TabNavigationData};
 use crate::settings::cloud_preferences::CloudPreferencesSettings;
@@ -940,7 +938,6 @@ pub struct Workspace {
     transcript_details_panel: ViewHandle<ConversationDetailsPanel>,
 
     file_upload_sessions: FileUploadSessions,
-    ai_fact_view: ViewHandle<AIFactView>,
     left_panel_open: bool,
     vertical_tabs_panel_open: bool,
     vertical_tabs_panel: VerticalTabsPanelState,
@@ -2359,15 +2356,6 @@ impl Workspace {
             me.handle_command_search_event(event, ctx);
         });
 
-        let ai_fact_view = ctx.add_typed_action_view(AIFactView::new);
-        ctx.subscribe_to_view(&ai_fact_view, move |me, _, event, ctx| {
-            me.handle_ai_fact_view_event(event, ctx);
-        });
-
-        AIFactManager::handle(ctx).update(ctx, |manager, _| {
-            manager.register_view(window_id, ai_fact_view.clone());
-        });
-
         let working_directories_model =
             ctx.add_model(|_| pane_group::WorkingDirectoriesModel::new());
 
@@ -2706,7 +2694,6 @@ impl Workspace {
             native_modal,
             shared_objects_creation_denied_modal,
             file_upload_sessions: Default::default(),
-            ai_fact_view,
             left_panel_open: false,
             vertical_tabs_panel_open: false,
             vertical_tabs_panel: Default::default(),
@@ -2771,11 +2758,6 @@ impl Workspace {
     #[cfg(any(test, feature = "integration_tests"))]
     pub fn command_palette_view(&self) -> ViewHandle<crate::search::command_palette::View> {
         self.palette.clone()
-    }
-
-    #[cfg(any(test, feature = "integration_tests"))]
-    pub fn ai_fact_view(&self) -> ViewHandle<AIFactView> {
-        self.ai_fact_view.clone()
     }
 
     fn handle_task_status_reset(&mut self, pane_group_id: EntityId, ctx: &mut ViewContext<Self>) {
@@ -5127,67 +5109,6 @@ impl Workspace {
         ctx.focus(&self.header_toolbar_editor_modal);
     }
 
-    fn handle_ai_fact_view_event(&mut self, event: &AIFactViewEvent, ctx: &mut ViewContext<Self>) {
-        match event {
-            #[allow(unused_variables)]
-            AIFactViewEvent::OpenFile(location) => {
-                #[cfg(feature = "local_fs")]
-                {
-                    match location {
-                        LocalOrRemotePath::Local(path) => {
-                            let settings = EditorSettings::as_ref(ctx);
-                            let target = resolve_file_target_with_editor_choice(
-                                path,
-                                *settings.open_file_editor,
-                                *settings.prefer_markdown_viewer,
-                                *settings.open_file_layout,
-                                None,
-                            );
-                            self.open_file_with_target(
-                                path.clone(),
-                                target,
-                                None,
-                                CodeSource::ProjectRules {
-                                    location: location.clone(),
-                                },
-                                ctx,
-                            );
-                        }
-                        LocalOrRemotePath::Remote(_) => {
-                            self.open_code(
-                                CodeSource::ProjectRules {
-                                    location: location.clone(),
-                                },
-                                EditorLayout::SplitPane,
-                                None,
-                                false,
-                                &[],
-                                ctx,
-                            );
-                        }
-                    }
-                }
-            }
-            AIFactViewEvent::InitializeProject(path) => {
-                let active_terminal_view = self
-                    .active_tab_pane_group()
-                    .as_ref(ctx)
-                    .active_session_view(ctx);
-
-                if let Some(terminal_view) = active_terminal_view {
-                    terminal_view.update(ctx, |terminal_view, ctx| {
-                        terminal_view.open_repo_folder(
-                            path.to_string_lossy().to_string(),
-                            true,
-                            ctx,
-                        );
-                    });
-                }
-            }
-            _ => {}
-        }
-    }
-
     fn handle_agent_management_view_event(
         &mut self,
         event: &AgentManagementViewEvent,
@@ -6984,11 +6905,6 @@ impl Workspace {
                     ctx,
                 );
             }
-            ObjectType::GenericStringObject(GenericStringObjectFormat::Json(
-                JsonObjectType::AIFact,
-            )) => {
-                self.open_ai_fact_collection_pane(None, None, ctx);
-            }
             _ => {}
         }
     }
@@ -7618,41 +7534,6 @@ impl Workspace {
             let (new_idx, group_id) = self.new_tab_index_and_group(ctx);
             self.add_tab_from_existing_pane(Box::new(new_pane), new_idx, group_id, ctx);
         }
-    }
-
-    /// Open the AI Fact Collection pane in a split pane (default direction is left).
-    pub fn open_ai_fact_collection_pane(
-        &mut self,
-        direction: Option<Direction>,
-        page: Option<AIFactPage>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Ensure there is only one AI Fact Collection pane per window
-        let manager = AIFactManager::handle(ctx);
-
-        // Navigate to and focus existing pane
-        if let Some(locator) = manager.as_ref(ctx).find_pane(ctx.window_id()) {
-            if let Some(page) = page {
-                self.ai_fact_view.update(ctx, |view, ctx| {
-                    view.update_page(page, ctx);
-                });
-            }
-            self.focus_pane(locator, ctx);
-            return;
-        }
-
-        let pane = AIFactPane::from_view(self.ai_fact_view.clone(), ctx);
-        self.ai_fact_view.update(ctx, |view, ctx| {
-            view.update_page(page.unwrap_or_default(), ctx);
-        });
-        let direction = direction.unwrap_or(Direction::Left);
-        self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
-            pane_group
-                .add_pane_with_direction(direction, pane, true /* focus_new_pane */, ctx);
-        });
-
-        // Focus WD index item
-        self.set_selected_object(Some(WarpDriveItemId::AIFactCollection), ctx);
     }
 
     /// Open the Execution Profile Editor pane
@@ -13736,21 +13617,6 @@ impl Workspace {
             pane_group::Event::OpenWorkflowModalWithTemporary(workflow) => {
                 self.open_workflow_with_temporary(*workflow.clone(), ctx)
             }
-            pane_group::Event::OpenAIFactCollection { sync_id } => {
-                // Entrypoint from AI blocklist
-                let page = if sync_id.is_some() {
-                    AIFactPage::RuleEditor { sync_id: *sync_id }
-                } else {
-                    AIFactPage::Rules
-                };
-                self.open_ai_fact_collection_pane(None, Some(page), ctx);
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::KnowledgePaneOpened {
-                        entrypoint: KnowledgePaneEntrypoint::AIBlocklist,
-                    },
-                    ctx
-                );
-            }
             pane_group::Event::OpenPromptEditor => {
                 self.open_prompt_editor(PromptEditorOpenSource::InputContextMenu, ctx);
             }
@@ -13759,20 +13625,6 @@ impl Workspace {
             }
             pane_group::Event::OpenCLIAgentToolbarEditor => {
                 self.open_agent_toolbar_editor(AgentToolbarEditorMode::CLIAgent, ctx);
-            }
-            pane_group::Event::OpenAddRulePane => {
-                // Open the AI Fact Collection pane directly with the Rule Editor page for adding a new rule
-                self.open_ai_fact_collection_pane(
-                    None,
-                    Some(AIFactPage::RuleEditor { sync_id: None }),
-                    ctx,
-                );
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::KnowledgePaneOpened {
-                        entrypoint: KnowledgePaneEntrypoint::SlashCommand,
-                    },
-                    ctx
-                );
             }
             #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
             pane_group::Event::OpenFileInWarp { path, session } => {
@@ -14066,14 +13918,6 @@ impl Workspace {
                     );
                     active_object_open_in_pane = true;
                 }
-                // Case 5: ai fact pane
-                else if let Some(_ai_fact_pane) =
-                    pane_group.ai_fact_pane_by_pane_id(focused_pane_id)
-                {
-                    self.set_selected_object(Some(WarpDriveItemId::AIFactCollection), ctx);
-                    active_object_open_in_pane = true;
-                }
-
                 if !active_object_open_in_pane {
                     self.set_selected_object(None, ctx);
                     self.set_focused_index(None, ctx);
@@ -15193,15 +15037,6 @@ impl Workspace {
                 *mode,
                 ctx,
             ),
-            DrivePanelEvent::OpenAIFactCollection => {
-                self.open_ai_fact_collection_pane(None, None, ctx);
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::KnowledgePaneOpened {
-                        entrypoint: KnowledgePaneEntrypoint::WarpDrive,
-                    },
-                    ctx
-                );
-            }
             DrivePanelEvent::FocusWarpDrive => {
                 ctx.focus(&self.left_panel_view);
             }
@@ -21697,15 +21532,6 @@ impl TypedActionView for Workspace {
                         });
                     }
                 });
-            }
-            OpenAIFactCollection => {
-                self.open_ai_fact_collection_pane(None, None, ctx);
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::KnowledgePaneOpened {
-                        entrypoint: KnowledgePaneEntrypoint::Global,
-                    },
-                    ctx
-                );
             }
             ToggleAIDocumentPane {
                 document_id,

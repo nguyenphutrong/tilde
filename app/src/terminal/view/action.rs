@@ -349,8 +349,6 @@ pub enum TerminalAction {
     IndexProjectSpeedbump,
     AddProjectAtCurrentDirectory,
     OpenProjectRulesPane,
-    OpenAddRulePane,
-    OpenRulesPane,
     OpenEditSkillPane {
         skill_reference: SkillReference,
     },
@@ -676,8 +674,6 @@ impl fmt::Debug for TerminalAction {
             IndexProjectSpeedbump => write!(f, "IndexProject"),
             AddProjectAtCurrentDirectory => write!(f, "AddProjectAtCurrentDirectory"),
             OpenProjectRulesPane => write!(f, "OpenProjectRulesPane"),
-            OpenAddRulePane => write!(f, "OpenAddRulePane"),
-            OpenRulesPane => write!(f, "OpenRulesPane"),
             OpenEditSkillPane { .. } => write!(f, "OpenEditSkillPane"),
             OpenAddPromptPane => write!(f, "OpenAddPromptPane"),
             OpenConversationsPalette => write!(f, "OpenConversationsPalette"),

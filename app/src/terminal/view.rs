@@ -1924,8 +1924,6 @@ pub enum Event {
 
     OpenThemeChooser,
     OpenConversationHistory,
-    OpenAddRulePane,
-    OpenRulesPane,
     OpenAddPromptPane {
         /// The initial prompt body content.
         initial_content: Option<String>,
@@ -26303,8 +26301,6 @@ impl TypedActionView for TerminalView {
             | OpenProjectRulesPane
             | InitProject
             | IndexProjectSpeedbump
-            | OpenAddRulePane
-            | OpenRulesPane
             | OpenEditSkillPane { .. }
             | OpenAddPromptPane
             | AddProjectAtCurrentDirectory
@@ -27210,12 +27206,6 @@ impl TypedActionView for TerminalView {
                             .value(),
                     });
                 }
-            }
-            OpenAddRulePane => {
-                ctx.emit(Event::OpenAddRulePane);
-            }
-            OpenRulesPane => {
-                ctx.emit(Event::OpenRulesPane);
             }
             OpenEditSkillPane { skill_reference } => {
                 #[cfg(feature = "local_fs")]
