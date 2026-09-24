@@ -17,6 +17,42 @@ use crate::terminal::model::test_utils::{
 };
 use crate::test_util::mock_blockgrid;
 
+#[test]
+fn test_get_block_content_summary_extreme_narrow_vs_wide() {
+    let mut massive_input = String::new();
+    let mut massive_output = String::new();
+    for i in 0..1000 {
+        massive_input.push_str(&format!("Input line {i} with some content\r\n"));
+        massive_output.push_str(&format!("Output line {i} with some content\r\n"));
+    }
+    let block = create_test_block_with_grids(
+        BlockIndex::zero(),
+        mock_blockgrid(&massive_input),
+        mock_blockgrid(""),
+        mock_blockgrid(&massive_output),
+        false,
+    );
+    let (input_narrow, output_narrow) = block.get_block_content_summary(20, 75, 25);
+    let (input_wide, output_wide) = block.get_block_content_summary(200, 75, 25);
+
+    assert!(input_narrow.contains("Input line 561"));
+    assert!(!input_narrow.contains("Input line 562"));
+    assert!(!input_narrow.contains("Input line 812"));
+    assert!(input_narrow.contains("Input line 813"));
+    assert!(output_narrow.contains("Output line 561"));
+    assert!(!output_narrow.contains("Output line 562"));
+    assert!(!output_narrow.contains("Output line 812"));
+    assert!(output_narrow.contains("Output line 813"));
+    assert!(input_wide.contains("Input line 74"));
+    assert!(!input_wide.contains("Input line 75"));
+    assert!(!input_wide.contains("Input line 974"));
+    assert!(input_wide.contains("Input line 975"));
+    assert!(output_wide.contains("Output line 74"));
+    assert!(!output_wide.contains("Output line 75"));
+    assert!(!output_wide.contains("Output line 974"));
+    assert!(output_wide.contains("Output line 975"));
+}
+
 impl float_cmp::ApproxEq for BlockSection {
     type Margin = float_cmp::F64Margin;
 

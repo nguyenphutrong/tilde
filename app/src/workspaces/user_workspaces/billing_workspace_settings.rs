@@ -106,20 +106,6 @@ impl UserWorkspaces {
             })
     }
 
-    /// Whether Next Command should be toggleable for the current user, based on the active policies.
-    /// Note that the value may be incorrect if called before the team's billing metadata has been fetched.
-    pub fn is_next_command_enabled(&self) -> bool {
-        self.current_workspace()
-            // If the user has no team, they can toggle Next Command (no restrictions).
-            .is_none_or(|workspace| {
-                workspace
-                    .billing_metadata
-                    .tier
-                    .warp_ai_policy
-                    .is_some_and(|policy| policy.is_next_command_enabled)
-            })
-    }
-
     /// Whether Git Operations AI is enabled for the current user, based on the active policies.
     /// Note that the value may be incorrect if called before the team's billing metadata has been fetched.
     pub fn is_git_operations_ai_enabled(&self) -> bool {

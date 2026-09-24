@@ -281,7 +281,6 @@ pub mod flags {
     pub const DEBUG_NETWORK_ONLINE_FLAG: &str = "Network_Status_Online";
     pub const AI_INPUT_AUTODETECTION_FLAG: &str = "AI_Input_Autodetection";
     pub const NLD_IN_TERMINAL_FLAG: &str = "NLD_In_Terminal";
-    pub const INTELLIGENT_AUTOSUGGESTIONS_FLAG: &str = "Intelligent_Autosuggestions";
     pub const PROMPT_SUGGESTIONS_FLAG: &str = "Prompt_Suggestions";
     pub const CODE_SUGGESTIONS_FLAG: &str = "Code_Suggestions";
     pub const SHARED_BLOCK_TITLE_GENERATION_FLAG: &str = "Shared_Block_Title_Generation";

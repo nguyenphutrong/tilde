@@ -36,22 +36,7 @@ const MAX_NUM_SIMILAR_HISTORY_CONTEXT: usize = 25;
 #[cfg(feature = "local_fs")]
 const ARG_GENERATOR_VALIDATION_TIMEOUT: Duration = Duration::from_millis(150);
 
-#[derive(Clone)]
-pub struct HistoryContext {
-    pub previous_commands: Vec<crate::persistence::model::Command>,
-    pub next_command: crate::persistence::model::Command,
-}
-
-/// Returns snippets of command history (HistoryContext) that are similar to a completed
-/// block's `command`/`pwd`/`exit_code`/`shell_host`. Each HistoryContext contains some
-/// sequential commands run in the same session, where the last element of
-/// HistoryContext.previous_commands is the same as `command`.
-/// Returns None if there was a connection issue, and Some(empty vec)
-/// if there is no similar historical context.
-///
-/// Callers resolve these fields ahead of time (rather than taking `&UserBlockCompleted` and a
-/// `&BlockList` directly) so this can be used from contexts, such as spawned futures, that
-/// don't have synchronous access to the terminal model.
+/// Returns commands following matching historical commands, ordered from oldest to newest.
 #[cfg(feature = "local_fs")]
 pub fn get_similar_history_context(
     conn: &mut SqliteConnection,
@@ -59,8 +44,7 @@ pub fn get_similar_history_context(
     pwd: &Option<String>,
     exit_code: ExitCode,
     shell_host: Option<&ShellHost>,
-    num_additional_preceding_commands: usize,
-) -> Vec<HistoryContext> {
+) -> Vec<crate::persistence::model::Command> {
     // The number of commands from history affects how quickly we "learn" new patterns, the lower the faster.
     let Ok(same_commands_from_history) =
         crate::persistence::commands::get_same_commands_from_history(
@@ -78,29 +62,7 @@ pub fn get_similar_history_context(
     same_commands_from_history
         .into_iter()
         .rev()
-        .filter_map(|command| {
-            let next_command =
-                crate::persistence::commands::get_next_command(conn, &command).ok()?;
-            if num_additional_preceding_commands == 0 {
-                return Some(HistoryContext {
-                    previous_commands: vec![command],
-                    next_command,
-                });
-            }
-            // We know next_command comes after command.
-            // Get some more commands that came before command so there's additional context before next_command.
-            let mut previous_commands = crate::persistence::commands::get_previous_commands(
-                conn,
-                &command,
-                num_additional_preceding_commands,
-            )
-            .ok()?;
-            previous_commands.push(command);
-            Some(HistoryContext {
-                previous_commands,
-                next_command,
-            })
-        })
+        .filter_map(|command| crate::persistence::commands::get_next_command(conn, &command).ok())
         .collect()
 }
 

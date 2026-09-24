@@ -144,6 +144,11 @@ move; the remaining AI model consumes the local helpers rather than owning them.
 
 ## Remaining scope and data safety
 
+AI next-command prediction, its transport, cycling UI, settings and telemetry are removed. Local
+autosuggestions still match history and following commands within a session; they no longer gather
+preceding-command context for an LLM. The retained block-content width regression lives with the
+terminal block tests. Stored settings and serialized billing policy data are not migrated or deleted.
+
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions, Sentry/OpenTelemetry,
 and associated bootstrap/settings/UI contracts remain. Classifier heuristics and serialized decision
 variants still exist. Remove leaf consumers first, then their owning contracts; do not replace removed

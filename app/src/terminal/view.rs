@@ -375,7 +375,6 @@ use crate::terminal::cli_agent_sessions::{
     CLIAgentSessionsModelEvent,
 };
 use crate::terminal::color::List;
-use crate::terminal::command_corrections_denylist::COMMAND_CORRECTIONS_PREFERRED_DENYLIST;
 use crate::terminal::event::{
     AfterBlockCompletedEvent, BlockType, TerminalMode, UserBlockCompleted,
 };
@@ -13733,16 +13732,6 @@ impl TerminalView {
         ctx: &mut ViewContext<TerminalView>,
     ) {
         if let Some(correction) = corrections.into_iter().next() {
-            let rule = correction.rule_applied;
-
-            if AISettings::as_ref(ctx).is_intelligent_autosuggestions_enabled(ctx)
-                && UserWorkspaces::as_ref(ctx).is_next_command_enabled()
-                && COMMAND_CORRECTIONS_PREFERRED_DENYLIST.contains(rule.to_str())
-            {
-                // Defer to Next Command if the rule is in the denylist.
-                return;
-            }
-
             // Set the autosuggestion only if the input is still empty
             self.input.update(ctx, |input, ctx| {
                 if input.buffer_text(ctx).is_empty() {
