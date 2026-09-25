@@ -391,3 +391,8 @@ AI command-generation sources, actions, context-menu entry, upgrade handling, an
 telemetry are removed from command search. Ordinary history/workflow sources and generic errors
 remain. Closing search only refocuses input, preserving literal `#`, padded `#`, and normal drafts.
 AI prompt-history search, backend command-generation APIs, and shared GraphQL remain removal debt.
+
+The local-only guard also scans extensionless scripts and orb bootstrap/service configuration.
+RPM bundling no longer imports Warp's public key or invokes its signing identity; packages remain
+unsigned. RPM branding is separate debt. Guard tests and shell syntax cover this change; full RPM
+assembly/signature verification is unavailable because this orb has no `rpmbuild`.

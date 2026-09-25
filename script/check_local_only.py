@@ -68,8 +68,10 @@ def inventory(root, paths):
                     forbidden.add(f"{relative}: {name}")
                 elif restricted(name):
                     found[f"dependency:{relative}:{name}"] += 1
-        if path.suffix in SOURCE_SUFFIXES and relative.split("/")[0] in {
+        if (path.suffix in SOURCE_SUFFIXES and relative.split("/")[0] in {
             "app", "crates", "script", ".github", ".cargo", "resources",
+        }) or (relative.startswith("script/") and not path.suffix) or relative in {
+            ".agents/setup", ".agents/resume", ".agents/Procfile", ".amp/services.yaml",
         }:
             content = path.read_text(errors="replace")
             for line in content.splitlines():
