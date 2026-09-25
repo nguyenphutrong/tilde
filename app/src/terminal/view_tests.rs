@@ -6109,12 +6109,13 @@ fn test_slow_bootstrap_banner_auto_dismisses() {
         let terminal =
             MockTerminalManager::create_new_terminal_view_window_for_test(&mut app, None);
 
-        // Open the banner directly and schedule a short-duration auto-dismiss
-        // timer. We bypass `on_bootstrap_failed_timer_complete` (which itself
-        // waits the 7-second bootstrap timeout) to keep this test fast — the
-        // important behavior under test is the auto-dismiss path.
         terminal.update(&mut app, |view, ctx| {
-            view.is_slow_bootstrap_banner_open = true;
+            view.on_bootstrap_failed_timer_complete((), ctx);
+            assert!(view.is_slow_bootstrap_banner_open);
+            view.slow_bootstrap_banner_auto_dismiss_handle
+                .take()
+                .expect("timeout should schedule auto-dismiss")
+                .abort();
             view.slow_bootstrap_banner_auto_dismiss_handle = Some(
                 view.start_slow_bootstrap_banner_auto_dismiss_timer(Duration::from_millis(50), ctx),
             );

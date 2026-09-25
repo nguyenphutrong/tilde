@@ -329,3 +329,7 @@ bootstrap and PS1 generator suppression are tested without AI/auth/server/teleme
 
 The prompt-chip renderer no longer owns ambient-agent state or unreachable agent-only styling.
 Local chip colors, fonts, margins, hover behavior, and CLI-agent interaction guards are preserved.
+
+Bootstrap success/slow telemetry and bootstrap-content collection are removed. The real timeout
+handler still warns locally, unhides SSH output, and opens the auto-dismiss banner; its regression
+test now exercises that handler. Legacy shell timing payloads and local session behavior remain.
