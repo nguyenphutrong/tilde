@@ -163,7 +163,6 @@ impl PromptDisplay {
 
             let view_handle = ctx.add_typed_action_view(|ctx| {
                 let mut chip = DisplayChip::new(
-                    ctx,
                     chip_result.clone(),
                     next_chip_kind,
                     DisplayChipConfig {
@@ -173,8 +172,8 @@ impl PromptDisplay {
                         current_repo_path: self.current_repo_path.clone(),
                         model_events: self.model_events.clone(),
                         is_shared_session_viewer,
-                        ambient_agent_view_model: None,
                     },
+                    ctx,
                 );
                 chip.maybe_set_git_line_changes_info(git_line_changes_info.clone());
                 chip
