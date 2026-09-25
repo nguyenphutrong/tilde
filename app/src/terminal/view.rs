@@ -17093,11 +17093,6 @@ impl TerminalView {
                 context_block_indices.extend(block_indices);
                 (None, Some(DEFAULT_ASK_AI_AUTOSUGGESTION_TEXT))
             }
-
-            AskAIType::FromAICommandSearch { query } => {
-                let query_prefix = "What is the command to: ";
-                (Some(format!("{}{}", query_prefix, query.trim())), None)
-            }
         };
 
         // We don't support attaching blocks as context in new panes.

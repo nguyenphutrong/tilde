@@ -448,7 +448,6 @@ pub enum CommandSearchResultType {
     Notebook,
     EnvVarCollection,
     ViewInWarpDrive,
-    AIQuery,
     Project,
 }
 
@@ -460,7 +459,6 @@ impl From<&CommandSearchItemAction> for CommandSearchResultType {
             AcceptWorkflow(_) => Self::Workflow,
             AcceptNotebook(_) => Self::Notebook,
             AcceptEnvVarCollection(_) => Self::EnvVarCollection,
-            AcceptAIQuery(_) | RunAIQuery(_) => Self::AIQuery,
         }
     }
 }
@@ -491,7 +489,6 @@ pub enum OpenedWarpAISource {
     GlobalEntryButton,
     HelpWithBlock,
     HelpWithTextSelection,
-    FromAICommandSearch,
     WarmWelcome,
 }
 

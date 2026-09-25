@@ -53,12 +53,6 @@ pub enum CommandSearchItemAction {
 
     /// The user accepted an EVC search item.
     AcceptEnvVarCollection(Box<CloudEnvVarCollection>),
-
-    /// The user accepted the AI query search item with this query text.
-    AcceptAIQuery(String),
-
-    /// The user requested to run the AI query search item with this query text.
-    RunAIQuery(String),
 }
 
 #[cfg(test)]

@@ -7,7 +7,6 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::Vector2F;
-use warp_core::features::FeatureFlag;
 use warp_errors::report_error;
 use warpui::accessibility::{AccessibilityContent, WarpA11yRole};
 use warpui::elements::{
@@ -24,7 +23,6 @@ use warpui::{
     ViewContext, ViewHandle, WeakViewHandle,
 };
 
-use super::ai_queries::AIQueriesDataSource;
 use super::history::history_data_source_for_session;
 use super::workflows::WorkflowsDataSource;
 use super::zero_state::{CommandSearchZeroStateEvent, CommandSearchZeroStateView};
@@ -37,7 +35,6 @@ use crate::search::result_renderer::{QueryResultRenderer, QueryResultRendererSty
 use crate::search::search_bar::{SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering};
 use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
-use crate::settings::AISettings;
 use crate::terminal::input::MenuPositioning;
 use crate::terminal::model::session::SessionId;
 use crate::terminal::resizable_data::{DEFAULT_UNIVERSAL_SEARCH_WIDTH, ModalType, ResizableData};
@@ -153,7 +150,7 @@ impl CommandSearchView {
             me.handle_search_bar_event(event, ctx);
         });
 
-        let zero_state_handle = ctx.add_typed_action_view(CommandSearchZeroStateView::new);
+        let zero_state_handle = ctx.add_typed_action_view(|_| CommandSearchZeroStateView::new());
         ctx.subscribe_to_view(&zero_state_handle, |me, _handle, event, ctx| {
             me.handle_zero_state_event(event, ctx);
         });
@@ -209,14 +206,6 @@ impl CommandSearchView {
                 WorkflowsDataSource::new(session_context.as_ref(), ctx),
                 HashSet::from([QueryFilter::Workflows]),
             );
-
-            if FeatureFlag::AgentMode.is_enabled() && AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
-            {
-                mixer.add_sync_source(
-                    AIQueriesDataSource::new(),
-                    HashSet::from([QueryFilter::PromptHistory]),
-                );
-            }
 
             if History::as_ref(ctx).is_queryable(&session_id) {
                 let source = History::handle(ctx).read(ctx, |history_model, app| {
@@ -409,13 +398,12 @@ impl CommandSearchView {
         {
             use CommandSearchItemAction::*;
             let was_immediately_executed = match &result_action {
-                ExecuteHistory(_) | RunAIQuery(_) => true,
+                ExecuteHistory(_) => true,
 
                 AcceptHistory(_)
                 | AcceptWorkflow(_)
                 | AcceptNotebook(_)
-                | AcceptEnvVarCollection(_)
-                | AcceptAIQuery(_) => false,
+                | AcceptEnvVarCollection(_) => false,
             };
 
             let (a11y_content, a11y_help_content) = if was_immediately_executed {
