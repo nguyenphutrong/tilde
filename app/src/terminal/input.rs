@@ -2632,11 +2632,7 @@ impl Input {
                 AgentInputFooterEvent::PromptAlert(prompt_alert_event) => {
                     me.handle_prompt_alert(prompt_alert_event, ctx);
                 }
-                AgentInputFooterEvent::ModelSelectorOpened => {
-                    me.close_overlays(false, ctx);
-                }
-                AgentInputFooterEvent::ModelSelectorClosed
-                | AgentInputFooterEvent::EnvironmentSelectorClosed => {
+                AgentInputFooterEvent::EnvironmentSelectorClosed => {
                     me.focus_input_box(ctx);
                 }
                 AgentInputFooterEvent::OpenCodeReview => {
@@ -14541,10 +14537,6 @@ impl View for Input {
             ctx.set.insert("WorkflowInfoBox");
         }
 
-        let is_v2_model_selector_open = self
-            .agent_input_footer
-            .as_ref(app)
-            .is_v2_model_selector_open(app);
         let is_v2_host_selector_open = self
             .host_selector()
             .is_some_and(|view| view.as_ref(app).is_menu_open());
@@ -14555,8 +14547,7 @@ impl View for Input {
             .agent_input_footer
             .as_ref(app)
             .is_v2_environment_selector_open(app);
-        if is_v2_model_selector_open
-            || is_v2_host_selector_open
+        if is_v2_host_selector_open
             || is_v2_harness_selector_open
             || is_v2_environment_selector_open
         {
