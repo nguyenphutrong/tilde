@@ -9113,3 +9113,40 @@ fn hotkey_opens_ai_command_search_even_when_hash_trigger_disabled() {
         );
     });
 }
+
+#[test]
+fn inline_menu_position_follows_terminal_input_mode() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
+        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
+        for (mode, below) in [
+            (InputMode::PinnedToTop, true),
+            (InputMode::PinnedToBottom, false),
+        ] {
+            InputModeSettings::handle(&app).update(&mut app, |settings, ctx| {
+                settings.input_mode.set_value(mode, ctx).unwrap();
+            });
+            input.update(&mut app, |input, ctx| {
+                input.suggestions_mode_model.update(ctx, |model, ctx| {
+                    model.set_mode(InputSuggestionsMode::Closed, ctx);
+                    model.set_mode(
+                        InputSuggestionsMode::InlineHistoryMenu {
+                            original_input_config: None,
+                        },
+                        ctx,
+                    );
+                });
+            });
+            input.read(&app, |input, ctx| {
+                assert_eq!(
+                    input
+                        .inline_terminal_menu_positioner
+                        .as_ref(ctx)
+                        .should_render_inline_menu_below_input(),
+                    below
+                );
+            });
+        }
+    });
+}
