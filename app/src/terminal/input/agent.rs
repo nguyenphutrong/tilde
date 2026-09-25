@@ -227,11 +227,6 @@ impl Input {
             ));
         }
         column.add_child(ChildView::new(&self.agent_status_view).finish());
-        if let Some(panel) = self.queued_prompts_panel.as_ref()
-            && panel.as_ref(app).should_render(app)
-        {
-            column.add_child(ChildView::new(panel).finish());
-        }
         column.add_child(input);
 
         let mut outer_stack = Stack::new().with_constrain_absolute_children();
@@ -373,12 +368,6 @@ impl Input {
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_main_axis_size(MainAxisSize::Min)
             .with_spacing(CLOUD_MODE_V2_TOP_ROW_GAP);
-
-        if let Some(panel) = self.queued_prompts_panel.as_ref()
-            && panel.as_ref(app).should_render(app)
-        {
-            column.add_child(ChildView::new(panel).finish());
-        }
 
         column.add_child(self.render_cloud_mode_v2_input_container(appearance, app));
 

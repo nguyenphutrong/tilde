@@ -115,7 +115,6 @@ use super::shell::ShellType;
 use super::view::ambient_agent::{
     AmbientAgentViewModel, AmbientAgentViewModelEvent, is_cloud_agent_pre_first_exchange,
 };
-use super::view::queued_prompts_panel::{QueuedPromptsPanelEvent, QueuedPromptsPanelView};
 use super::view::{
     ExecuteCommandEvent, PADDING_LEFT as TERMINAL_VIEW_PADDING_LEFT, SyncInputType, TerminalAction,
 };
@@ -146,13 +145,11 @@ use crate::ai::blocklist::{
     BlocklistAIInputEvent, BlocklistAIInputModel, DIFF_HUNK_ATTACHMENT_REGEX,
     DRIVE_OBJECT_ATTACHMENT_REGEX, InputConfig, InputType, InputTypeAutoDetectionSource,
     PendingAttachment, PendingFile, QueuedQuery, QueuedQueryEvent, QueuedQueryId, QueuedQueryModel,
-    QueuedQueryOrigin, SlashCommandRequest, ai_indicator_height, render_ai_agent_mode_icon,
-    render_ai_follow_up_icon,
+    SlashCommandRequest, ai_indicator_height, render_ai_agent_mode_icon, render_ai_follow_up_icon,
 };
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::conversation_export::export_conversation_markdown;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
-use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::ai::skills::{SkillOpenOrigin, SkillTelemetryEvent};
 use crate::appearance::{Appearance, AppearanceEvent};
@@ -201,8 +198,7 @@ use crate::server::server_api::ai::{AIClient, AttachmentFileInfo};
 use crate::server::server_api::presigned_upload::upload_to_target;
 use crate::server::telemetry::{
     AnonymousUserSignupEntrypoint, CommandXRayTrigger, EnvVarTelemetryMetadata, PaletteSource,
-    QueuedPromptSendNowTrigger, SlashCommandAcceptedDetails, SlashMenuSource, TelemetryEvent,
-    WorkflowTelemetryMetadata,
+    SlashCommandAcceptedDetails, SlashMenuSource, TelemetryEvent, WorkflowTelemetryMetadata,
 };
 use crate::session_management::SessionNavigationPromptElements;
 use crate::settings::{
@@ -259,7 +255,6 @@ use crate::voltron::{
     Voltron, VoltronEvent, VoltronFeatureView, VoltronFeatureViewHandle, VoltronItem,
     VoltronMetadata,
 };
-use crate::workflows::aliases::WorkflowAliases;
 use crate::workflows::command_parser::{
     WorkflowArgumentIndex, WorkflowDisplayData, compute_workflow_display_data,
     compute_workflow_display_data_for_history_command,
@@ -406,8 +401,6 @@ const COMPLETIONS_START_OF_REPLACEMENT_SPAN_POSITION_ID: &str =
 const HISTORY_DETAILS_VIEW_WIDTH_REQUIREMENT: f32 = 1100.;
 
 const MIN_BUFFER_LEN_TO_SHOW_COMPLETIONS_WHILE_TYPING: usize = 2;
-
-const QUEUED_PROMPT_INLINE_EDITOR_OPEN_CONTEXT: &str = "QueuedPromptInlineEditorOpen";
 
 /// If the editor buffer matches this prefix, AI input is enabled.
 const AI_INPUT_PREFIX: &str = "* ";
@@ -1509,9 +1502,6 @@ pub struct Input {
     weak_view_handle: WeakViewHandle<Input>,
 
     agent_status_view: ViewHandle<BlocklistAIStatusBar>,
-    /// Optional queued-prompts panel rendered between `agent_status_view` and the input editor.
-    /// Constructed in [`Input::new`] when [`FeatureFlag::QueueSlashCommand`] is enabled.
-    queued_prompts_panel: Option<ViewHandle<QueuedPromptsPanelView>>,
     agent_view_controller: ModelHandle<AgentViewController>,
     agent_shortcut_view_model: ModelHandle<AgentShortcutViewModel>,
     ambient_agent_view_state: Option<AmbientAgentViewState>,
@@ -1755,8 +1745,7 @@ pub fn init(app: &mut AppContext) {
                 & !id!("VoltronActive")
                 & !id!("WorkflowInfoBox")
                 & !id!("ProfileModelSelectorOpen")
-                & !id!("PromptChipMenuOpen")
-                & !id!(QUEUED_PROMPT_INLINE_EDITOR_OPEN_CONTEXT),
+                & !id!("PromptChipMenuOpen"),
         ),
     ]);
 
@@ -1890,7 +1879,6 @@ pub fn init(app: &mut AppContext) {
                 & id!(flags::EMPTY_INPUT_BUFFER)
                 & id!(flags::ACTIVE_AGENT_VIEW)
                 & !id!("LongRunningCommand")
-                & !id!(QUEUED_PROMPT_INLINE_EDITOR_OPEN_CONTEXT)
                 & !(id!(flags::TERMINAL_MODE_INPUT) & id!(flags::LOCKED_INPUT)),
         )]);
     }
@@ -2885,31 +2873,6 @@ impl Input {
             )
         });
 
-        let queued_prompts_panel = FeatureFlag::QueueSlashCommand.is_enabled().then(|| {
-            let cli_subagent_controller = cli_subagent_controller.clone();
-            let host_editor = editor.clone();
-            let panel = ctx.add_typed_action_view(|ctx| {
-                QueuedPromptsPanelView::new(
-                    terminal_view_id,
-                    suggestions_mode_model.clone(),
-                    cli_subagent_controller,
-                    host_editor,
-                    ctx,
-                )
-            });
-            ctx.subscribe_to_view(&panel, |me, _, event, ctx| {
-                me.handle_queued_prompts_panel_event(event, ctx);
-            });
-            // Seed the host-pushed send permission; later changes flow through the
-            // shared-session role-change push in `TerminalView::on_self_role_updated`. Input
-            // emptiness is not pushed: the panel reads the host editor live.
-            let can_send_prompt = !model.lock().shared_session_status().is_reader();
-            panel.update(ctx, |panel, ctx| {
-                panel.set_can_send_prompt(can_send_prompt, ctx);
-            });
-            panel
-        });
-
         let deferred_remote_operations =
             DeferredRemoteOperations::new(model.lock().block_list().active_block_id().clone());
 
@@ -2979,7 +2942,6 @@ impl Input {
             cached_agent_mode_hint_text: None,
             weak_view_handle: ctx.handle(),
             agent_status_view,
-            queued_prompts_panel,
             agent_view_controller,
             agent_shortcut_view_model,
             ambient_agent_view_state,
@@ -3053,102 +3015,6 @@ impl Input {
 
     pub fn agent_status_bar(&self) -> &ViewHandle<BlocklistAIStatusBar> {
         &self.agent_status_view
-    }
-
-    fn handle_queued_prompts_panel_event(
-        &mut self,
-        event: &QueuedPromptsPanelEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            QueuedPromptsPanelEvent::SendNow {
-                conversation_id,
-                query_id,
-                text,
-                is_command,
-            } => {
-                self.send_queued_row_immediately(
-                    *conversation_id,
-                    *query_id,
-                    text.clone(),
-                    *is_command,
-                    QueuedPromptSendNowTrigger::SendNowButton,
-                    ctx,
-                );
-            }
-            QueuedPromptsPanelEvent::RowDeleted => {
-                self.focus_input_box(ctx);
-            }
-            QueuedPromptsPanelEvent::EditEnded => {
-                self.focus_input_box(ctx);
-            }
-        }
-    }
-
-    /// Dispatches a queued row immediately: commands execute in the terminal, prompts submit to
-    /// the conversation's current target. On dispatch, removes the fired row and refocuses the
-    /// input. Shared by the row's send-now button and empty-buffer Enter.
-    fn send_queued_row_immediately(
-        &mut self,
-        conversation_id: AIConversationId,
-        query_id: QueuedQueryId,
-        text: String,
-        is_command: bool,
-        trigger: QueuedPromptSendNowTrigger,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Read the origin before dispatch; the row is removed once it fires.
-        let origin = QueuedQueryModel::as_ref(ctx)
-            .queue(conversation_id)
-            .iter()
-            .find(|row| row.id() == query_id)
-            .map(|row| row.origin());
-        let dispatched = if is_command {
-            self.execute_queued_command(&text, conversation_id, ctx)
-        } else {
-            self.submit_queued_prompt_for_active_pane(text, conversation_id, query_id, ctx);
-            true
-        };
-        if !dispatched {
-            return;
-        }
-        if let Some(origin) = origin {
-            send_telemetry_from_ctx!(
-                TelemetryEvent::QueuedPromptSentNow {
-                    origin: origin.into(),
-                    trigger,
-                },
-                ctx
-            );
-        }
-        QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
-            model.remove_fired_row(conversation_id, query_id, ctx);
-        });
-        self.focus_input_box(ctx);
-    }
-
-    /// The queued prompts panel, when [`FeatureFlag::QueueSlashCommand`] is enabled.
-    pub(crate) fn queued_prompts_panel(&self) -> Option<&ViewHandle<QueuedPromptsPanelView>> {
-        self.queued_prompts_panel.as_ref()
-    }
-
-    /// Returns whether this input's queued-prompt inline editor is currently focused.
-    pub(crate) fn is_queued_prompt_inline_editor_focused(&self, ctx: &AppContext) -> bool {
-        self.queued_prompts_panel
-            .as_ref()
-            .is_some_and(|panel| panel.as_ref(ctx).is_inline_edit_editor_focused(ctx))
-    }
-
-    /// Returns whether the active queued prompt is being edited inline.
-    fn is_editing_queued_prompt(&self, ctx: &AppContext) -> bool {
-        let Some(conversation_id) =
-            BlocklistAIHistoryModel::as_ref(ctx).active_conversation_id(self.terminal_view_id)
-        else {
-            return false;
-        };
-        QueuedQueryModel::as_ref(ctx)
-            .editing_row(conversation_id)
-            .is_some()
     }
 
     fn ambient_agent_view_model(&self) -> Option<&ModelHandle<AmbientAgentViewModel>> {
@@ -4950,32 +4816,6 @@ impl Input {
         }
     }
 
-    /// Executes a command drained or sent immediately from the queued-prompts panel and keeps the
-    /// remaining queue paused until the command's terminal block finishes.
-    pub(crate) fn execute_queued_command(
-        &mut self,
-        command: &str,
-        conversation_id: AIConversationId,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
-        let started = self.try_execute_command_with_options(command, true, ctx);
-        if started {
-            QueuedQueryModel::handle(ctx).update(ctx, |model, _| {
-                model.arm_command_in_flight(conversation_id);
-            });
-        }
-        started
-    }
-
-    fn has_queued_command_in_flight(&self, ctx: &AppContext) -> bool {
-        QueuedQueryModel::as_ref(ctx)
-            .command_in_flight_for_terminal_view(
-                self.terminal_view_id,
-                BlocklistAIHistoryModel::as_ref(ctx),
-            )
-            .is_some()
-    }
-
     /// Executes the given command if the terminal session is in a valid state to accept and
     /// execute a command. Afterwards, ensures the workflows info menu and input suggestions menu
     /// are both closed.
@@ -6452,10 +6292,6 @@ impl Input {
     }
 
     fn editor_up(&mut self, ctx: &mut ViewContext<Self>) {
-        if self.is_editing_queued_prompt(ctx) {
-            return;
-        }
-
         // History and input suggestions are not available for
         // read-only viewers in a shared session
         if self.model.lock().shared_session_status().is_reader() {
@@ -9319,63 +9155,20 @@ impl Input {
     /// is an active and long running command; in such a state, the enter keypress should be
     /// handled by the ongoing process corresponding to the active/long running command.
     pub(crate) fn input_enter(&mut self, ctx: &mut ViewContext<Self>) {
-        if CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id) {
-            // If the skill selector menu is open, Enter selects the highlighted skill.
-            if self.suggestions_mode_model.as_ref(ctx).is_skill_menu() {
-                self.inline_skill_selector_view
-                    .update(ctx, |view, ctx| view.accept_selected_item(ctx));
-                return;
-            }
-
-            // If the slash commands menu is open, accept the selected item
-            // (e.g. /prompts or /skills). However, don't intercept detected
-            // slash/skill commands in the buffer — those should be submitted
-            // directly to the CLI agent so it can handle them natively.
-            if matches!(
-                self.suggestions_mode_model.as_ref(ctx).mode(),
-                InputSuggestionsMode::SlashCommands
-            ) {
-                self.inline_slash_commands_view.update(ctx, |view, ctx| {
-                    view.accept_selected_item(false, ctx);
-                });
-                return;
-            }
-
-            // When submit_on_ctrl_enter is enabled, Enter inserts a newline rather than
-            // submitting (Ctrl+Enter handles submission in that mode).
-            // Asymmetry: Enter replaces any active selection (the user asked for a newline
-            // edit); Ctrl+Enter preserves selections because it is a submit, not an edit.
-            if *AISettings::as_ref(ctx).submit_on_ctrl_enter {
-                self.editor.update(ctx, |editor, ctx| {
-                    editor.user_initiated_insert("\n", PlainTextEditorViewAction::NewLine, ctx);
-                });
-                return;
-            }
-
-            self.emit_submit_cli_agent_input(ctx);
+        ctx.emit(Event::Enter);
+        if self.maybe_handle_enter_for_slash_command(ctx) {
             return;
         }
-        let command = self.editor.as_ref(ctx).buffer_text(ctx);
-
-        ctx.emit(Event::Enter);
-
+        if self.input_type(ctx) == InputType::AI {
+            return;
+        }
         if self.should_insert_newline_on_enter(ctx) {
             self.editor.update(ctx, |editor, ctx| {
                 editor.user_initiated_insert("\n", PlainTextEditorViewAction::NewLine, ctx)
             });
-        } else if self.suggestions_mode_model.as_ref(ctx).is_skill_menu() {
-            self.inline_skill_selector_view
-                .update(ctx, |view, ctx| view.accept_selected_item(ctx));
             return;
-        } else if self.suggestions_mode_model.as_ref(ctx).is_user_query_menu() {
-            self.user_query_menu_view
-                .update(ctx, |view, ctx| view.accept_selected_item(false, ctx));
-            return;
-        } else if self.suggestions_mode_model.as_ref(ctx).is_rewind_menu() {
-            self.rewind_menu_view
-                .update(ctx, |view, ctx| view.accept_selected_item(ctx));
-            return;
-        } else if self
+        }
+        if self
             .suggestions_mode_model
             .as_ref(ctx)
             .is_inline_history_menu()
@@ -9390,224 +9183,31 @@ impl Input {
             self.inline_history_menu_view
                 .update(ctx, |view, ctx| view.accept_selected_item(ctx));
             return;
-        } else if self.suggestions_mode_model.as_ref(ctx).is_repos_menu() {
-            self.inline_repos_menu_view
-                .update(ctx, |view, ctx| view.accept_selected_item(false, ctx));
-            return;
-        } else if self.suggestions_mode_model.as_ref(ctx).is_plan_menu() {
-            self.inline_plan_menu_view
-                .update(ctx, |view, ctx| view.accept_selected_item(ctx));
-            return;
-        } else if self.suggestions_mode_model.as_ref(ctx).is_slash_commands() {
-            if self.is_cloud_mode_input_v2_composing(ctx) {
-                if let Some(view) = self.cloud_mode_v2_slash_commands_view.clone() {
-                    view.update(ctx, |view, ctx| {
-                        view.accept_selected_item(false, ctx);
-                    });
-                }
-            } else {
-                self.inline_slash_commands_view.update(ctx, |view, ctx| {
-                    view.accept_selected_item(false, ctx);
-                });
-            }
-            return;
-        } else if self
-            .queued_prompts_panel
-            .as_ref()
-            .is_some_and(|panel| panel.as_ref(ctx).enter_sends_queued_prompt(ctx))
-        {
-            // An empty-buffer Enter sends the top queued row, mirroring its send-now button.
-            // The locked initial cloud-mode head row is not sendable, so Enter does nothing
-            // while it sits at the head of the queue.
-            let conversation_id =
-                BlocklistAIHistoryModel::as_ref(ctx).active_conversation_id(self.terminal_view_id);
-            let top_row = conversation_id.and_then(|conversation_id| {
-                QueuedQueryModel::as_ref(ctx)
-                    .queue(conversation_id)
-                    .first()
-                    .filter(|row| !row.is_locked())
-                    .map(|row| (row.id(), row.text().to_owned(), row.is_command()))
-            });
-            if let (Some(conversation_id), Some((query_id, text, is_command))) =
-                (conversation_id, top_row)
-            {
-                self.send_queued_row_immediately(
-                    conversation_id,
-                    query_id,
-                    text,
-                    is_command,
-                    QueuedPromptSendNowTrigger::EnterOnEmptyInput,
-                    ctx,
-                );
-            }
-            return;
-        } else if self.maybe_queue_input_for_in_progress_conversation(ctx)
-            || self.maybe_queue_input_during_cloud_setup(ctx)
-            || self.maybe_handle_enter_for_slash_command(ctx)
-        {
-            return;
-        } else if matches!(
+        }
+        if matches!(
             self.suggestions_mode_model.as_ref(ctx).mode(),
             InputSuggestionsMode::CompletionSuggestions { .. }
         ) && self.should_enter_accept_completion_suggestion(ctx)
         {
-            self.input_suggestions.update(ctx, |suggestions, ctx| {
-                suggestions.confirm(ctx);
-            })
+            self.input_suggestions
+                .update(ctx, |suggestions, ctx| suggestions.confirm(ctx));
         } else if matches!(
             self.suggestions_mode_model.as_ref(ctx).mode(),
             InputSuggestionsMode::StaticWorkflowEnumSuggestions { .. }
                 | InputSuggestionsMode::DynamicWorkflowEnumSuggestions { .. }
         ) {
-            self.input_suggestions.update(ctx, |suggestions, ctx| {
-                suggestions.confirm(ctx);
-            });
-        } else if FeatureFlag::CloudModeSetupV2.is_enabled()
-            && is_cloud_agent_pre_first_exchange(
-                self.ambient_agent_view_model(),
-                &self.agent_view_controller,
-                &self.model.lock(),
-                ctx,
-            )
-        {
-            // During cloud-mode setup, non-queued submissions (e.g. third-party harness runs that
-            // don't queue) are dropped rather than sent as live prompts the sharer can't accept.
-            return;
-        } else if FeatureFlag::AgentMode.is_enabled()
-            && AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
-            && (self.ai_input_model.as_ref(ctx).is_ai_input_enabled()
-                || self.is_cloud_mode_input_v2_composing(ctx))
-        {
-            // Check if we're configuring an ambient agent and spawn it instead of submitting a regular AI query.
-            if self
-                .ambient_agent_view_model()
-                .is_some_and(|ambient_agent_model| {
-                    ambient_agent_model
-                        .as_ref(ctx)
-                        .is_configuring_ambient_agent()
-                })
-            {
-                if FeatureFlag::AgentHarness.is_enabled() {
-                    let availability = HarnessAvailabilityModel::as_ref(ctx);
-                    if !availability.has_any_enabled_harness() {
-                        let window_id = ctx.window_id();
-                        ToastStack::handle(ctx).update(ctx, |ts, ctx| {
-                            ts.add_ephemeral_toast(
-                                DismissibleToast::error(
-                                    "No agent harnesses are available. Contact your team admin."
-                                        .to_string(),
-                                ),
-                                window_id,
-                                ctx,
-                            );
-                        });
-                        return;
-                    }
-                }
-
-                let prompt = command.trim().to_owned();
-                if prompt.is_empty() {
-                    return;
-                }
-
-                #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-                let attachments = self.collect_cloud_launch_attachments(ctx);
-                #[cfg(not(all(feature = "local_fs", not(target_family = "wasm"))))]
-                let attachments = vec![];
-
-                self.emit_input_buffer_submitted_telemetry(ctx);
-
-                // Clear the buffer and pending attachments after collecting them.
-                self.editor.update(ctx, |editor, ctx| {
-                    editor.clear_buffer(ctx);
-                });
-                self.ai_context_model.update(ctx, |context_model, ctx| {
-                    context_model.clear_pending_attachments(ctx);
-                });
-
-                if let Some(ambient_agent_view_model) = self.ambient_agent_view_model() {
-                    let scope = UserWorkspaces::as_ref(ctx).team_context_for_operation(ctx);
-                    ambient_agent_view_model.update(ctx, |state, ctx| {
-                        state.spawn_agent(prompt, attachments, &scope, ctx);
-                    });
-                }
-                return;
-            }
-
-            self.submit_ai_query_with_routing(ctx);
+            self.input_suggestions
+                .update(ctx, |suggestions, ctx| suggestions.confirm(ctx));
         } else {
-            if FeatureFlag::WorkflowAliases.is_enabled() {
-                let mut command_string = self.editor.as_ref(ctx).buffer_text(ctx);
-                // If the alias was inserted from the completions menu, it will have trailing
-                // whitespace - trim it in-place.
-                command_string.truncate(command_string.trim_end().len());
-
-                if let Some(alias) = WorkflowAliases::as_ref(ctx).match_alias(&command_string) {
-                    if let Some(workflow) = CloudModel::as_ref(ctx).get_workflow(&alias.workflow_id)
-                    {
-                        let owner = workflow.clone().permissions.owner.into();
-
-                        let workflow_type = WorkflowType::Cloud(Box::new(workflow.clone()));
-                        let env_vars = alias.env_vars.or(workflow.model().data.default_env_vars());
-
-                        self.insert_workflow_into_input(
-                            workflow_type,
-                            owner,
-                            WorkflowSelectionSource::Alias,
-                            alias.arguments,
-                            None,
-                            env_vars,
-                            true,
-                            ctx,
-                        );
-                        return;
-                    } else {
-                        log::warn!(
-                            "Tried to execute workflow for id {:?} but it does not exist",
-                            alias.workflow_id
-                        );
-                    };
-                }
-            }
-
             let command = self.get_command(ctx);
             if !self.try_execute_command(&command, ctx) {
                 return;
             }
-            self.emit_input_buffer_submitted_telemetry(ctx);
-
-            // Cancel actively streaming conversations if we're able to run the command.
-            // This is possible in persistent input mode.
-            self.ai_controller.update(ctx, |controller, ctx| {
-                let active_conversation_id = BlocklistAIHistoryModel::as_ref(ctx)
-                    .active_conversation(self.terminal_view_id)
-                    .filter(|conversation| conversation.status().is_in_progress())
-                    .map(|conversation| conversation.id());
-                if let Some(active_conversation_id) = active_conversation_id {
-                    controller.cancel_conversation_progress(
-                        active_conversation_id,
-                        CancellationReason::UserCommandExecuted,
-                        ctx,
-                    );
-                }
-            });
-
-            self.ai_input_model.update(ctx, |model, ctx| {
-                model.handle_input_buffer_submitted(ctx);
-            });
-
             if SyncedInputState::as_ref(ctx).is_syncing_any_inputs(ctx.window_id()) {
                 ctx.emit(Event::SyncInput(SyncInputType::RanCommand));
             }
-
             self.model.lock().set_is_input_dirty(false);
         }
-
-        AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
-            // Don't show the quota banner once a user has run a command or AI query.
-            ai_settings.mark_quota_banner_as_dismissed(ctx);
-            ctx.notify();
-        });
     }
 
     /// Submits the rich-input buffer on Ctrl+Enter when `submit_on_ctrl_enter` is enabled.
@@ -9620,8 +9220,6 @@ impl Input {
     }
 
     /// Emits [`Event::SubmitCLIAgentInput`] with the current buffer contents.
-    /// Shared submit path for Enter (default mode) and Ctrl+Enter (`submit_on_ctrl_enter` mode);
-    /// callers must have already handled menu-intercept cases.
     fn emit_submit_cli_agent_input(&mut self, ctx: &mut ViewContext<Self>) {
         // When the `!` prefix was stripped (shell mode in CLI agent input),
         // prepend it back so the CLI agent receives the mode-switch prefix,
@@ -9719,89 +9317,6 @@ impl Input {
         }
     }
 
-    /// Re-submits a queued prompt through the correct handler (slash, skill, or regular AI query),
-    /// without touching the input buffer or triggering NLD / autosuggestion side-effects.
-    ///
-    /// Cancels the in-flight stream first so slash/skill paths don't trip the in-flight assertion.
-    /// `is_for_same_conversation: true` keeps the conversation status `InProgress` so the warping
-    /// indicator stays visible.
-    pub(crate) fn submit_queued_prompt(
-        &mut self,
-        prompt: String,
-        conversation_id: AIConversationId,
-        query_id: QueuedQueryId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.ai_controller.update(ctx, |controller, ctx| {
-            controller.cancel_conversation_progress(
-                conversation_id,
-                CancellationReason::FollowUpSubmitted {
-                    is_for_same_conversation: true,
-                },
-                ctx,
-            );
-        });
-
-        let compact_and_argument = if prompt == commands::COMPACT_AND.name {
-            Some(None)
-        } else {
-            commands::strip_command_prefix(&prompt, commands::COMPACT_AND.name).map(Some)
-        };
-        if let Some(argument) = compact_and_argument {
-            self.execute_queued_compact_and(conversation_id, query_id, argument, ctx);
-            return;
-        }
-
-        let detected = self
-            .slash_command_model
-            .as_ref(ctx)
-            .detect_command(&prompt, ctx);
-
-        // Try slash command or skill command first. Some slash commands
-        // (e.g. /plan, /compact) return false to indicate the full text
-        // should be sent as a regular AI query — fall through in that case.
-        let handled = match detected {
-            SlashCommandEntryState::SlashCommand(detected_command) => {
-                self.execute_slash_command(
-                    &detected_command.command,
-                    detected_command.argument.as_ref(),
-                    SlashCommandTrigger::input(),
-                    /*is_queued_prompt*/ true,
-                    Some(conversation_id),
-                    Some(query_id),
-                    ctx,
-                )
-            }
-            SlashCommandEntryState::SkillCommand(detected_skill) => self.execute_skill_command(
-                detected_skill.reference,
-                detected_skill.argument,
-                Some(query_id),
-                Some(conversation_id),
-                ctx,
-            ),
-            _ => false,
-        };
-
-        if handled {
-            return;
-        }
-
-        // A fired queued row always belongs to the existing conversation that finished, so we
-        // submit into that conversation directly rather than re-deriving from the current UI
-        // selection (which may point at a different conversation the user navigated to).
-        self.ai_controller.update(ctx, move |controller, ctx| {
-            controller.send_queued_user_query_in_conversation(
-                prompt,
-                conversation_id,
-                None,
-                query_id,
-                ctx,
-            );
-        });
-
-        ctx.emit(Event::ExecuteAIQuery);
-    }
-
     /// Submits `prompt` immediately as a regular (non-queued) user query — the same controller
     /// path `submit_ai_query` uses for a typed-and-entered prompt. Used by the `/queue`
     /// not-in-progress fallback and the legacy pending-user-query submission paths, which are
@@ -9828,327 +9343,6 @@ impl Input {
         }
 
         ctx.emit(Event::ExecuteAIQuery);
-    }
-
-    /// Routes a popped queued prompt to the correct submission path for the active pane,
-    /// without touching the editor buffer or freezing the input. Queue draining must not
-    /// borrow the user-initiated submission UI (loading indicator, buffer replace), because
-    /// the queue panel itself is already the "this prompt is in flight" affordance and the
-    /// user may be typing a different prompt locally.
-    pub(crate) fn submit_queued_prompt_for_active_pane(
-        &mut self,
-        prompt: String,
-        conversation_id: AIConversationId,
-        query_id: QueuedQueryId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Cloud follow-up path: the cloud run has ended an execution and the next queued
-        // prompt should start a new one. Wins over the viewer path because the old shared
-        // session is no longer live to receive a SendAgentPrompt.
-        let is_ready_for_cloud_followup =
-            self.ambient_agent_view_model()
-                .is_some_and(|ambient_agent_model| {
-                    ambient_agent_model
-                        .as_ref(ctx)
-                        .is_ready_for_cloud_followup_prompt()
-                });
-
-        if is_ready_for_cloud_followup {
-            // Cloud follow-up does not support attachments; a queued row's attachments are dropped
-            // when the row is removed after dispatch.
-            let drops_attachments = !QueuedQueryModel::as_ref(ctx)
-                .attachments_for(conversation_id, query_id)
-                .is_empty();
-            if drops_attachments {
-                log::warn!(
-                    "Dropping attachments on a queued cloud follow-up prompt; cloud follow-up does not support attachments"
-                );
-            }
-            ctx.emit(Event::SubmitCloudFollowup { prompt });
-            return;
-        }
-
-        // Shared-session viewer path (covers an in-flight cloud run from the owner's client).
-        // Send the prompt straight to the sharer via Event::SendAgentPrompt, carrying the queued
-        // row's own attachments (uploaded when supported). When the user's editor is empty we
-        // also surface the standard `"<prompt> ◌"` loading affordance so the queued submission has
-        // visible feedback while the sharer ack flight is in flight; the
-        // `NetworkEvent::AgentPromptRequestInFlight` -> `unfreeze_and_clear_agent_input` hop will
-        // clear it once the sharer acknowledges receipt. If the user has typed something locally,
-        // we leave the buffer alone so their in-progress prompt is not clobbered.
-        if self.model.lock().shared_session_status().is_viewer() {
-            let server_conversation_token = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&conversation_id)
-                .and_then(|conv| conv.server_conversation_token().cloned())
-                .and_then(|token| {
-                    token
-                        .as_str()
-                        .parse()
-                        .ok()
-                        .map(ServerConversationToken::from_uuid)
-                });
-
-            // Split the firing row's stored attachments into images/files for upload.
-            let mut images: Vec<ImageContext> = Vec::new();
-            let mut files: Vec<PendingFile> = Vec::new();
-            for attachment in
-                QueuedQueryModel::as_ref(ctx).attachments_for(conversation_id, query_id)
-            {
-                match attachment {
-                    PendingAttachment::Image(image) => images.push(image.clone()),
-                    PendingAttachment::File(file) => files.push(file.clone()),
-                }
-            }
-
-            if self.editor.as_ref(ctx).buffer_text(ctx).is_empty() {
-                self.freeze_input_in_loading_state_with_text(&prompt, ctx);
-            }
-            let queued_query_retry = QueuedQueryModel::as_ref(ctx)
-                .queue(conversation_id)
-                .iter()
-                .enumerate()
-                .find(|(_, query)| query.id() == query_id)
-                .map(|(index, query)| (conversation_id, index, query.clone()));
-            self.upload_and_send_viewer_prompt(
-                server_conversation_token,
-                prompt,
-                vec![],
-                images,
-                files,
-                queued_query_retry,
-                ctx,
-            );
-            return;
-        }
-
-        // Local Agent Mode path.
-        self.submit_queued_prompt(prompt, conversation_id, query_id, ctx);
-    }
-
-    /// Queues the current input instead of submitting it when the active conversation is
-    /// busy and queueing is in effect for it. Returns true when the input was queued, in
-    /// which case the caller should skip normal submission.
-    fn maybe_queue_input_for_in_progress_conversation(
-        &mut self,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
-        if !FeatureFlag::QueueSlashCommand.is_enabled() {
-            return false;
-        }
-
-        // A shell-mode submission queues as a command; an AI-mode submission queues as a prompt.
-        // Command queueing is gated on the V2 surface.
-        let is_command = !self.ai_input_model.as_ref(ctx).is_ai_input_enabled();
-        if is_command && !FeatureFlag::QueuedPromptsV2.is_enabled() {
-            return false;
-        }
-
-        let Some(conversation_id) = self
-            .ai_context_model
-            .as_ref(ctx)
-            .selected_conversation_id(ctx)
-        else {
-            return false;
-        };
-
-        let is_summarizing = BlocklistAIHistoryModel::as_ref(ctx)
-            .conversation(&conversation_id)
-            .is_some_and(|c| c.is_summarizing());
-        // Summarization only routes a prompt into the queued-prompts panel under QueuedPromptsV2;
-        // with the flag off, only the auto-queue toggle queues (pre-V2 behavior).
-        let queue_for_summarize = is_summarizing && FeatureFlag::QueuedPromptsV2.is_enabled();
-
-        let queue_model = QueuedQueryModel::as_ref(ctx);
-        let queue_head_allows_lrc = match queue_model.queue(conversation_id).first() {
-            Some(row) => matches!(
-                row.origin(),
-                QueuedQueryOrigin::LrcAutoQueue | QueuedQueryOrigin::PendingLrcAutoQueue
-            ),
-            None => true,
-        };
-        let queue_enabled = {
-            let terminal_model = self.model.lock();
-            queue_model.is_queue_next_prompt_enabled(
-                conversation_id,
-                terminal_model.block_list().active_block(),
-                ctx,
-            )
-        };
-
-        // True when the LRC branch is the effective enabler (queueing would be off outside
-        // the command) and the current queue head can fire at command finish too.
-        let queued_for_lrc = queue_enabled
-            && !queue_model.is_queue_next_prompt_toggle_enabled(conversation_id)
-            && queue_head_allows_lrc;
-
-        // When queue mode is not normally active but an agent-requested run_shell_command
-        // action is still pending (snapshot not yet fired), queue as PendingLrcAutoQueue
-        // to prevent the CliAgentUserQuery / LRC snapshot race.
-        let queued_for_pending_lrc = !queue_enabled && !queue_for_summarize && !is_command && {
-            let pending_action_id = {
-                let terminal_model = self.model.lock();
-                let active_block = terminal_model.block_list().active_block();
-                if active_block.is_active_and_long_running() && !active_block.is_agent_monitoring()
-                {
-                    active_block.requested_command_action_id().cloned()
-                } else {
-                    None
-                }
-            };
-            pending_action_id.as_ref().is_some_and(|action_id| {
-                self.ai_action_model
-                    .as_ref(ctx)
-                    .is_shell_command_action_pending(action_id, conversation_id)
-            })
-        };
-
-        if !queue_enabled && !queue_for_summarize && !queued_for_pending_lrc {
-            return false;
-        }
-
-        let conversation_in_progress = BlocklistAIHistoryModel::as_ref(ctx)
-            .conversation(&conversation_id)
-            .is_some_and(|c| {
-                !c.is_empty() && (c.status().is_in_progress() || c.status().is_blocked())
-            });
-        // While a drained queued command is running the agent is idle, but the queue must keep
-        // accepting rows so FIFO order is preserved (PRODUCT §14).
-        let command_in_flight =
-            QueuedQueryModel::as_ref(ctx).has_command_in_flight(conversation_id);
-        if !conversation_in_progress && !command_in_flight {
-            return false;
-        }
-
-        let prompt = self.editor.as_ref(ctx).buffer_text(ctx);
-        if prompt.is_empty() {
-            return false;
-        }
-
-        // If an AI-mode input is itself a /queue command, unwrap the argument so we queue
-        // "fix the tests" directly instead of "/queue fix the tests" (which would double-hop
-        // through the /queue handler on re-submission). A shell command never matches /queue.
-        let prompt = if is_command {
-            prompt
-        } else if let SlashCommandEntryState::SlashCommand(ref detected) = self
-            .slash_command_model
-            .as_ref(ctx)
-            .detect_command(&prompt, ctx)
-        {
-            if detected.command.name == commands::QUEUE.name {
-                match detected.argument.as_ref().filter(|a| !a.is_empty()) {
-                    Some(arg) => arg.clone(),
-                    // /queue with no argument — bail and let the normal slash command
-                    // handler show the error toast.
-                    None => return false,
-                }
-            } else if !slash_command_is_submitted_as_prompt(&detected.command)
-                && detected.command.name != commands::COMPACT_AND.name
-            {
-                // Action-emitting slash commands (e.g. `/fork`) execute immediately and must not
-                // be captured by prompt queuing — they emit an action rather than reiterating
-                // input into the conversation. `/compact-and` is captured anyway so compaction
-                // waits for the current response, then queues its follow-up after summarization.
-                return false;
-            } else {
-                prompt
-            }
-        } else {
-            prompt
-        };
-
-        self.ai_input_model.update(ctx, |model, ctx| {
-            model.handle_input_buffer_submitted(ctx);
-        });
-        self.emit_input_buffer_submitted_telemetry(ctx);
-        self.editor.update(ctx, |editor, ctx| {
-            editor.clear_buffer(ctx);
-        });
-
-        // PendingLrcAutoQueue rows are locked until the snapshot fires; LrcAutoQueue
-        // rows auto-fire when the command completes. Command rows use AutoQueueToggle.
-        let origin = if queued_for_pending_lrc {
-            QueuedQueryOrigin::PendingLrcAutoQueue
-        } else if queued_for_lrc && !is_command {
-            QueuedQueryOrigin::LrcAutoQueue
-        } else {
-            QueuedQueryOrigin::AutoQueueToggle
-        };
-        // Commands carry no attachments; only prompts consume the pending attachments.
-        let query = if is_command {
-            QueuedQuery::new_command(prompt, origin)
-        } else {
-            let attachments = self.ai_context_model.update(ctx, |context_model, ctx| {
-                context_model.take_pending_attachments(ctx)
-            });
-            QueuedQuery::new_with_attachments(prompt, origin, attachments)
-        };
-        QueuedQueryModel::handle(ctx)
-            .update(ctx, |model, ctx| model.append(conversation_id, query, ctx));
-
-        true
-    }
-
-    /// Queues the current input on cloud-mode panes that are provisioned but not
-    /// currently running (e.g. between cloud executions). Returns true and clears the
-    /// editor when the input is captured so the caller skips the normal submission
-    /// path. Only active when `QueuedPromptsV2` is enabled.
-    fn maybe_queue_input_during_cloud_setup(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        if !FeatureFlag::QueuedPromptsV2.is_enabled() {
-            return false;
-        }
-
-        // Third-party (non-Oz) harnesses don't support prompt queueing, so leave the input
-        // alone; the submission then falls through to being blocked during setup.
-        let is_third_party_harness =
-            self.ambient_agent_view_model()
-                .is_some_and(|ambient_agent_model| {
-                    ambient_agent_model.as_ref(ctx).is_third_party_harness()
-                });
-        let should_queue = !is_third_party_harness
-            && is_cloud_agent_pre_first_exchange(
-                self.ambient_agent_view_model(),
-                &self.agent_view_controller,
-                &self.model.lock(),
-                ctx,
-            );
-        if !should_queue {
-            return false;
-        }
-
-        let Some(conversation_id) = self
-            .ai_context_model
-            .as_ref(ctx)
-            .selected_conversation_id(ctx)
-        else {
-            return false;
-        };
-
-        let prompt = self.editor.as_ref(ctx).buffer_text(ctx);
-        let prompt = prompt.trim().to_owned();
-        if prompt.is_empty() {
-            return false;
-        }
-        self.emit_input_buffer_submitted_telemetry(ctx);
-
-        self.editor.update(ctx, |editor, ctx| {
-            editor.clear_buffer(ctx);
-        });
-        let attachments = self.ai_context_model.update(ctx, |context_model, ctx| {
-            context_model.take_pending_attachments(ctx)
-        });
-        QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
-            model.append(
-                conversation_id,
-                QueuedQuery::new_with_attachments(
-                    prompt,
-                    QueuedQueryOrigin::AutoQueueToggle,
-                    attachments,
-                ),
-                ctx,
-            );
-        });
-
-        true
     }
 
     /// Submit the input buffer contents as an AI query to continue the conversation locally on the
@@ -10850,9 +10044,8 @@ impl Input {
                     ctx,
                 );
             // Only clear the input buffer for user-executed commands, not agent-executed ones.
-            let should_clear_buffer = !user_block.was_part_of_agent_interaction
-                && !cloud_setup_pre_first_exchange
-                && !self.has_queued_command_in_flight(ctx);
+            let should_clear_buffer =
+                !user_block.was_part_of_agent_interaction && !cloud_setup_pre_first_exchange;
             let latest_block_id = self.model.lock().block_list().active_block_id().clone();
             // Prefer a prompt-chip restore (e.g. `cd`) over a shell-widget handoff restore.
             let completed_handoff = self
@@ -11803,9 +10996,6 @@ impl View for Input {
             ctx.set.insert("VimNormalMode");
         }
 
-        if self.is_editing_queued_prompt(app) {
-            ctx.set.insert(QUEUED_PROMPT_INLINE_EDITOR_OPEN_CONTEXT);
-        }
         let model_lock = self.model.lock();
         ctx.set
             .insert(model_lock.shared_session_status().as_keymap_context());
