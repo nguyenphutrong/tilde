@@ -321,3 +321,8 @@ Todo data models and history-readable stored data remain intact.
 Context chips no longer construct the AI-credit-reset popup or relay queries to an agent.
 The Node menu explains missing nvm without an AI installation action; local `nvm use` and
 `nvm install node` commands remain unchanged.
+
+Prompt generators use only the local prompt configuration and PS1/input settings. Saved agent and
+CLI-agent footer selections remain persisted but cannot start generators. Shell bootstrap tracks
+pending session IDs without timing telemetry; legacy shell timing payloads still decode. Local
+bootstrap and PS1 generator suppression are tested without AI/auth/server/telemetry models.
