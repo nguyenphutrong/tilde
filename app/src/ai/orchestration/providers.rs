@@ -11,7 +11,7 @@ use crate::LLMPreferences;
 use crate::ai::cloud_agent_settings::CloudAgentSettings;
 use crate::ai::cloud_environments::CloudEnvironmentCatalog;
 use crate::ai::connected_self_hosted_workers::WARP_WORKER_HOST;
-use crate::ai::harness_availability::{AuthSecretFetchState, HarnessAvailabilityModel};
+use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::llms::LLMInfo;
 use crate::ai::orchestration::config_state::AuthSecretSelection;
 use crate::workspaces::user_workspaces::{TeamScope, UserWorkspaces};
@@ -165,39 +165,6 @@ pub fn persist_environment_selection(environment_id: &str, ctx: &mut AppContext)
     }
 }
 
-/// Returns the persisted last-selected secret name for this harness, or
-/// `None`. Only promotes a persisted name; never auto-picks the first
-/// loaded secret. Validates against the loaded secrets list when present,
-/// returning `None` if the persisted name has been deleted server-side.
-pub fn resolve_default_auth_secret_for_harness(
-    harness_type: &str,
-    ctx: &AppContext,
-) -> Option<String> {
-    let harness = Harness::parse_orchestration_harness(harness_type)?;
-    if harness == Harness::Oz {
-        return None;
-    }
-    let persisted = CloudAgentSettings::as_ref(ctx)
-        .last_selected_auth_secret
-        .value()
-        .get(harness.config_name())
-        .cloned()
-        .filter(|name| !name.trim().is_empty());
-
-    let availability = HarnessAvailabilityModel::as_ref(ctx);
-    match availability.auth_secrets_for(harness) {
-        AuthSecretFetchState::Loaded(secrets) => {
-            // Drop the persisted name if the secret was deleted server-side.
-            persisted.filter(|name| secrets.contains(name))
-        }
-        // Pre-fetch: optimistically show the persisted name; the
-        // `AuthSecretsLoaded` subscription will re-resolve.
-        AuthSecretFetchState::NotFetched
-        | AuthSecretFetchState::Loading
-        | AuthSecretFetchState::Failed(_) => persisted,
-    }
-}
-
 /// Returns the full persisted selection (Named / Inherit / Unset) for
 /// this harness. Prefers an explicit `Inherit` choice over a `Named`
 /// fallback so the plan card's "Inherit" survives across the RunAgents
@@ -222,54 +189,10 @@ pub fn resolve_auth_secret_selection_for_harness(
     if inherit_chosen {
         return AuthSecretSelection::Inherit;
     }
-    match resolve_default_auth_secret_for_harness(harness_type, ctx) {
+    match default_auth_secret_name_for_harness(harness_type, ctx) {
         Some(name) => AuthSecretSelection::Named(name),
         None => AuthSecretSelection::Unset,
     }
-}
-
-/// Persists the user's auth-secret choice for the active harness.
-/// `Named` writes to `last_selected_auth_secret` and clears any prior
-/// `Inherit` flag. `Inherit` clears the named entry and sets the inherit
-/// flag. `Unset` clears both (no recorded choice). No-op for
-/// Oz / unknown.
-pub(crate) fn persist_auth_secret_selection(
-    harness_type: &str,
-    selection: &AuthSecretSelection,
-    ctx: &mut AppContext,
-) {
-    let Some(harness) = Harness::parse_orchestration_harness(harness_type) else {
-        return;
-    };
-    if harness == Harness::Oz {
-        return;
-    }
-    let key = harness.config_name().to_string();
-    let selection = selection.clone();
-    CloudAgentSettings::handle(ctx).update(ctx, |settings, ctx| {
-        let mut named_map = settings.last_selected_auth_secret.value().clone();
-        let mut inherit_map = settings.inherit_auth_secret_harnesses.value().clone();
-        match selection {
-            AuthSecretSelection::Named(name) => {
-                named_map.insert(key.clone(), name.clone());
-                inherit_map.remove(&key);
-            }
-            AuthSecretSelection::Inherit => {
-                named_map.remove(&key);
-                inherit_map.insert(key, true);
-            }
-            AuthSecretSelection::Unset => {
-                named_map.remove(&key);
-                inherit_map.remove(&key);
-            }
-        }
-        report_if_error!(settings.last_selected_auth_secret.set_value(named_map, ctx));
-        report_if_error!(
-            settings
-                .inherit_auth_secret_harnesses
-                .set_value(inherit_map, ctx)
-        );
-    });
 }
 
 /// Whether Remote execution of `request` requires a managed auth secret

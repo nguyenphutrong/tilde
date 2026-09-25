@@ -181,16 +181,15 @@ fn harness_change_applies_resolved_auth_selection() {
 }
 
 #[test]
-fn revalidate_drops_deleted_named_secret_and_reseeds_from_resolved() {
+fn revalidate_reseeds_unset_legacy_secret_from_resolved() {
     let mut state = OrchestrationConfigState::from_run_agents_fields(
         Some("sonnet"),
         Some("claude"),
         &remote_mode(),
     );
-    state.auth_secret_selection = AuthSecretSelection::Named("deleted-key".to_string());
+    state.auth_secret_selection = AuthSecretSelection::Unset;
 
     state.revalidate_after_catalog_change_core(
-        Some(&["other-key".to_string()]),
         AuthSecretSelection::Named("other-key".to_string()),
         &model_valid_among(&["sonnet"]),
         &|_| Some("sonnet".to_string()),
@@ -203,7 +202,7 @@ fn revalidate_drops_deleted_named_secret_and_reseeds_from_resolved() {
 }
 
 #[test]
-fn revalidate_keeps_named_secret_still_present() {
+fn revalidate_keeps_legacy_named_secret() {
     let mut state = OrchestrationConfigState::from_run_agents_fields(
         Some("sonnet"),
         Some("claude"),
@@ -212,8 +211,7 @@ fn revalidate_keeps_named_secret_still_present() {
     state.auth_secret_selection = AuthSecretSelection::Named("my-key".to_string());
 
     state.revalidate_after_catalog_change_core(
-        Some(&["my-key".to_string()]),
-        AuthSecretSelection::Unset,
+        AuthSecretSelection::Named("other-key".to_string()),
         &model_valid_among(&["sonnet"]),
         &|_| Some("sonnet".to_string()),
     );
@@ -234,7 +232,6 @@ fn revalidate_leaves_explicit_inherit_alone() {
     state.auth_secret_selection = AuthSecretSelection::Inherit;
 
     state.revalidate_after_catalog_change_core(
-        Some(&[]),
         AuthSecretSelection::Named("persisted".to_string()),
         &model_valid_among(&["sonnet"]),
         &|_| Some("sonnet".to_string()),
@@ -252,7 +249,6 @@ fn revalidate_resets_vanished_model_to_default() {
     );
 
     state.revalidate_after_catalog_change_core(
-        None,
         AuthSecretSelection::Unset,
         &model_valid_among(&[""]),
         &|_| Some(String::new()),

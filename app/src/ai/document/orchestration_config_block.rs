@@ -73,7 +73,6 @@ pub enum OrchestrationConfigBlockAction {
     EnvironmentChanged { environment_id: String },
     RunnerChanged { runner_id: String },
     WorkerHostChanged { worker_host: String },
-    AuthSecretChanged { auth_secret_name: Option<String> },
 }
 
 impl OrchestrationControlAction for OrchestrationConfigBlockAction {
@@ -91,9 +90,6 @@ impl OrchestrationControlAction for OrchestrationConfigBlockAction {
     }
     fn runner_changed(runner_id: String) -> Self {
         Self::RunnerChanged { runner_id }
-    }
-    fn auth_secret_changed(auth_secret_name: Option<String>) -> Self {
-        Self::AuthSecretChanged { auth_secret_name }
     }
 }
 
@@ -204,17 +200,10 @@ impl OrchestrationConfigBlockView {
             }
         });
 
-        // Repopulate pickers when the server-provided harness list,
-        // harness model catalogs, or per-harness auth secrets change.
-        // Without an `AuthSecretsLoaded` handler the picker stays on
-        // "Loading…" forever after the lazy fetch completes.
         ctx.subscribe_to_model(
             &HarnessAvailabilityModel::handle(ctx),
             |me, _, event, ctx| match event {
-                HarnessAvailabilityEvent::Changed
-                | HarnessAvailabilityEvent::AuthSecretsLoaded
-                | HarnessAvailabilityEvent::AuthSecretsFetchFailed => {
-                    // Repopulate even on fetch failure to replace "Loading…".
+                HarnessAvailabilityEvent::Changed => {
                     if me.pickers_initialized {
                         oc::repopulate_all_pickers(
                             &mut me.orchestration_edit_state.orchestration_config_state,
@@ -439,10 +428,7 @@ impl OrchestrationConfigBlockView {
         });
         self.pickers.host_picker = Some(host_handle);
 
-        // Seed the auth secret from persisted per-harness settings before
-        // building the picker so the dropdown shows the last selection.
-        // The full selection resolver honors an explicit `Inherit` choice
-        // (which isn't carried on the OrchestrationConfig wire payload).
+        // Credential choices aren't carried on the OrchestrationConfig wire payload.
         if matches!(
             self.orchestration_edit_state
                 .orchestration_config_state
@@ -459,22 +445,6 @@ impl OrchestrationConfigBlockView {
                 ctx,
             );
         }
-        let auth_secret_handle = oc::new_standard_picker_dropdown(&colors, ctx);
-        auth_secret_handle.update(ctx, |d, c| d.set_use_overlay_layer(true, c));
-        oc::populate_auth_secret_picker_for_harness(
-            &auth_secret_handle,
-            &self
-                .orchestration_edit_state
-                .orchestration_config_state
-                .auth_secret_selection,
-            &self
-                .orchestration_edit_state
-                .orchestration_config_state
-                .harness_type,
-            ctx,
-        );
-        self.pickers.auth_secret_picker = Some(auth_secret_handle);
-
         self.pickers_initialized = true;
         oc::sync_picker_selections(
             &self.orchestration_edit_state.orchestration_config_state,
@@ -881,14 +851,6 @@ impl TypedActionView for OrchestrationConfigBlockView {
                     .set_worker_host(worker_host.clone());
                 oc::persist_host_selection(worker_host, ctx);
                 self.apply_field_change(ctx);
-                ctx.notify();
-            }
-            OrchestrationConfigBlockAction::AuthSecretChanged { auth_secret_name } => {
-                // No `apply_field_change`: secrets are user-scoped and
-                // persisted side-channel, not baked into `OrchestrationConfig`.
-                self.orchestration_edit_state
-                    .orchestration_config_state
-                    .apply_auth_secret_change(auth_secret_name.clone(), ctx);
                 ctx.notify();
             }
         }

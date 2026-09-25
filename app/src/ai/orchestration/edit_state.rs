@@ -11,16 +11,13 @@
 use std::collections::HashMap;
 
 use ai::agent::action::RunAgentsExecutionMode;
-use warp_cli::agent::Harness;
-use warpui::{AppContext, SingletonEntity};
+use warpui::AppContext;
 
 use super::config_state::{AuthSecretSelection, OrchestrationConfigState};
 use super::providers::{
     first_filtered_model_id, harness_save_key, is_model_in_filtered_choices,
-    persist_auth_secret_selection, resolve_auth_secret_selection_for_harness,
-    resolve_default_environment_id,
+    resolve_auth_secret_selection_for_harness, resolve_default_environment_id,
 };
-use crate::ai::harness_availability::{AuthSecretFetchState, HarnessAvailabilityModel};
 
 impl OrchestrationConfigState {
     /// Toggles Local ↔ Cloud, pre-fills the default environment when
@@ -46,36 +43,10 @@ impl OrchestrationConfigState {
         );
     }
 
-    /// Records the auth-secret picker choice (`None` means Inherit) and
-    /// persists it to `CloudAgentSettings`.
-    pub fn apply_auth_secret_change(&mut self, new_name: Option<String>, ctx: &mut AppContext) {
-        let normalized = new_name.filter(|s| !s.trim().is_empty());
-        self.auth_secret_selection = match normalized {
-            Some(name) => AuthSecretSelection::Named(name),
-            None => AuthSecretSelection::Inherit,
-        };
-        persist_auth_secret_selection(&self.harness_type, &self.auth_secret_selection, ctx);
-    }
-
-    /// Revalidates the state after a live catalog change: resets a
-    /// vanished model to the harness default, drops a deleted `Named(_)`
-    /// secret, and re-seeds an `Unset` selection from persisted settings.
-    /// This is the frontend-neutral core of the GUI's
-    /// `repopulate_all_pickers`.
+    /// Resets a vanished model and restores unset legacy credentials from persisted settings.
     pub fn revalidate_after_catalog_change(&mut self, ctx: &AppContext) {
-        let loaded_secret_names = Harness::parse_orchestration_harness(&self.harness_type)
-            .filter(|harness| *harness != Harness::Oz)
-            .and_then(|harness| {
-                match HarnessAvailabilityModel::as_ref(ctx).auth_secrets_for(harness) {
-                    AuthSecretFetchState::Loaded(secrets) => Some(secrets.clone()),
-                    AuthSecretFetchState::NotFetched
-                    | AuthSecretFetchState::Loading
-                    | AuthSecretFetchState::Failed(_) => None,
-                }
-            });
         let reseeded_selection = resolve_auth_secret_selection_for_harness(&self.harness_type, ctx);
         self.revalidate_after_catalog_change_core(
-            loaded_secret_names.as_deref(),
             reseeded_selection,
             &|id, harness, is_local| is_model_in_filtered_choices(id, harness, is_local, ctx),
             &|harness| first_filtered_model_id(harness, ctx),
@@ -112,12 +83,8 @@ impl OrchestrationConfigState {
     }
 
     /// Core of [`Self::revalidate_after_catalog_change`].
-    /// `loaded_secret_names` is `Some` only when secrets for the active
-    /// non-Oz harness are loaded; `reseeded_selection` is the persisted
-    /// selection used to replace `Unset`.
     fn revalidate_after_catalog_change_core(
         &mut self,
-        loaded_secret_names: Option<&[String]>,
         reseeded_selection: AuthSecretSelection,
         model_is_valid: &dyn Fn(&str, &str, bool) -> bool,
         default_model_id: &dyn Fn(&str) -> Option<String>,
@@ -131,13 +98,6 @@ impl OrchestrationConfigState {
             && let Some(first_id) = default_model_id(&self.harness_type)
         {
             self.model_id = first_id;
-        }
-        // Drop any `Named(_)` selection whose secret no longer exists.
-        if let (Some(names), AuthSecretSelection::Named(name)) =
-            (loaded_secret_names, &self.auth_secret_selection)
-            && !names.iter().any(|n| n == name)
-        {
-            self.auth_secret_selection = AuthSecretSelection::Unset;
         }
         // Re-seed `Unset` from persisted settings. Leaves `Inherit` alone.
         // Uses the full selection resolver so a prior explicit Inherit is

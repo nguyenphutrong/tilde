@@ -174,9 +174,6 @@ impl OrchestrationControlAction for RunAgentsCardViewAction {
     fn runner_changed(runner_id: String) -> Self {
         Self::RunnerChanged { runner_id }
     }
-    fn auth_secret_changed(auth_secret_name: Option<String>) -> Self {
-        Self::AuthSecretChanged { auth_secret_name }
-    }
 }
 
 /// Per-action UI handles for the confirmation card.
@@ -199,7 +196,6 @@ pub enum RunAgentsCardViewAction {
     EnvironmentChanged { environment_id: String },
     RunnerChanged { runner_id: String },
     WorkerHostChanged { worker_host: String },
-    AuthSecretChanged { auth_secret_name: Option<String> },
 }
 
 #[derive(Clone, Debug)]
@@ -449,17 +445,10 @@ impl RunAgentsCardView {
             }
         });
 
-        // Repopulate pickers when the server-provided harness list,
-        // harness model catalogs, or per-harness auth secrets change.
-        // Without an `AuthSecretsLoaded` handler the picker stays on
-        // "Loading…" forever after the lazy fetch completes.
         ctx.subscribe_to_model(
             &HarnessAvailabilityModel::handle(ctx),
             |me, _, event, ctx| match event {
-                HarnessAvailabilityEvent::Changed
-                | HarnessAvailabilityEvent::AuthSecretsLoaded
-                | HarnessAvailabilityEvent::AuthSecretsFetchFailed => {
-                    // Repopulate even on fetch failure to replace "Loading…".
+                HarnessAvailabilityEvent::Changed => {
                     oc::repopulate_all_pickers(
                         &mut me.orchestration_edit_state.orchestration_config_state,
                         &me.handles.pickers,
@@ -819,44 +808,6 @@ impl RunAgentsCardView {
                 }
             });
             self.handles.pickers.host_picker = Some(handle);
-        }
-
-        if self.handles.pickers.auth_secret_picker.is_none() {
-            // Seed from the request's secret name first; otherwise fall
-            // back to the persisted per-harness selection so the picker
-            // matches what cloud-mode would show. Honors an explicit
-            // `Inherit` choice for this harness.
-            if matches!(
-                self.orchestration_edit_state
-                    .orchestration_config_state
-                    .auth_secret_selection,
-                AuthSecretSelection::Unset
-            ) {
-                self.orchestration_edit_state
-                    .orchestration_config_state
-                    .auth_secret_selection = oc::resolve_auth_secret_selection_for_harness(
-                    &self
-                        .orchestration_edit_state
-                        .orchestration_config_state
-                        .harness_type,
-                    ctx,
-                );
-            }
-            let selection = self
-                .orchestration_edit_state
-                .orchestration_config_state
-                .auth_secret_selection
-                .clone();
-            let harness_type = self
-                .orchestration_edit_state
-                .orchestration_config_state
-                .harness_type
-                .clone();
-            let handle = oc::new_standard_picker_dropdown(&colors, ctx);
-            Self::set_upward_menu_position(&handle, ctx);
-            oc::populate_auth_secret_picker_for_harness(&handle, &selection, &harness_type, ctx);
-            Self::subscribe_picker_close(&handle, ctx);
-            self.handles.pickers.auth_secret_picker = Some(handle);
         }
 
         self.sync_picker_selections(ctx);
@@ -1241,13 +1192,6 @@ impl TypedActionView for RunAgentsCardView {
                     .orchestration_config_state
                     .set_worker_host(worker_host.clone());
                 oc::persist_host_selection(worker_host, ctx);
-                self.refresh_accept_button_state(ctx);
-                ctx.notify();
-            }
-            RunAgentsCardViewAction::AuthSecretChanged { auth_secret_name } => {
-                self.orchestration_edit_state
-                    .orchestration_config_state
-                    .apply_auth_secret_change(auth_secret_name.clone(), ctx);
                 self.refresh_accept_button_state(ctx);
                 ctx.notify();
             }
