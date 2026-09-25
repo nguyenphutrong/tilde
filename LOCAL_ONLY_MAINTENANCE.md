@@ -205,6 +205,8 @@ remain. The Unicode-decoration fixture declares its builtin instead of depending
 Input starts in locked Shell mode and edits, clearing, and submission do not resume classification.
 Restored input configurations are locked. Autodetection settings, their one-time migration,
 mode transitions, slash command and dedicated telemetry are removed; manual AI modes remain pending.
+The classifier-only prompt cache, block override marker and autodetection timestamp are removed.
+Persisted queries, conversation data and input-mode serialization are unchanged.
 
 The terminal AI welcome block, autodetection footer control, classifier command denylist and
 history-matching feature flag are removed. Legacy toolbar arrays still decode retired NLD items

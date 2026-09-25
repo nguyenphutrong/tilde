@@ -37,7 +37,7 @@ fn no_killed_runs() -> HashSet<String> {
 
 /// Installs the singletons the streamer depends on and returns its handle.
 fn install_streamer(app: &mut App) -> ModelHandle<OrchestrationEventStreamer> {
-    app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+    app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
     let ai_client: Arc<dyn AIClient> = Arc::new(MockAIClient::new());
     let server_api = ServerApiProvider::new_for_test().get();
     app.add_singleton_model(|ctx| {

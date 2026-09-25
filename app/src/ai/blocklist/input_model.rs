@@ -6,7 +6,6 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
-use instant::Instant;
 use parking_lot::FairMutex;
 use serde::{Deserialize, Serialize};
 use session_sharing_protocol::common::{InputMode, InputType as ProtocolInputType};
@@ -73,9 +72,6 @@ pub enum InputTypeAutoDetectionSource {
     /// "Continue conversation" button forced AI mode.
     ContinueConversation,
     /// Locking the input for a CLI subagent's terminal-control handoff.
-    /// Distinguishes an agent-installed AI lock from a user-forced one so the
-    /// post-agent reset only restores autodetection when the lock was installed
-    /// for agent terminal control.
     AgentTerminalControl,
     /// Starting a new agent conversation forced AI mode.
     StartNewConversation,
@@ -87,7 +83,7 @@ pub enum InputTypeAutoDetectionSource {
     InlineAgentViewEntry,
     /// Activating cloud handoff compose (`&` prefix or programmatic) force-locked AI.
     CloudHandoffEnter,
-    /// Exiting cloud handoff compose restored AI / unlocked-if-autodetect.
+    /// Exiting cloud handoff compose restored locked AI mode.
     CloudHandoffExit,
     /// Legacy non-AgentView `?` AI prefix path force-locked AI.
     AgentModePrefix,
@@ -189,9 +185,6 @@ impl From<InputConfig> for InputMode {
 pub struct BlocklistAIInputModel {
     input_config: InputConfig,
 
-    /// The timestamp of the last time the input mode was switched, if the switch was to AI mode and
-    /// it was autodetected. Else, `None`.
-    last_ai_autodetection_ts: Option<Instant>,
     /// the latest input type classification decision source
     last_ai_autodetection_source: Option<InputTypeAutoDetectionSource>,
 
@@ -263,7 +256,6 @@ impl BlocklistAIInputModel {
             input_config,
             conversation_selection,
             policy,
-            last_ai_autodetection_ts: None,
             last_ai_autodetection_source: None,
             was_lock_set_with_empty_buffer: false,
             model,
@@ -285,7 +277,6 @@ impl BlocklistAIInputModel {
             input_config,
             conversation_selection,
             policy,
-            last_ai_autodetection_ts: None,
             last_ai_autodetection_source: None,
             was_lock_set_with_empty_buffer: false,
             model,
@@ -304,8 +295,7 @@ impl BlocklistAIInputModel {
         self.input_config.input_type
     }
 
-    /// Whether the input type is locked. Does not take user autodetection setting or feature flags
-    /// into account.
+    /// Whether the input type is locked.
     pub fn is_input_type_locked(&self) -> bool {
         self.input_config.is_locked
     }
@@ -330,10 +320,6 @@ impl BlocklistAIInputModel {
     }
     pub fn last_ai_autodetection_source(&self) -> Option<InputTypeAutoDetectionSource> {
         self.last_ai_autodetection_source
-    }
-
-    pub fn last_ai_autodetection_ts(&self) -> Option<Instant> {
-        self.last_ai_autodetection_ts
     }
 
     /// Sets the input config iff the input is in classic mode (i.e. not UDI).
@@ -400,12 +386,6 @@ impl BlocklistAIInputModel {
         }
 
         let old_config = self.input_config;
-
-        if !new_config.is_locked && new_config.input_type.is_ai() {
-            self.last_ai_autodetection_ts = Some(Instant::now());
-        } else {
-            self.last_ai_autodetection_ts = None;
-        }
 
         if new_config.input_type.is_ai() {
             AISettings::handle(ctx).update(ctx, |settings, ctx| {
