@@ -274,3 +274,7 @@ At the inline-menu recovery increment, 68 selected tests, all-target Clippy, TUI
 Linux GUI build pass. Xvfb startup exits before creating a window: the login experiment snapshots
 `PrivacySettings`, which still requests unregistered `UserWorkspaces`. No GUI success or rendered
 terminal is established; remove the remaining consumer coupling rather than adding a dummy model.
+
+Orchestration pill controls, breadcrumbs, and their pin/scroll singleton are removed. Static avatar
+and label helpers remain for legacy AI surfaces; persisted pin fields and decoding remain untouched.
+The capped drag-preview and restored pane-topology regressions remain runnable.

@@ -287,14 +287,6 @@ pub fn initialize_app(app: &mut App) {
     // QueuedQueryModel subscribes to history events; register after the
     // history model is in place.
     app.add_singleton_model(crate::ai::blocklist::QueuedQueryModel::new);
-    // Pill bar model subscribes to history events; register after the
-    // history model is in place.
-    app.add_singleton_model(|ctx| {
-        crate::ai::blocklist::agent_view::orchestration_pill_bar_model::OrchestrationPillBarModel::new(
-            Default::default(),
-            ctx,
-        )
-    });
     app.add_singleton_model(|_| CLIAgentSessionsModel::new());
     // The blocklist controller created during terminal bootstrap subscribes to
     // OrchestrationEventService and OrchestrationEventStreamer unconditionally,
