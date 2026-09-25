@@ -25,7 +25,7 @@ use crate::terminal::should_right_click_paste;
 use crate::terminal::view::TerminalAction;
 
 impl Input {
-    /// Renders the CLI rich input (editor + CLI agent footer).
+    /// Renders the CLI rich input editor.
     pub(super) fn render_cli_agent_input(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let menu_positioning = self.menu_positioning(app);
@@ -79,15 +79,6 @@ impl Input {
         }
 
         column.add_child(editor_element);
-        column.add_child(
-            SavePosition::new(
-                Container::new(ChildView::new(&self.agent_input_footer).finish())
-                    .with_padding_right(*TERMINAL_VIEW_PADDING_LEFT)
-                    .finish(),
-                &self.prompt_save_position_id(),
-            )
-            .finish(),
-        );
 
         stack.add_child(wrap_input_with_terminal_padding_and_focus_handler(
             self.is_active_session(app),
@@ -149,10 +140,6 @@ impl Input {
     /// top of an alt-screen CLI agent's inferred background (e.g. OpenCode),
     /// which does not respect the Warp theme. When no alt-screen-backed CLI
     /// agent rich input is active, restores the theme default text colors.
-    ///
-    /// This mirrors the contrast-adjustment pattern used for the use-agent
-    /// toolbar button text (see `AgentFooterButtonTheme::text_color`) and the
-    /// CLI agent brand icon in `AgentInputFooter::render_cli_mode_footer`.
     pub(super) fn update_cli_agent_editor_text_colors(&mut self, ctx: &mut ViewContext<Self>) {
         let appearance = Appearance::as_ref(ctx);
         let default_colors = TextColors::from_appearance(appearance);

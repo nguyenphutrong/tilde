@@ -90,7 +90,6 @@ pub enum SlashCommandKind {
     Team,
     Host,
     Harness,
-    Environment,
     Profile,
     Plan,
     Orchestrate,

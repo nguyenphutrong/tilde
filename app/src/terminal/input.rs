@@ -141,12 +141,11 @@ use crate::ai::agent::{
 use crate::ai::attachment_utils::MAX_ATTACHMENT_SIZE_BYTES;
 use crate::ai::blocklist::agent_view::shortcuts::AgentShortcutViewModel;
 use crate::ai::blocklist::agent_view::{
-    AgentInputFooter, AgentInputFooterEvent, AgentViewController, AgentViewEntryOrigin,
-    EphemeralMessageModel,
+    AgentViewController, AgentViewEntryOrigin, EphemeralMessageModel,
 };
 use crate::ai::blocklist::block::cli_controller::{CLISubagentController, CLISubagentEvent};
 use crate::ai::blocklist::block::status_bar::BlocklistAIStatusBar;
-use crate::ai::blocklist::prompt::prompt_alert::{PromptAlertEvent, PromptAlertView};
+use crate::ai::blocklist::prompt::prompt_alert::PromptAlertView;
 use crate::ai::blocklist::{
     AttachmentType, BLOCK_CONTEXT_ATTACHMENT_REGEX, BlocklistAIActionModel,
     BlocklistAIContextEvent, BlocklistAIContextModel, BlocklistAIController,
@@ -179,7 +178,7 @@ use crate::code::editor_management::CodeSource;
 use crate::code_review::diff_state::DiffMode;
 use crate::completer::SessionContext;
 use crate::context_chips::display::{PromptDisplay, PromptDisplayEvent};
-use crate::context_chips::display_chip::{DisplayChipConfig, PromptChipShellCommand};
+use crate::context_chips::display_chip::PromptChipShellCommand;
 use crate::context_chips::prompt_type::PromptType;
 use crate::context_chips::spacing;
 use crate::editor::{
@@ -1580,8 +1579,6 @@ pub struct Input {
 
     terminal_input_message_bar: ViewHandle<TerminalInputMessageBar>,
 
-    agent_input_footer: ViewHandle<AgentInputFooter>,
-
     inline_slash_commands_view: ViewHandle<InlineSlashCommandView>,
     cloud_mode_v2_slash_commands_view: Option<ViewHandle<CloudModeV2SlashCommandView>>,
     slash_command_data_source: ModelHandle<GuiSlashCommandDataSource>,
@@ -2325,15 +2322,7 @@ impl Input {
             self.menu_positioning_provider.clone(),
             ctx,
         );
-        // Push the model down to the footer (parent -> child) so its environment selector
-        // reflects the cloud run. On this link-join path the footer captured `None` at
-        // construction, so it must be given the model now to render the environment chip.
-        let footer_model = view_model.clone();
-        let footer_menu_positioning = self.menu_positioning_provider.clone();
-        self.agent_input_footer.update(ctx, |footer, ctx| {
-            footer.set_ambient_agent_view_model(footer_model, footer_menu_positioning, ctx);
-        });
-        // Same parent -> child push for the agent status bar. It captured `None` at construction
+        // Push the model to the agent status bar. It captured `None` at construction
         // on this link-join path, so without this it can't render the cloud-mode setup /
         // follow-up progress (`render_cloud_mode_setup_status`) while a follow-up VM spins up.
         let status_bar_model = view_model.clone();
@@ -2458,19 +2447,6 @@ impl Input {
         };
 
         let is_shared_session_viewer = model.lock().shared_session_status().is_viewer();
-        let footer_display_chip_config = DisplayChipConfig {
-            ai_input_model: ai_input_model.clone(),
-            ai_context_model: ai_context_model.clone(),
-            terminal_view_id,
-            menu_positioning_provider: menu_positioning_provider.clone(),
-            session_context: initial_session_context.clone(),
-            current_repo_path: current_repo_path.clone(),
-            model_events: model_events.clone(),
-            is_shared_session_viewer,
-            agent_view_controller: agent_view_controller.clone(),
-            // Wired post-construction via `attach_ambient_agent_view_model` (single wiring point).
-            ambient_agent_view_model: None,
-        };
 
         let prompt_view = ctx.add_typed_action_view(|ctx| {
             PromptDisplay::new(
@@ -2537,90 +2513,11 @@ impl Input {
         let input_render_state_model_handle: ModelHandle<InputRenderStateModel> =
             ctx.add_model(|_| InputRenderStateModel::new(false, size_info));
 
-        let agent_input_footer = ctx.add_typed_action_view(|ctx| {
-            AgentInputFooter::new(
-                menu_positioning_provider.clone(),
-                terminal_view_id,
-                model.clone(),
-                // Wired post-construction via `attach_ambient_agent_view_model`.
-                None,
-                current_prompt.clone(),
-                footer_display_chip_config.clone(),
-                ctx,
-            )
-        });
-
         // Ambient view state (harness / host / auth selectors) is built in
         // `attach_ambient_agent_view_model`, the single wiring point shared by this constructor
         // and the lazy shared-session viewer path.
         let ambient_agent_view_state: Option<AmbientAgentViewState> = None;
-        ctx.subscribe_to_view(&agent_input_footer, |me, _, event, ctx| {
-            match event {
-                #[cfg(feature = "voice_input")]
-                AgentInputFooterEvent::ToggleVoiceInput(from) => {
-                    me.toggle_voice_input(from, ctx);
-                }
-                AgentInputFooterEvent::SelectFile => {
-                    me.select_image(ctx);
-                }
-                AgentInputFooterEvent::StartRemoteControl
-                | AgentInputFooterEvent::StopRemoteControl => {
-                    // Handled by UseAgentToolbar's subscription, not here.
-                }
-                // These events are handled by UseAgentToolbar's subscription.
-                // The UseAgentToolbar shares this same AgentInputFooter instance,
-                // so its subscriber always fires alongside ours for every chip click.
-                AgentInputFooterEvent::WriteToPty(_)
-                | AgentInputFooterEvent::InsertIntoCLIPty(_)
-                | AgentInputFooterEvent::InsertIntoCLIRichInput(_)
-                | AgentInputFooterEvent::ToggleCodeReviewPane(_)
-                | AgentInputFooterEvent::ToggleFileExplorer(_)
-                | AgentInputFooterEvent::OpenRichInput
-                | AgentInputFooterEvent::HideRichInput => {}
-                AgentInputFooterEvent::ToggledChipMenu { open } => {
-                    me.handle_prompt_event(&PromptDisplayEvent::ToggleMenu { open: *open }, ctx);
-                }
-                AgentInputFooterEvent::TryExecuteChipCommand(cmd) => {
-                    me.handle_prompt_event(
-                        &PromptDisplayEvent::TryExecuteCommand(cmd.clone()),
-                        ctx,
-                    );
-                }
-                AgentInputFooterEvent::PromptAlert(prompt_alert_event) => {
-                    me.handle_prompt_alert(prompt_alert_event, ctx);
-                }
-                AgentInputFooterEvent::EnvironmentSelectorClosed => {
-                    me.focus_input_box(ctx);
-                }
-                AgentInputFooterEvent::OpenCodeReview => {
-                    ctx.emit(Event::OpenCodeReviewPane);
-                }
-                AgentInputFooterEvent::OpenAIDocument {
-                    document_id,
-                    document_version,
-                } => {
-                    ctx.emit(Event::ToggleAIDocumentPane {
-                        document_id: *document_id,
-                        document_version: *document_version,
-                    });
-                }
-                AgentInputFooterEvent::ShowContextMenu { position } => {
-                    let position_id = format!("prompt_area_{}", me.view_id);
-                    let offset = if let Some(prompt_rect) = ctx.element_position_by_id(&position_id)
-                    {
-                        *position - prompt_rect.origin()
-                    } else {
-                        *position
-                    };
-                    ctx.dispatch_typed_action(&TerminalAction::PromptContextMenu {
-                        position_offset_from_prompt: offset,
-                    });
-                }
-                AgentInputFooterEvent::OpenEnvironmentManagementPane => {
-                    ctx.emit(Event::OpenEnvironmentManagementPane);
-                }
-            }
-        });
+
         ctx.subscribe_to_model(&CLIAgentSessionsModel::handle(ctx), |me, _, event, ctx| {
             let CLIAgentSessionsModelEvent::InputSessionChanged {
                 terminal_view_id,
@@ -3634,7 +3531,6 @@ impl Input {
             agent_status_view,
             queued_prompts_panel,
             agent_view_controller,
-            agent_input_footer,
             agent_shortcut_view_model,
             ambient_agent_view_state,
             slash_command_data_source,
@@ -3804,10 +3700,6 @@ impl Input {
         QueuedQueryModel::as_ref(ctx)
             .editing_row(conversation_id)
             .is_some()
-    }
-
-    pub fn agent_input_footer(&self) -> &ViewHandle<AgentInputFooter> {
-        &self.agent_input_footer
     }
 
     fn ambient_agent_view_model(&self) -> Option<&ModelHandle<AmbientAgentViewModel>> {
@@ -3996,12 +3888,6 @@ impl Input {
             return;
         };
         harness_selector.update(ctx, |selector, ctx| selector.open_menu(ctx));
-    }
-
-    pub(super) fn open_v2_environment_selector(&mut self, ctx: &mut ViewContext<Self>) {
-        self.agent_input_footer
-            .clone()
-            .update(ctx, |footer, ctx| footer.open_v2_environment_selector(ctx));
     }
 
     fn prefix_mode(&self, ctx: &AppContext) -> InputPrefixMode {
@@ -5085,9 +4971,7 @@ impl Input {
         }
 
         // Don't open inline history menu if a chip menu is already open
-        let agent_footer = self.agent_input_footer.as_ref(ctx);
-        if self.prompt_render_helper.has_open_chip_menu(ctx) || agent_footer.has_open_chip_menu(ctx)
-        {
+        if self.prompt_render_helper.has_open_chip_menu(ctx) {
             return;
         }
 
@@ -5804,25 +5688,6 @@ impl Input {
         self.editor.update(ctx, |editor, ctx| {
             editor.user_initiated_insert(text, PlainTextEditorViewAction::Paste, ctx);
         });
-    }
-
-    fn handle_prompt_alert(
-        &mut self,
-        prompt_alert: &PromptAlertEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match prompt_alert {
-            PromptAlertEvent::SignupAnonymousUser => {
-                ctx.emit(Event::SignupAnonymousUser {
-                    entrypoint: AnonymousUserSignupEntrypoint::SignUpAIPrompt,
-                });
-            }
-            PromptAlertEvent::OpenBillingPortal { team_uid } => {
-                UserWorkspaces::handle(ctx).update(ctx, |user_workspaces, ctx| {
-                    user_workspaces.generate_stripe_billing_portal_link(*team_uid, ctx);
-                });
-            }
-        }
     }
 
     /// Switches to AI mode but preserves current lock state.
@@ -9680,10 +9545,6 @@ impl Input {
                 is_listening,
                 is_transcribing,
             } => {
-                self.agent_input_footer.update(ctx, |footer, ctx| {
-                    footer.set_voice_is_active(*is_listening || *is_transcribing, ctx);
-                });
-
                 if *is_listening || *is_transcribing {
                     // Show voice status as placeholder when the buffer is empty.
                     if self.editor.as_ref(ctx).is_empty(ctx) {
@@ -13809,10 +13670,6 @@ impl Input {
             .update(ctx, |prompt, prompt_ctx| {
                 prompt.update_session_context(session_context.clone(), prompt_ctx);
             });
-
-        self.agent_input_footer.update(ctx, |footer, footer_ctx| {
-            footer.update_session_context(session_context, footer_ctx);
-        });
     }
 
     pub fn update_repo_path(&mut self, repo_path: Option<PathBuf>, ctx: &mut ViewContext<Self>) {
@@ -13821,10 +13678,6 @@ impl Input {
             .update(ctx, |prompt, prompt_ctx| {
                 prompt.update_repo_path(repo_path.clone(), prompt_ctx);
             });
-
-        self.agent_input_footer.update(ctx, |footer, footer_ctx| {
-            footer.set_current_repo_path(repo_path.clone(), footer_ctx);
-        });
 
         self.slash_command_data_source.update(ctx, {
             let repo_path = repo_path.clone();
@@ -14344,9 +14197,6 @@ impl View for Input {
             } else if self.prompt_render_helper.has_open_chip_menu(ctx) {
                 // Focus the PromptDisplay, which will in turn focus any open chip menu
                 ctx.focus(self.prompt_render_helper.prompt_view());
-            } else if self.agent_input_footer.as_ref(ctx).has_open_chip_menu(ctx) {
-                // Focus the AgentInputFooter, which will in turn focus any open chip menu
-                ctx.focus(&self.agent_input_footer);
             } else {
                 self.close_voltron(ctx);
                 ctx.focus(&self.editor);
@@ -14381,20 +14231,11 @@ impl View for Input {
         let is_v2_harness_selector_open = self
             .harness_selector()
             .is_some_and(|view| view.as_ref(app).is_menu_open());
-        let is_v2_environment_selector_open = self
-            .agent_input_footer
-            .as_ref(app)
-            .is_v2_environment_selector_open(app);
-        if is_v2_host_selector_open
-            || is_v2_harness_selector_open
-            || is_v2_environment_selector_open
-        {
+        if is_v2_host_selector_open || is_v2_harness_selector_open {
             ctx.set.insert("ProfileModelSelectorOpen");
         }
 
-        if self.prompt_render_helper.has_open_chip_menu(app)
-            || self.agent_input_footer.as_ref(app).has_open_chip_menu(app)
-        {
+        if self.prompt_render_helper.has_open_chip_menu(app) {
             ctx.set.insert("PromptChipMenuOpen");
         }
 
@@ -14643,30 +14484,6 @@ fn maybe_render_ai_input_indicators(
 
 #[cfg(feature = "integration_tests")]
 impl Input {}
-
-#[cfg(test)]
-impl Input {
-    pub fn agent_footer_chip_kinds(
-        &self,
-        app: &AppContext,
-    ) -> (
-        Vec<crate::context_chips::ContextChipKind>,
-        Vec<crate::context_chips::ContextChipKind>,
-    ) {
-        self.agent_input_footer
-            .as_ref(app)
-            .displayed_chip_kinds(app)
-    }
-
-    pub fn cli_footer_chip_kinds(
-        &self,
-        app: &AppContext,
-    ) -> Vec<crate::context_chips::ContextChipKind> {
-        self.agent_input_footer
-            .as_ref(app)
-            .cli_display_chip_kinds(app)
-    }
-}
 
 #[cfg(test)]
 #[path = "input_tests.rs"]

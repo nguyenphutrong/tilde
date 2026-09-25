@@ -3,12 +3,13 @@ use std::collections::HashSet;
 use super::*;
 
 #[test]
-fn retired_conversation_menu_is_not_registered() {
+fn retired_conversation_and_environment_menus_are_not_registered() {
+    let _cloud_input = FeatureFlag::CloudModeInputV2.override_enabled(true);
     for settings_mode in [settings::SettingsMode::Gui, settings::SettingsMode::Tui] {
         assert!(
             all_commands(settings_mode)
                 .iter()
-                .all(|command| command.name != "/conversations")
+                .all(|command| !["/conversations", "/environment"].contains(&command.name))
         );
     }
 }

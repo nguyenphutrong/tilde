@@ -511,20 +511,6 @@ pub static HARNESS: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     argument: None,
 });
 
-pub static ENVIRONMENT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: "/environment",
-    description: "Switch the cloud agent environment",
-    kind: SlashCommandKind::Environment,
-    supported_surfaces: SlashCommandSurfaces::GuiOnly {
-        icon_path: "bundled/svg/globe-04.svg",
-    },
-    availability: Availability::AGENT_VIEW
-        | Availability::AI_ENABLED
-        | Availability::CLOUD_MODE_V2_COMPOSER,
-    auto_enter_ai_mode: true,
-    argument: None,
-});
-
 pub static PROFILE: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     name: "/profile",
     description: "Switch the active execution profile",
@@ -975,7 +961,6 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
     if FeatureFlag::CloudModeInputV2.is_enabled() {
         commands.push(HOST.clone());
         commands.push(HARNESS.clone());
-        commands.push(ENVIRONMENT.clone());
     }
 
     commands
