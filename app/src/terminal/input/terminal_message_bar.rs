@@ -22,7 +22,7 @@ use crate::ai::pricing_promotion::{
 use crate::appearance::Appearance;
 use crate::search::slash_command_menu::static_commands::commands;
 use crate::terminal::input::SET_INPUT_MODE_TERMINAL_ACTION_NAME;
-use crate::terminal::input::inline_history::{AcceptHistoryItem, HistoryTab};
+use crate::terminal::input::inline_history::AcceptHistoryItem;
 use crate::terminal::input::inline_menu::{InlineMenuModel, InlineMenuModelEvent};
 use crate::terminal::input::message_bar::MessageTransformer;
 use crate::terminal::input::suggestions_mode_model::{
@@ -40,7 +40,7 @@ pub struct TerminalInputMessageBar {
     input_buffer_model: ModelHandle<InputBufferModel>,
     context_model: ModelHandle<BlocklistAIContextModel>,
     suggestions_mode_model: ModelHandle<InputSuggestionsModeModel>,
-    inline_history_model: ModelHandle<InlineMenuModel<AcceptHistoryItem, HistoryTab>>,
+    inline_history_model: ModelHandle<InlineMenuModel<AcceptHistoryItem>>,
     promotion_close_mouse_state: MouseStateHandle,
 }
 
@@ -59,7 +59,7 @@ impl TerminalInputMessageBar {
         input_buffer_model: ModelHandle<InputBufferModel>,
         context_model: ModelHandle<BlocklistAIContextModel>,
         suggestions_mode_model: ModelHandle<InputSuggestionsModeModel>,
-        inline_history_model: ModelHandle<InlineMenuModel<AcceptHistoryItem, HistoryTab>>,
+        inline_history_model: ModelHandle<InlineMenuModel<AcceptHistoryItem>>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         ctx.subscribe_to_model(&ai_input_model, |_, _, _, ctx| {
@@ -326,14 +326,8 @@ impl MessageProvider<Option<&AcceptHistoryItem>> for InlineHistoryMessageProduce
             ..Default::default()
         });
         let items = match selected {
-            Some(AcceptHistoryItem::Command { .. }) => {
+            Some(_) => {
                 vec![enter, MessageItem::text(" to execute")]
-            }
-            Some(AcceptHistoryItem::AIPrompt { .. }) => {
-                vec![enter, MessageItem::text(" to send")]
-            }
-            Some(AcceptHistoryItem::Conversation { title, .. }) => {
-                vec![enter, MessageItem::text(format!(" to open '{title}'"))]
             }
             None => {
                 vec![MessageItem::text("")]

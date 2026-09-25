@@ -1,96 +1,132 @@
-use chrono::{Local, TimeZone as _};
+use std::collections::HashSet;
 
-use super::{MenuEntry, MenuItem, interleave_conversations};
-use crate::input_suggestions::HistoryOrder;
+use chrono::{Duration, Local};
+use warpui::App;
+
+use super::*;
+use crate::terminal::history::{HistoryEntry, HistoryEvent};
+use crate::terminal::model::session::{SessionId, SessionInfo, Sessions};
+use crate::terminal::model_events::ModelEventDispatcher;
 
 #[test]
-fn interleave_conversations_only_inserts_into_current_session_segment() {
-    let t10 = Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 10).unwrap();
-    let t20 = Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 20).unwrap();
-    let t50 = Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 50).unwrap();
-    let t100 = Local.with_ymd_and_hms(2024, 1, 1, 0, 1, 40).unwrap();
-    let t150 = Local.with_ymd_and_hms(2024, 1, 1, 0, 2, 30).unwrap();
-    let t200 = Local.with_ymd_and_hms(2024, 1, 1, 0, 3, 20).unwrap();
-
-    let base = vec![
-        MenuEntry {
-            order: HistoryOrder::DifferentSession,
-            sort_timestamp: t10,
-            item: MenuItem::Command {
-                command: "d10".to_string(),
-                display_timestamp: t10,
-                linked_workflow_data: None,
-                prefix_match_len: 0,
-            },
-        },
-        MenuEntry {
-            order: HistoryOrder::DifferentSession,
-            sort_timestamp: t20,
-            item: MenuItem::Command {
-                command: "d20".to_string(),
-                display_timestamp: t20,
-                linked_workflow_data: None,
-                prefix_match_len: 0,
-            },
-        },
-        MenuEntry {
-            order: HistoryOrder::CurrentSession,
-            sort_timestamp: t100,
-            item: MenuItem::Command {
-                command: "c100".to_string(),
-                display_timestamp: t100,
-                linked_workflow_data: None,
-                prefix_match_len: 0,
-            },
-        },
-        MenuEntry {
-            order: HistoryOrder::CurrentSession,
-            sort_timestamp: t200,
-            item: MenuItem::Command {
-                command: "c200".to_string(),
-                display_timestamp: t200,
-                linked_workflow_data: None,
-                prefix_match_len: 0,
-            },
-        },
-    ];
-
-    let conversations = vec![
-        MenuEntry {
-            order: HistoryOrder::CurrentSession,
-            sort_timestamp: t150,
-            item: MenuItem::Command {
-                command: "conv150".to_string(),
-                display_timestamp: t150,
-                linked_workflow_data: None,
-                prefix_match_len: 0,
-            },
-        },
-        MenuEntry {
-            order: HistoryOrder::CurrentSession,
-            sort_timestamp: t50,
-            item: MenuItem::Command {
-                command: "conv50".to_string(),
-                display_timestamp: t50,
-                linked_workflow_data: None,
-                prefix_match_len: 0,
-            },
-        },
-    ];
-
-    let merged = interleave_conversations(base, conversations);
-
-    let commands = merged
-        .iter()
-        .map(|e| match &e.item {
-            MenuItem::Command { command, .. } => command.as_str(),
-            MenuItem::Conversation { title, .. } => title.as_str(),
-        })
-        .collect::<Vec<_>>();
-
-    // DifferentSession entries stay at the top; conversations are inserted into the CurrentSession segment.
-    assert_eq!(
-        commands,
-        vec!["d10", "d20", "conv50", "c100", "conv150", "c200"]
-    );
+fn shell_history_orders_dedupes_and_filters_without_ai_models() {
+    App::test((), |mut app| async move {
+        let other_session = SessionId::from(29);
+        let session_id = SessionId::from(17);
+        let sessions = app.add_model(|_| Sessions::new_for_test());
+        let history = app.add_singleton_model(|_| History::default());
+        let now = Local::now();
+        let entry = |id, command: &str, offset| {
+            HistoryEntry::command_at_time(
+                command.to_owned(),
+                now + Duration::seconds(offset),
+                Some(id),
+                false,
+            )
+        };
+        for id in [other_session, session_id] {
+            sessions.update(&mut app, |sessions, _| {
+                let mut info = SessionInfo::new_for_test();
+                info.session_id = id;
+                sessions.register_session_for_test(info);
+            });
+            let session = sessions.read(&app, |sessions, _| sessions.get(id).unwrap());
+            let (initialized_tx, initialized_rx) = async_channel::bounded(1);
+            app.update(|ctx| {
+                ctx.subscribe_to_model(&history, move |_, event, _| {
+                    if matches!(event, HistoryEvent::Initialized(initialized) if *initialized == id)
+                    {
+                        let _ = initialized_tx.try_send(());
+                    }
+                });
+                history.update(ctx, |history, ctx| {
+                    history.init_session_with(session, async { Vec::new() }, ctx);
+                });
+            });
+            initialized_rx.recv().await.unwrap();
+            if id == other_session {
+                history.update(&mut app, |history, _| {
+                    history.append_commands(id, vec![entry(id, "echo external", -10)]);
+                });
+            }
+        }
+        history.update(&mut app, |history, _| {
+            history.append_commands(
+                session_id,
+                vec![
+                    entry(session_id, " echo newest ", 0),
+                    entry(session_id, "printf oldest", 1),
+                    entry(session_id, "echo 日本語", 2),
+                    entry(session_id, "   ", 3),
+                    entry(session_id, "echo newest", 4),
+                ],
+            );
+            history.append_commands(other_session, vec![entry(other_session, "echo hidden", 5)]);
+        });
+        let (_tx, rx) = async_channel::unbounded();
+        let dispatcher = app.add_model(|ctx| {
+            let mut dispatcher = ModelEventDispatcher::new(rx, sessions.clone(), ctx);
+            dispatcher.set_active_session_id(session_id);
+            dispatcher
+        });
+        let active_session = app.add_model(|ctx| ActiveSession::new(sessions, dispatcher, ctx));
+        let source = InlineHistoryMenuDataSource::new(EntityId::new(), active_session);
+        for (prefix, expected) in [
+            (
+                "",
+                vec![
+                    "echo external",
+                    "printf oldest",
+                    "echo 日本語",
+                    "echo newest",
+                ],
+            ),
+            (
+                "  echo  ",
+                vec!["echo external", "echo 日本語", "echo newest"],
+            ),
+            ("echo 日", vec!["echo 日本語"]),
+            ("Echo", vec![]),
+        ] {
+            let results = app.read(|ctx| {
+                source
+                    .run_query(
+                        &Query {
+                            text: prefix.to_owned(),
+                            filters: HashSet::from([QueryFilter::Commands]),
+                        },
+                        ctx,
+                    )
+                    .unwrap()
+            });
+            assert_eq!(
+                results
+                    .iter()
+                    .map(|item| item.accept_result().command)
+                    .collect::<Vec<_>>(),
+                expected
+            );
+            for (index, result) in results.iter().enumerate() {
+                assert_eq!(result.score(), OrderedFloat(index as f64));
+                assert_eq!(
+                    result.accessibility_label(),
+                    format!("Command: {}", expected[index])
+                );
+            }
+        }
+        app.read(|ctx| {
+            assert!(
+                source
+                    .run_query(
+                        &Query {
+                            text: String::new(),
+                            filters: HashSet::from([QueryFilter::PromptHistory]),
+                        },
+                        ctx
+                    )
+                    .unwrap()
+                    .is_empty()
+            )
+        });
+    });
 }

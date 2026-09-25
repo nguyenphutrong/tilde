@@ -9061,3 +9061,54 @@ fn inline_menu_position_follows_terminal_input_mode() {
         }
     });
 }
+
+#[test]
+fn inline_history_preview_restores_shell_draft_on_close() {
+    let _inline_history = FeatureFlag::InlineHistoryMenu.override_enabled(true);
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
+        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
+        for (draft, use_escape) in [("# unfinished comment", false), ("echo 日本語 | ", true)] {
+            input.update(&mut app, |input, ctx| {
+                input
+                    .editor
+                    .update(ctx, |editor, ctx| editor.set_buffer_text(draft, ctx));
+            });
+            input.update(&mut app, |input, ctx| {
+                input.open_inline_history_menu(ctx);
+            });
+            input.update(&mut app, |input, ctx| {
+                assert!(
+                    input
+                        .suggestions_mode_model
+                        .as_ref(ctx)
+                        .is_inline_history_menu()
+                );
+                input.handle_inline_history_menu_event(
+                    &inline_history::InlineHistoryMenuEvent::SelectCommand {
+                        command: "printf previous".to_owned(),
+                        linked_workflow_data: None,
+                    },
+                    ctx,
+                );
+            });
+            input.update(&mut app, |input, ctx| {
+                assert_eq!(input.buffer_text(ctx), "printf previous");
+                assert!(input.ai_input_model.as_ref(ctx).input_config().is_shell());
+                if use_escape {
+                    input.editor_escape(ctx);
+                } else {
+                    input.handle_inline_history_menu_event(
+                        &inline_history::InlineHistoryMenuEvent::Close,
+                        ctx,
+                    );
+                }
+            });
+            input.read(&app, |input, ctx| {
+                assert_eq!(input.buffer_text(ctx), draft);
+                assert!(input.suggestions_mode_model.as_ref(ctx).is_closed());
+            });
+        }
+    });
+}
