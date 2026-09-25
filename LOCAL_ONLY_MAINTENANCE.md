@@ -239,6 +239,10 @@ all-target integration checking and Clippy pass without removing local launch-co
 Linux build and GUI smoke are separate verification requirements; unit checks do not substitute for
 them. Integration compilation does not imply a successful real-display test run.
 
+Terminal test bootstrap preserves the supplied fixture shell. Zsh `histignorespace` passes without
+changing production history filtering. The 178-test input/parser run passes 174 tests; four existing
+AI shortcut/changelog failures remain (queued-prompt `?`, two new-conversation shortcuts, changelog).
+
 At the inline-menu recovery increment, 68 selected tests, all-target Clippy, TUI checking and the
 Linux GUI build pass. Xvfb startup exits before creating a window: the login experiment snapshots
 `PrivacySettings`, which still requests unregistered `UserWorkspaces`. No GUI success or rendered

@@ -452,9 +452,8 @@ pub async fn add_window_with_bootstrapped_terminal_and_window_id(
     let shell_type = shell_starter_source.shell_type();
 
     let session_info = session_info
-        .unwrap_or_else(SessionInfo::new_for_test)
-        .with_session_type(BootstrapSessionType::Local)
-        .with_shell_type(shell_type);
+        .unwrap_or_else(|| SessionInfo::new_for_test().with_shell_type(shell_type))
+        .with_session_type(BootstrapSessionType::Local);
     let history_file_commands = history_file_commands.unwrap_or_default();
 
     let (window_id, terminal) = app.add_window(WindowStyle::NotStealFocus, move |ctx| {
