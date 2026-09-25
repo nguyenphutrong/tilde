@@ -7365,7 +7365,7 @@ fn test_agent_view_terminal_only_initial_input_config_is_locked_shell() {
 }
 
 #[test]
-fn test_terminal_only_ai_enter_enters_agent_view_and_clears_buffer() {
+fn test_terminal_only_ai_enter_preserves_draft_without_entering_agent_view() {
     use crate::ai::blocklist::InputConfig;
 
     App::test((), |mut app| async move {
@@ -7399,18 +7399,16 @@ fn test_terminal_only_ai_enter_enters_agent_view_and_clears_buffer() {
             input.input_enter(ctx);
         });
 
-        // Buffer should be cleared.
         input.read(&app, |input, ctx| {
-            assert!(input.buffer_text(ctx).is_empty());
+            assert_eq!(input.buffer_text(ctx), "what is the current date");
         });
 
-        // Agent view should now be active.
         terminal.read(&app, |terminal, _| {
             let state = *terminal.model.lock().block_list().transcript_scope();
-            assert!(matches!(
+            assert_eq!(
                 state,
-                crate::terminal::model::block::TranscriptScope::Conversation(_)
-            ));
+                crate::terminal::model::block::TranscriptScope::Terminal
+            );
         });
     });
 }
@@ -7738,416 +7736,33 @@ fn open_rich_input_for_terminal(terminal: &ViewHandle<TerminalView>, app: &mut A
 }
 
 #[test]
-fn enter_does_not_submit_when_submit_on_ctrl_enter_is_false() {
-    use std::cell::RefCell;
-    use std::rc::Rc;
-
+fn legacy_cli_session_does_not_change_local_editor() {
     App::test((), |mut app| async move {
-        let _cli_agent_flag = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
         initialize_app(&mut app);
+        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
+        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
+        input.update(&mut app, |input, ctx| {
+            input.replace_buffer_content("echo draft", ctx)
+        });
 
         AISettings::handle(&app).update(&mut app, |settings, ctx| {
-            settings
-                .submit_on_ctrl_enter
-                .set_value(false, ctx)
-                .expect("setting value must succeed");
+            settings.submit_on_ctrl_enter.set_value(true, ctx).unwrap();
         });
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
         open_rich_input_for_terminal(&terminal, &mut app);
-
-        let submitted: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
-        let submitted_clone = submitted.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event, _| {
-                if let Event::SubmitCLIAgentInput { text } = event {
-                    submitted_clone.borrow_mut().push(text.clone());
-                }
-            });
-        });
-
-        input.update(&mut app, |input, ctx| {
-            input.clear_buffer_and_reset_undo_stack(ctx);
-            input.user_insert("hello", ctx);
-        });
-        input.update(&mut app, |input, ctx| {
-            input.input_enter(ctx);
-        });
-
-        assert!(submitted.borrow().is_empty());
-    });
-}
-
-#[test]
-fn ctrl_enter_preserves_buffer_when_submit_on_ctrl_enter_is_false() {
-    use std::cell::RefCell;
-    use std::rc::Rc;
-
-    App::test((), |mut app| async move {
-        let _cli_agent_flag = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        initialize_app(&mut app);
-
-        // Ensure the setting is false (the default).
-        AISettings::handle(&app).update(&mut app, |settings, ctx| {
-            settings
-                .submit_on_ctrl_enter
-                .set_value(false, ctx)
-                .expect("setting value must succeed");
-        });
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        open_rich_input_for_terminal(&terminal, &mut app);
-
-        let submitted: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
-        let submitted_clone = submitted.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event, _| {
-                if let Event::SubmitCLIAgentInput { text } = event {
-                    submitted_clone.borrow_mut().push(text.clone());
-                }
-            });
-        });
-
-        input.update(&mut app, |input, ctx| {
-            input.clear_buffer_and_reset_undo_stack(ctx);
-            input.user_insert("hello", ctx);
-        });
-        input.update(&mut app, |input, ctx| {
-            input.input_ctrl_enter(ctx);
-        });
-
-        assert!(
-            submitted.borrow().is_empty(),
-            "Ctrl+Enter must NOT submit when submit_on_ctrl_enter=false"
-        );
         input.read(&app, |input, ctx| {
-            assert_eq!(input.buffer_text(ctx), "hello");
+            assert_eq!(input.buffer_text(ctx), "echo draft");
+            assert_eq!(input.input_type(ctx), InputType::Shell);
+            let context = input.editor().as_ref(ctx).keymap_context(ctx);
+            assert!(!context.set.contains(flags::CLI_AGENT_RICH_INPUT_OPEN));
+            assert!(!context.set.contains(flags::CTRL_ENTER_ENTERS_AGENT_VIEW));
         });
-    });
-}
-
-#[test]
-fn enter_does_not_submit_when_submit_on_ctrl_enter_is_true() {
-    use std::cell::RefCell;
-    use std::rc::Rc;
-
-    App::test((), |mut app| async move {
-        let _cli_agent_flag = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        initialize_app(&mut app);
-
-        AISettings::handle(&app).update(&mut app, |settings, ctx| {
-            settings
-                .submit_on_ctrl_enter
-                .set_value(true, ctx)
-                .expect("setting value must succeed");
-        });
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        open_rich_input_for_terminal(&terminal, &mut app);
-
-        let submitted: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
-        let submitted_clone = submitted.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event, _| {
-                if let Event::SubmitCLIAgentInput { text } = event {
-                    submitted_clone.borrow_mut().push(text.clone());
-                }
+        input.update(&mut app, |input, ctx| {
+            input.editor().update(ctx, |editor, ctx| {
+                editor.handle_action(&EditorAction::CtrlEnter, ctx);
             });
         });
-
-        input.update(&mut app, |input, ctx| {
-            input.clear_buffer_and_reset_undo_stack(ctx);
-            input.user_insert("hello", ctx);
-        });
-        input.update(&mut app, |input, ctx| {
-            input.input_enter(ctx);
-        });
-
-        assert!(
-            submitted.borrow().is_empty(),
-            "Enter must NOT submit when submit_on_ctrl_enter=true"
-        );
-    });
-}
-
-#[test]
-fn ctrl_enter_submits_when_submit_on_ctrl_enter_is_true() {
-    use std::cell::RefCell;
-    use std::rc::Rc;
-
-    App::test((), |mut app| async move {
-        let _cli_agent_flag = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        initialize_app(&mut app);
-
-        AISettings::handle(&app).update(&mut app, |settings, ctx| {
-            settings
-                .submit_on_ctrl_enter
-                .set_value(true, ctx)
-                .expect("setting value must succeed");
-        });
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        open_rich_input_for_terminal(&terminal, &mut app);
-
-        let submitted: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
-        let submitted_clone = submitted.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event, _| {
-                if let Event::SubmitCLIAgentInput { text } = event {
-                    submitted_clone.borrow_mut().push(text.clone());
-                }
-            });
-        });
-
-        input.update(&mut app, |input, ctx| {
-            input.clear_buffer_and_reset_undo_stack(ctx);
-            input.user_insert("world", ctx);
-        });
-        input.update(&mut app, |input, ctx| {
-            input.input_ctrl_enter(ctx);
-        });
-
-        assert_eq!(
-            submitted.borrow().len(),
-            1,
-            "Ctrl+Enter should submit once when submit_on_ctrl_enter=true"
-        );
-        assert_eq!(
-            submitted.borrow()[0],
-            "world",
-            "submitted text should match buffer contents"
-        );
-
         input.read(&app, |input, ctx| {
-            assert!(
-                input.buffer_text(ctx).is_empty(),
-                "buffer should be cleared after submit"
-            );
-        });
-    });
-}
-
-#[test]
-fn ctrl_enter_with_selection_preserves_selection_in_submit_when_setting_is_true() {
-    use std::cell::RefCell;
-    use std::rc::Rc;
-
-    App::test((), |mut app| async move {
-        let _cli_agent_flag = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        initialize_app(&mut app);
-
-        AISettings::handle(&app).update(&mut app, |settings, ctx| {
-            settings
-                .submit_on_ctrl_enter
-                .set_value(true, ctx)
-                .expect("setting value must succeed");
-        });
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        open_rich_input_for_terminal(&terminal, &mut app);
-
-        let submitted: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
-        let submitted_clone = submitted.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event, _| {
-                if let Event::SubmitCLIAgentInput { text } = event {
-                    submitted_clone.borrow_mut().push(text.clone());
-                }
-            });
-        });
-
-        input.update(&mut app, |input, ctx| {
-            input.clear_buffer_and_reset_undo_stack(ctx);
-            input.user_insert("hello world", ctx);
-        });
-
-        // Programmatically select "world" (columns 6–11 on the single line).
-        input.update(&mut app, |input, ctx| {
-            input.editor.update(ctx, |editor, ctx| {
-                editor
-                    .select_ranges(vec![DisplayPoint::new(0, 6)..DisplayPoint::new(0, 11)], ctx)
-                    .expect("select_ranges should succeed");
-            });
-        });
-
-        input.update(&mut app, |input, ctx| {
-            input.input_ctrl_enter(ctx);
-        });
-
-        assert_eq!(
-            submitted.borrow().len(),
-            1,
-            "Ctrl+Enter should submit exactly once"
-        );
-        assert_eq!(
-            submitted.borrow()[0],
-            "hello world",
-            "submitted text must equal the full buffer — selected text must not be dropped"
-        );
-
-        input.read(&app, |input, ctx| {
-            assert!(
-                input.buffer_text(ctx).is_empty(),
-                "buffer should be cleared after submit"
-            );
-        });
-    });
-}
-
-#[test]
-fn editor_keymap_context_excludes_ctrl_enter_enters_agent_view_when_rich_input_is_open() {
-    App::test((), |mut app| async move {
-        let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
-        let _cli_agent_flag = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        open_rich_input_for_terminal(&terminal, &mut app);
-
-        input.read(&app, |input, ctx| {
-            let km_ctx = input
-                .editor
-                .read(ctx, |editor, ctx| editor.keymap_context(ctx));
-            assert!(
-                !km_ctx.set.contains(flags::CTRL_ENTER_ENTERS_AGENT_VIEW),
-                "CTRL_ENTER_ENTERS_AGENT_VIEW must NOT be set when the CLI agent rich input \
-                 is open; got flags: {:?}",
-                km_ctx.set
-            );
-            assert!(
-                km_ctx.set.contains(flags::CLI_AGENT_RICH_INPUT_OPEN),
-                "CLI_AGENT_RICH_INPUT_OPEN must be set when the rich input is open; \
-                 got flags: {:?}",
-                km_ctx.set
-            );
-        });
-    });
-}
-
-#[test]
-fn enter_accepts_inline_menu_item_when_submit_on_ctrl_enter_is_true() {
-    use std::cell::RefCell;
-    use std::rc::Rc;
-
-    App::test((), |mut app| async move {
-        let _cli_agent_flag = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        initialize_app(&mut app);
-
-        AISettings::handle(&app).update(&mut app, |settings, ctx| {
-            settings
-                .submit_on_ctrl_enter
-                .set_value(true, ctx)
-                .expect("setting value must succeed");
-        });
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        open_rich_input_for_terminal(&terminal, &mut app);
-
-        let submitted: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
-        let submitted_clone = submitted.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event, _| {
-                if let Event::SubmitCLIAgentInput { text } = event {
-                    submitted_clone.borrow_mut().push(text.clone());
-                }
-            });
-        });
-
-        // Insert some text so we can detect whether a newline was appended.
-        input.update(&mut app, |input, ctx| {
-            input.clear_buffer_and_reset_undo_stack(ctx);
-            input.user_insert("hello", ctx);
-        });
-
-        // Simulate the slash-commands menu being open.  In production this
-        // happens when the user types `/`; here we set it directly so the test
-        // doesn't depend on command-registry data being loaded.
-        input.update(&mut app, |input, ctx| {
-            input.suggestions_mode_model.update(ctx, |model, ctx| {
-                model.set_mode(InputSuggestionsMode::SlashCommands, ctx);
-            });
-        });
-
-        input.read(&app, |input, ctx| {
-            assert!(
-                matches!(
-                    input.suggestions_mode_model.as_ref(ctx).mode(),
-                    InputSuggestionsMode::SlashCommands
-                ),
-                "slash-commands mode should be active before Enter"
-            );
-        });
-
-        input.update(&mut app, |input, ctx| {
-            input.input_enter(ctx);
-        });
-
-        assert!(
-            submitted.borrow().is_empty(),
-            "Enter must NOT submit when the slash-commands menu is open"
-        );
-
-        input.read(&app, |input, ctx| {
-            let text = input.buffer_text(ctx);
-            assert!(
-                !text.contains('\n'),
-                "Enter must NOT insert a newline when the slash-commands menu is open \
-                 (submit_on_ctrl_enter=true); got buffer: {text:?}"
-            );
-        });
-    });
-}
-
-/// Pre-fix this failed because `update_cli_agent_enter_settings` always set `ctrl_enter: Emit`
-/// regardless of toggle, causing `ctrl_enter()` to hit the `_ => ()` no-op arm (#11588).
-#[test]
-fn ctrl_enter_inserts_newline_when_submit_on_ctrl_enter_is_false() {
-    use crate::editor::EnterAction;
-
-    App::test((), |mut app| async move {
-        let _cli_agent_flag = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        initialize_app(&mut app);
-
-        // Ensure the setting is false (the default).
-        let default_value =
-            AISettings::handle(&app).read(&app, |settings, _| *settings.submit_on_ctrl_enter);
-        assert!(!default_value, "submit_on_ctrl_enter must default to false");
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        // Open the rich input — update_cli_agent_enter_settings fires.
-        open_rich_input_for_terminal(&terminal, &mut app);
-
-        input.read(&app, |input, ctx| {
-            let settings = input.editor().as_ref(ctx).enter_settings();
-            assert!(
-                matches!(settings.ctrl_enter, EnterAction::InsertNewLineIfMultiLine),
-                "with submit_on_ctrl_enter=false, ctrl_enter must be \
-                 InsertNewLineIfMultiLine when rich input is open; got Emit instead"
-            );
+            assert_eq!(input.buffer_text(ctx), "echo draft\n")
         });
     });
 }
@@ -8223,38 +7838,6 @@ fn unfreeze_agent_input_does_not_clear_buffer() {
             "follow-up question",
             "unfreeze_agent_input must not clear the viewer's buffer"
         );
-    });
-}
-
-#[test]
-fn ctrl_enter_inserts_newline_in_normal_input_after_rich_input_closes() {
-    use crate::editor::EnterAction;
-
-    App::test((), |mut app| async move {
-        let _cli_agent_flag = FeatureFlag::CLIAgentRichInput.override_enabled(true);
-
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        open_rich_input_for_terminal(&terminal, &mut app);
-
-        terminal.update(&mut app, |view, ctx| {
-            let view_id = view.view_id();
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.close_input(view_id, false, ctx);
-            });
-        });
-
-        input.read(&app, |input, ctx| {
-            let settings = input.editor().as_ref(ctx).enter_settings();
-            assert!(
-                matches!(settings.ctrl_enter, EnterAction::InsertNewLineIfMultiLine),
-                "after Rich Input closes, ctrl_enter must be InsertNewLineIfMultiLine \
-                 (the default); got Emit instead"
-            );
-        });
     });
 }
 

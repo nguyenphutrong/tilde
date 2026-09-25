@@ -24,8 +24,7 @@ use crate::ai::blocklist::conversation_selection::{
     ConversationSelection, ConversationSelectionEvent,
 };
 use crate::ai::blocklist::{
-    BlocklistAIHistoryEvent, BlocklistAIHistoryModel, QueuedQuery, QueuedQueryModel,
-    QueuedQueryOrigin,
+    BlocklistAIHistoryModel, QueuedQuery, QueuedQueryModel, QueuedQueryOrigin,
 };
 #[cfg(feature = "local_fs")]
 use crate::code_review::git_repo_model::GitRepoStatusModel;
@@ -155,13 +154,6 @@ impl ConversationSelection for TestConversationSelection {
                 );
             });
         }
-    }
-
-    fn handle_history_event(
-        &mut self,
-        _: &BlocklistAIHistoryEvent,
-        _: &mut warpui::ModelContext<Box<dyn ConversationSelection>>,
-    ) {
     }
 }
 

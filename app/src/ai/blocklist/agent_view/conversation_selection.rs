@@ -10,10 +10,10 @@ use crate::ai::agent_conversations_model::{
     AgentConversationEntry, AgentConversationEntryId, AgentConversationListEntryState,
     AgentConversationListPolicy,
 };
+use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::ai::blocklist::conversation_selection::{
     ConversationSelection, ConversationSelectionEvent,
 };
-use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::workspace::RestoreConversationLayout;
 
 /// GUI conversation selection backed unconditionally by Agent View.
@@ -56,10 +56,6 @@ impl AgentViewConversationSelection {
             }
             AgentViewControllerEvent::ExitConfirmed { .. } => {}
         });
-        ctx.subscribe_to_model(
-            &BlocklistAIHistoryModel::handle(ctx),
-            |selection, _, event, ctx| selection.handle_history_event(event, ctx),
-        );
         Self {
             terminal_surface_id,
             agent_view_controller,
@@ -192,37 +188,6 @@ impl ConversationSelection for AgentViewConversationSelection {
                     ctx,
                 );
             });
-        }
-    }
-
-    fn handle_history_event(
-        &mut self,
-        event: &BlocklistAIHistoryEvent,
-        ctx: &mut ModelContext<Box<dyn ConversationSelection>>,
-    ) {
-        if event
-            .terminal_surface_id()
-            .is_some_and(|id| id != self.terminal_surface_id)
-        {
-            return;
-        }
-        match event {
-            BlocklistAIHistoryEvent::ClearedConversationsForTerminalSurface { .. } => {
-                self.agent_view_controller
-                    .update(ctx, |controller, ctx| controller.exit_agent_view(ctx));
-            }
-            BlocklistAIHistoryEvent::SplitConversation {
-                old_conversation_id,
-                new_conversation_id,
-                ..
-            } if self.selected_conversation_id(ctx) == Some(*old_conversation_id) => {
-                self.select_existing_conversation(
-                    *new_conversation_id,
-                    AgentViewEntryOrigin::AgentRequestedNewConversation,
-                    ctx,
-                );
-            }
-            _ => {}
         }
     }
 }

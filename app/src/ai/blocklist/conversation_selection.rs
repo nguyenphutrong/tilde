@@ -2,8 +2,8 @@
 
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
+use super::BlocklistAIHistoryModel;
 use super::agent_view::{AgentViewEntryOrigin, EnterAgentViewError};
-use super::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::agent::conversation::{
     AIConversation, AIConversationAutoexecuteMode, AIConversationId,
 };
@@ -99,13 +99,6 @@ pub trait ConversationSelection: AgentConversationListPolicy {
         ctx: &mut ModelContext<Box<dyn ConversationSelection>>,
     );
 
-    /// Reconciles selection after a terminal-surface-scoped history event.
-    fn handle_history_event(
-        &mut self,
-        event: &BlocklistAIHistoryEvent,
-        ctx: &mut ModelContext<Box<dyn ConversationSelection>>,
-    );
-
     /// Returns the selected conversation, if it is loaded.
     fn selected_conversation<'a>(&self, app: &'a AppContext) -> Option<&'a AIConversation> {
         self.selected_conversation_id(app)
@@ -178,13 +171,6 @@ impl ConversationSelection for MockConversationSelection {
 
     fn toggle_pending_query_autoexecute(
         &mut self,
-        _: &mut ModelContext<Box<dyn ConversationSelection>>,
-    ) {
-    }
-
-    fn handle_history_event(
-        &mut self,
-        _: &BlocklistAIHistoryEvent,
         _: &mut ModelContext<Box<dyn ConversationSelection>>,
     ) {
     }

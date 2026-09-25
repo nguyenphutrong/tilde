@@ -70,7 +70,6 @@ fn gui_list_policy_classifies_unavailable_entry() {
 fn gui_selection_delegates_to_agent_view() {
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);
-        let history = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         let terminal_surface_id = EntityId::new();
         let terminal_model = Arc::new(FairMutex::new(TerminalModel::new_for_test(
             block_size(),
@@ -94,6 +93,11 @@ fn gui_selection_delegates_to_agent_view() {
                 ctx,
             )) as Box<dyn ConversationSelection>
         });
+        selection.read(&app, |selection, ctx| {
+            assert_eq!(selection.selected_conversation_id(ctx), None);
+            assert!(!selection.is_conversation_active(ctx));
+        });
+        let history = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         let conversation_id = history.update(&mut app, |history, ctx| {
             history.start_new_conversation(terminal_surface_id, false, false, false, ctx)
         });
