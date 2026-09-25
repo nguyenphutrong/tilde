@@ -402,10 +402,6 @@ pub(crate) fn apply_cli_agent_state_update(
                         ctx,
                     );
                 });
-
-                view.update(ctx, |view, ctx| {
-                    view.apply_cli_agent_footer_visibility(true, ctx);
-                });
             }
 
             // For cloud agent sessions with non-Oz harnesses, auto-open rich

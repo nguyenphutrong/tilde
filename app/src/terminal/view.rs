@@ -118,7 +118,7 @@ pub(crate) use shared_session::cloud_conversation_continuation::{
 use shared_session::{SharedSessionAdapter, Viewer};
 use ssh_file_upload::{FileUpload, FileUploadEvent};
 use sum_tree::SeekBias;
-use use_agent_footer::UseAgentToolbar;
+use use_agent_footer::WarpifyFooterView;
 use uuid::Uuid;
 use vec1::vec1;
 use warp_core::r#async::debounce;
@@ -2734,7 +2734,7 @@ pub struct TerminalView {
 
     cli_subagent_views: HashMap<BlockId, ViewHandle<CLISubagentView>>,
     cli_subagent_controller: ModelHandle<CLISubagentController>,
-    use_agent_footer: ViewHandle<UseAgentToolbar>,
+    warpify_footer: ViewHandle<WarpifyFooterView>,
 
     agent_view_controller: ModelHandle<AgentViewController>,
     agent_view_back_button: ViewHandle<ActionButton>,
@@ -4062,10 +4062,8 @@ impl TerminalView {
 
         let agent_todos_popup = Self::build_agent_todos_popup(ai_context_model.clone(), ctx);
 
-        let terminal_view_id = ctx.view_id();
-
-        let use_agent_button_bar = ctx.add_typed_action_view(|ctx| {
-            UseAgentToolbar::new(terminal_view_id, model.clone(), &model_events_handle, ctx)
+        let warpify_footer = ctx.add_typed_action_view(|ctx| {
+            WarpifyFooterView::new(model.clone(), &model_events_handle, ctx)
         });
         let orchestration_pill_bar = ctx.add_typed_action_view(|ctx| {
             OrchestrationPillBar::new(agent_view_controller.clone(), ctx)
@@ -4250,7 +4248,7 @@ impl TerminalView {
             ignore_next_set_title_event: false,
             cli_subagent_views: Default::default(),
             cli_subagent_controller,
-            use_agent_footer: use_agent_button_bar,
+            warpify_footer,
             agent_view_controller,
             agent_view_back_button,
             orchestration_pill_bar,
@@ -4287,7 +4285,7 @@ impl TerminalView {
         if let Some(ambient_agent_view_model) = ambient_agent_view_model {
             terminal_view.wire_ambient_agent_view_model(ambient_agent_view_model, ctx);
         }
-        terminal_view.register_subscriptions_for_use_agent_footer(ctx);
+        terminal_view.register_subscriptions_for_warpify_footer(ctx);
 
         terminal_view.any_session_contains_restored_remote_blocks =
             terminal_view.contains_restored_remote_blocks();
@@ -7811,7 +7809,7 @@ impl TerminalView {
             .set_is_agent_tagged_in(true);
 
         if !self.model.lock().is_alt_screen_active() {
-            self.hide_use_agent_footer_in_blocklist(ctx);
+            self.hide_warpify_footer_in_blocklist(ctx);
         }
 
         self.input.update(ctx, |input, ctx| {
@@ -7841,7 +7839,7 @@ impl TerminalView {
             .set_is_agent_tagged_in(false);
 
         if !self.model.lock().is_alt_screen_active() {
-            self.maybe_show_use_agent_footer_in_blocklist(ctx);
+            self.maybe_show_warpify_footer_in_blocklist(ctx);
         }
 
         self.input.update(ctx, |input, ctx| {
@@ -7958,15 +7956,6 @@ impl TerminalView {
             ctx,
         );
     }
-    /// Shows or hides the CLI agent footer from a shared session update.
-    pub fn apply_cli_agent_footer_visibility(&mut self, show: bool, ctx: &mut ViewContext<Self>) {
-        if show {
-            self.maybe_show_use_agent_footer_in_blocklist(ctx);
-        } else {
-            self.hide_use_agent_footer_in_blocklist(ctx);
-        }
-    }
-
     pub fn has_active_env_var_block(&self, app: &AppContext) -> bool {
         self.active_env_var_collection_block(app).is_some()
     }
@@ -9041,7 +9030,7 @@ impl TerminalView {
             model.block_list_mut().update_active_block_height();
         }
         self.maybe_emit_terminal_view_state_changed_for_long_running_block(ctx);
-        self.use_agent_footer.update(ctx, |footer, ctx| {
+        self.warpify_footer.update(ctx, |footer, ctx| {
             footer.notify_and_notify_children(ctx);
         });
 
@@ -9283,8 +9272,8 @@ impl TerminalView {
         // Also clear the warpify footer so it doesn't linger after warpification
         // starts, fails, or is cancelled.
         if FeatureFlag::WarpifyFooter.is_enabled() {
-            self.use_agent_footer.update(ctx, |footer, ctx| {
-                footer.clear_warpify(ctx);
+            self.warpify_footer.update(ctx, |footer, ctx| {
+                footer.clear(ctx);
             });
         }
 
@@ -10999,10 +10988,10 @@ impl TerminalView {
                 }
 
                 // Clear any stale warpify footer so it doesn't leak into the next command's footer rendering.
-                self.use_agent_footer.update(ctx, |footer, ctx| {
-                    footer.clear_warpify(ctx);
+                self.warpify_footer.update(ctx, |footer, ctx| {
+                    footer.clear(ctx);
                 });
-                self.hide_use_agent_footer_in_blocklist(ctx);
+                self.hide_warpify_footer_in_blocklist(ctx);
                 if matches!(block_completed_event.block_type, BlockType::User(_)) {
                     // Close the rich input editor if it was open (side effects
                     // like input config restore happen reactively).
@@ -11222,7 +11211,7 @@ impl TerminalView {
                                         me.register_codex_listener_without_session_start_event(ctx);
                                     }
 
-                                    me.maybe_show_use_agent_footer_in_blocklist(ctx);
+                                    me.maybe_show_warpify_footer_in_blocklist(ctx);
                                     me.maybe_auto_open_cli_agent_rich_input(ctx);
                                     // Update agent view back button state when command becomes long-running
                                     if FeatureFlag::AgentView.is_enabled()
@@ -23825,10 +23814,10 @@ impl TerminalView {
         }
         drop(model);
 
-        self.use_agent_footer.update(ctx, |footer, ctx| {
-            footer.show_warpify(ctx);
+        self.warpify_footer.update(ctx, |footer, ctx| {
+            footer.show(ctx);
         });
-        self.maybe_show_use_agent_footer_in_blocklist(ctx);
+        self.maybe_show_warpify_footer_in_blocklist(ctx);
 
         send_telemetry_from_ctx!(TelemetryEvent::WarpifyFooterShown { is_ssh: false }, ctx);
     }
@@ -25583,15 +25572,8 @@ impl View for TerminalView {
 
                     column.add_child(Shrinkable::new(1., output_area).finish());
 
-                    // Suppress the "Use agent" footer when the nested program is
-                    // Warp's own TUI (`warp_tui`) — it's already an agent surface,
-                    // so the outer footer would just stack on top of it. Other
-                    // full-screen TUIs (vim, htop, …) still get the footer.
-                    if model.is_alt_screen_active()
-                        && !self.is_running_warp_tui(&model, app)
-                        && self.should_render_use_agent_footer(&model, app)
-                    {
-                        column.add_child(ChildView::new(&self.use_agent_footer).finish());
+                    if model.is_alt_screen_active() && self.warpify_footer.as_ref(app).is_active() {
+                        column.add_child(ChildView::new(&self.warpify_footer).finish());
                     }
 
                     let input_box_visible = self.is_input_box_visible(&model, app);
@@ -26074,7 +26056,7 @@ impl View for TerminalView {
 
         // Also set the warpify context when the footer (flag-gated replacement
         // for the in-block banner) is active, so the ctrl-i keybinding works.
-        if self.use_agent_footer.as_ref(app).is_warpify_active(app) {
+        if self.warpify_footer.as_ref(app).is_active() {
             context.set.insert("SubshellBanner");
         }
 

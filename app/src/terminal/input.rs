@@ -5679,16 +5679,6 @@ impl Input {
             editor.attach_files(ctx);
         });
     }
-    pub(super) fn insert_into_cli_agent_rich_input(
-        &mut self,
-        text: &str,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.focus_input_box(ctx);
-        self.editor.update(ctx, |editor, ctx| {
-            editor.user_initiated_insert(text, PlainTextEditorViewAction::Paste, ctx);
-        });
-    }
 
     /// Switches to AI mode but preserves current lock state.
     fn enter_ai_mode(

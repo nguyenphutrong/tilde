@@ -230,8 +230,13 @@ prompt/editor remain; voice, attachment and context-menu tests exercise their ha
 The agent input footer, cloud environment selector and CLI-footer voice interception are removed.
 Local prompt chips and Kitty modifier encoding remain; unhandled modifiers return to normal routing.
 The `/environment` command remains absent even with the old cloud-input flag enabled. The shared
-button theme and legacy toolbar-item decoding remain for their surviving consumers. The separate
-UseAgentToolbar still owns handoff and shell-integration controls pending its own removal increment.
+button theme and legacy toolbar-item decoding remain for their surviving consumers.
+
+TerminalView now owns the shell-integration footer directly. Its Enable shell integration/Dismiss
+controls, pinned-input placement, alt-screen background and bootstrap keybinding remain; the
+UseAgentToolbar wrapper, remote-control event forwarding and user-command toolbar setting are
+removed. Dismissal removes the content and a later explicit show reopens it. Legacy CLI rich-input
+submit strategies remain as separate removal debt.
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions,
 and associated bootstrap/settings/UI contracts remain. Remove leaf consumers first, then their

@@ -18374,13 +18374,6 @@ impl Workspace {
                 .set
                 .insert(flags::AUTO_DISMISS_RICH_INPUT_AFTER_SUBMIT_FLAG);
         }
-        if *ai_settings
-            .should_render_use_agent_footer_for_user_commands
-            .value()
-        {
-            context.set.insert(flags::USE_AGENT_FOOTER_FLAG);
-        }
-
         match ai_settings.thinking_display_mode {
             crate::settings::ThinkingDisplayMode::ShowAndCollapse => {
                 context
