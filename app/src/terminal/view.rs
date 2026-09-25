@@ -31,7 +31,6 @@ pub(crate) mod docker_sandbox;
 mod link_detection;
 mod open_in_warp;
 mod pane_impl;
-mod passive_suggestions;
 mod pending_user_query;
 pub mod rich_content;
 mod shared_session;
@@ -433,7 +432,6 @@ use crate::terminal::view::inline_banner::{
     AliasExpansionBannerState, NotificationsDiscoveryBannerState, NotificationsErrorBannerState,
     VimModeBannerState, render_agent_mode_setup_banner,
 };
-use crate::terminal::view::passive_suggestions::PromptSuggestionResolution;
 pub use crate::terminal::view::rich_content::{
     AIBlockMetadata, AgentViewEntryMetadata, RichContent, RichContentInsertionPosition,
     RichContentMetadata,
@@ -1558,15 +1556,6 @@ enum SelectionFocusPolicy {
     /// completes, so a selection made before or during the command doesn't prevent
     /// focus from returning to the input box.
     HoldsFocusOnlyWhileSelecting,
-}
-
-/// Actions that can be taken on a passive code diff via the input editor.
-#[derive(Clone, Debug)]
-pub enum CodeDiffAction {
-    Accept,
-    Reject,
-    Edit,
-    ScrollToExpand,
 }
 
 pub enum Event {
@@ -7913,19 +7902,6 @@ impl TerminalView {
         cleared_buffer_len: usize,
         ctx: &mut ViewContext<Self>,
     ) {
-        let did_resolve_prompt_suggestion = self
-            .resolve_passive_suggestion(PromptSuggestionResolution::Reject { ctrl_c: true }, ctx);
-        if did_resolve_prompt_suggestion {
-            if FeatureFlag::AgentView.is_enabled()
-                && self.agent_view_controller.as_ref(ctx).is_active()
-            {
-                self.agent_view_controller.update(ctx, |controller, ctx| {
-                    controller.clear_pending_exit_confirmation(ctx);
-                });
-            }
-            return;
-        }
-
         if FeatureFlag::AgentView.is_enabled() && self.agent_view_controller.as_ref(ctx).is_active()
         {
             if cleared_buffer_len > 0 {
@@ -19498,9 +19474,6 @@ impl TerminalView {
             InputEvent::OpenFilesPalette { source } => {
                 ctx.emit(Event::OpenFilesPalette { source: *source })
             }
-            InputEvent::TryHandlePassiveCodeDiff(action) => {
-                self.resolve_prompt_suggestion_diff(action.clone(), ctx);
-            }
             InputEvent::ToggleAIDocumentPane {
                 document_id,
                 document_version,
@@ -24164,7 +24137,6 @@ impl TypedActionView for TerminalView {
             | CancelAmbientAgentTask
             | OpenInlineHistoryMenu
             | OpenModelSelector
-            | ResolvePromptSuggestion(..)
             | AwsBedrockLoginBanner(_)
             | AwsCliNotInstalledBanner(_)
             | ExecuteRewindFromInlineMenu { .. }
@@ -25159,9 +25131,6 @@ impl TypedActionView for TerminalView {
                 self.input.update(ctx, |input, ctx| {
                     input.handle_action(&InputAction::OpenModelSelector, ctx);
                 });
-            }
-            ResolvePromptSuggestion(resolution) => {
-                self.resolve_passive_suggestion(*resolution, ctx);
             }
             AwsBedrockLoginBanner(action) => {
                 self.handle_aws_bedrock_login_banner_action(*action, ctx);
