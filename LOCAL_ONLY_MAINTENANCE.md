@@ -414,3 +414,8 @@ Inline history now contains shell commands only, without conversation/prompt tab
 lookups. It reuses local history ordering, normalization, deduplication, and session visibility.
 Regressions cover prefix filtering and accessibility labels without AI models, plus shell-draft
 restoration on close and Escape. Persisted history is unchanged.
+
+The inline AI model and saved-prompt pickers, eager construction, actions, render branches, and
+dedicated tests are removed. Retired height-map keys still round-trip alongside local history.
+The `/prompts` command is removed from the registry rather than replaced with a no-op. Other AI
+input controls and startup consumers remain pending the grouped leaf-to-root recovery.

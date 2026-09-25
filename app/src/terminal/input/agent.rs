@@ -167,18 +167,10 @@ impl Input {
 
         let mut column = Flex::column();
 
-        if self
-            .suggestions_mode_model
-            .as_ref(app)
-            .is_inline_model_selector()
-        {
-            column.add_child(ChildView::new(&self.inline_model_selector_view).finish());
-        } else if self.suggestions_mode_model.as_ref(app).is_slash_commands()
+        if self.suggestions_mode_model.as_ref(app).is_slash_commands()
             && !self.is_cloud_mode_input_v2_composing(app)
         {
             column.add_child(ChildView::new(&self.inline_slash_commands_view).finish());
-        } else if self.suggestions_mode_model.as_ref(app).is_prompts_menu() {
-            column.add_child(ChildView::new(&self.inline_prompts_menu_view).finish());
         } else if FeatureFlag::ListSkills.is_enabled()
             && self.suggestions_mode_model.as_ref(app).is_skill_menu()
         {

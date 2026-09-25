@@ -4,7 +4,6 @@ use warpui::integration::TestStep;
 use warpui::windowing::WindowManager;
 
 use crate::ai::blocklist::{InputConfig, InputType};
-use crate::integration_testing::input::{inline_model_selector_is_open, input_is_empty};
 use crate::integration_testing::step::new_step_with_default_assertions;
 use crate::integration_testing::terminal::assert_context_menu_is_open;
 use crate::integration_testing::view_getters::{
@@ -127,23 +126,4 @@ pub fn open_input_context_menu() -> TestStep {
             );
         })
         .add_assertion(assert_context_menu_is_open(true))
-}
-
-/// Opens the inline model selector and asserts it opened with
-/// a cleared input buffer (so the input can be used to search models).
-pub fn open_inline_model_selector() -> TestStep {
-    new_step_with_default_assertions("Open inline model selector")
-        .with_action(|app, window_id, _| {
-            let terminal_view_id = single_terminal_view(app, window_id).id();
-            app.dispatch_typed_action(
-                window_id,
-                &[terminal_view_id],
-                &TerminalAction::OpenModelSelector,
-            );
-        })
-        .add_named_assertion(
-            "Inline model selector is open",
-            inline_model_selector_is_open(0),
-        )
-        .add_named_assertion("Prompt is cleared for model search", input_is_empty(0))
 }

@@ -13,6 +13,7 @@ fn retired_cloud_menus_are_not_registered() {
                 "/host",
                 "/harness",
                 "/profile",
+                "/prompts",
             ]
             .contains(&command.name)
         }));

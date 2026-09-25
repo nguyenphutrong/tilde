@@ -838,17 +838,6 @@ impl Input {
                 // Open the skill selector menu for invocation - skill command will be inserted into buffer
                 self.open_invoke_skill_selector(ctx);
             }
-            SlashCommandKind::Prompts => {
-                if self.is_cloud_mode_input_v2_composing(ctx) {
-                    self.apply_v2_slash_section_filter(CloudModeV2Section::Prompts, ctx);
-                    return true;
-                }
-                if FeatureFlag::AgentView.is_enabled() {
-                    self.open_prompts_menu(ctx);
-                } else {
-                    return false;
-                }
-            }
             SlashCommandKind::Rewind => {
                 self.open_rewind_menu(ctx);
             }

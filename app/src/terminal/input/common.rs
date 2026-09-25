@@ -301,10 +301,6 @@ pub(super) fn add_input_suggestions_overlays(
 
         // SlashCommandsMenu is rendered separately via inline_slash_commands_menu_view
         InputSuggestionsMode::SlashCommands => {}
-        // Model selector is rendered separately via inline_model_selector_view
-        InputSuggestionsMode::ModelSelector => {}
-        // Prompts menu is rendered separately via inline_prompts_menu_view
-        InputSuggestionsMode::PromptsMenu => {}
         // Skill menu is rendered separately via inline_skill_selector_view
         InputSuggestionsMode::SkillMenu => {}
         // User query menu is rendered separately via user_query_menu_view
