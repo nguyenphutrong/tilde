@@ -317,3 +317,7 @@ other context-chip AI actions and terminal AI constructors remain removal debt.
 
 The unrendered agent todo popup, its terminal state, and toggle/close actions are removed.
 Todo data models and history-readable stored data remain intact.
+
+Context chips no longer construct the AI-credit-reset popup or relay queries to an agent.
+The Node menu explains missing nvm without an AI installation action; local `nvm use` and
+`nvm install node` commands remain unchanged.

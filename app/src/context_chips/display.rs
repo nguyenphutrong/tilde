@@ -74,7 +74,6 @@ pub enum PromptDisplayEvent {
     OpenCodeReview,
     OpenConversationHistory,
     OpenCommandPaletteFiles,
-    RunAgentQuery(String),
     TryExecuteCommand(PromptChipShellCommand),
 }
 
@@ -204,10 +203,6 @@ impl PromptDisplay {
                 }
                 PromptDisplayChipEvent::OpenCommandPaletteFiles => {
                     ctx.emit(PromptDisplayEvent::OpenCommandPaletteFiles);
-                    ctx.notify();
-                }
-                PromptDisplayChipEvent::RunAgentQuery(query) => {
-                    ctx.emit(PromptDisplayEvent::RunAgentQuery(query.clone()));
                     ctx.notify();
                 }
                 PromptDisplayChipEvent::TryExecuteCommand(cmd) => {

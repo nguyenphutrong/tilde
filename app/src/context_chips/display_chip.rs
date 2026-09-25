@@ -41,7 +41,6 @@ use crate::context_chips::git_branch_on_click::{
 };
 use crate::context_chips::node_version_popup::{NodeVersionPopupEvent, NodeVersionPopupView};
 use crate::context_chips::spacing;
-use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::input::{MenuPositioning, MenuPositioningProvider};
@@ -53,7 +52,6 @@ use crate::ui_components::icons::Icon;
 use crate::util::bindings::keybinding_name_to_display_string;
 use crate::util::truncation::truncate_from_beginning;
 use crate::view_components::action_button::{ActionButtonTheme, NakedTheme};
-use crate::view_components::{FeaturePopup, NewFeaturePopupEvent, NewFeaturePopupLabel};
 use crate::workspace::view::TOGGLE_RIGHT_PANEL_BINDING_NAME;
 
 /// Helper function to render git diff stats content (file icon or +- icons, file count, bullet, +/- counts)
@@ -347,7 +345,6 @@ pub struct DisplayChip {
     display_chip_kind: DisplayChipKind,
     next_chip_kind: Option<ContextChipKind>,
     on_click_values: Vec<String>,
-    quota_reset_popup: ViewHandle<FeaturePopup>,
     session_context: Option<SessionContext>,
     menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
     is_shared_session_viewer: bool,
@@ -1031,18 +1028,6 @@ impl DisplayChip {
                         me.close_node_version_popup(ctx);
                         ctx.focus_self();
                     }
-                    NodeVersionPopupEvent::InstallNvm => {
-                        ctx.emit(PromptDisplayChipEvent::RunAgentQuery(if cfg!(windows) {
-                            // nvm-windows has documented issues when installed alongside an existing Node.js installation.
-                            // https://github.com/coreybutler/nvm-windows?tab=readme-ov-file#star-star-uninstall-any-pre-existing-node-installations-star-star
-                            // Prompt the agent to remove this first.
-                            "Uninstall existing Node.js installation and install nvm for me"
-                                .to_string()
-                        } else {
-                            "Install nvm for me".to_string()
-                        }));
-                        me.close_node_version_popup(ctx);
-                    }
                     NodeVersionPopupEvent::InstallLatestNodeVersion => {
                         ctx.emit(PromptDisplayChipEvent::TryExecuteCommand(
                             PromptChipShellCommand::NvmInstallLatestNode,
@@ -1058,31 +1043,6 @@ impl DisplayChip {
             }
             _ => DisplayChipKind::Text,
         };
-
-        let quota_reset_popup = ctx.add_typed_action_view(|_| {
-            FeaturePopup::alert_icon(NewFeaturePopupLabel::FromString(
-                "Monthly AI credits reset!".to_string(),
-            ))
-        });
-
-        ctx.subscribe_to_view(&quota_reset_popup, |_, _, event, ctx| match event {
-            NewFeaturePopupEvent::Dismissed => {
-                AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
-                    ai_settings.mark_quota_banner_as_dismissed(ctx);
-                    ctx.notify();
-                });
-                ctx.notify();
-            }
-        });
-
-        ctx.subscribe_to_model(&AISettings::handle(ctx), |_, _, event, ctx| {
-            if matches!(
-                event,
-                AISettingsChangedEvent::AIRequestQuotaInfoSetting { .. }
-            ) {
-                ctx.notify();
-            }
-        });
 
         // Subscribe to ambient agent model changes to re-render when the state changes
         if let Some(ref ambient_agent_model) = config.ambient_agent_view_model {
@@ -1121,7 +1081,6 @@ impl DisplayChip {
             display_chip_kind,
             next_chip_kind,
             on_click_values: chip_result.on_click_values,
-            quota_reset_popup,
             session_context: config.session_context,
             menu_positioning_provider: config.menu_positioning_provider,
             is_shared_session_viewer: config.is_shared_session_viewer,
@@ -2062,7 +2021,6 @@ pub enum PromptDisplayChipEvent {
     OpenConversationHistory,
     OpenCommandPaletteFiles,
     TryExecuteCommand(PromptChipShellCommand),
-    RunAgentQuery(String),
 }
 
 impl TypedActionView for DisplayChip {
