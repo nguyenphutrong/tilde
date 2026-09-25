@@ -7758,10 +7758,6 @@ fn typing_at_keeps_shell_input_literal() {
         });
         InputSettings::handle(&app).update(&mut app, |settings, ctx| {
             settings
-                .at_context_menu_in_terminal_mode
-                .set_value(true, ctx)
-                .unwrap();
-            settings
                 .completions_open_while_typing
                 .set_value(false, ctx)
                 .unwrap();
@@ -8991,21 +8987,10 @@ fn upload_files_then_submit_cloud_followup_restores_input_on_upload_error() {
     });
 }
 
-/// With the '#' AI Command Search trigger disabled (APP-5557), typing '#' at the start of the
-/// buffer must leave it (and any text typed after it) as literal input, and must not open AI
-/// Command Search — this is what lets the text be finished and submitted as a shell comment
-/// instead of trapping the user in the panel.
 #[test]
-fn hash_trigger_disabled_keeps_hash_literal_and_does_not_open_ai_command_search() {
+fn typing_hash_keeps_shell_comment_literal() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
-
-        InputSettings::handle(&app).update(&mut app, |settings, ctx| {
-            settings
-                .enable_ai_command_search_hash_trigger
-                .set_value(false, ctx)
-                .expect("setting value must succeed");
-        });
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
@@ -9035,57 +9020,15 @@ fn hash_trigger_disabled_keeps_hash_literal_and_does_not_open_ai_command_search(
         assert_eq!(
             *open_count.borrow(),
             0,
-            "AI Command Search must not open when the '#' trigger setting is disabled"
+            "typing a shell comment must not open AI Command Search"
         );
     });
 }
 
-/// With the '#' trigger left at its default (enabled), typing '#' at the start of the buffer
-/// must still open AI Command Search, preserving pre-existing behavior.
 #[test]
-fn hash_trigger_enabled_by_default_opens_ai_command_search() {
+fn explicit_action_opens_ai_command_search() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        let open_count = Rc::new(RefCell::new(0));
-        let open_count_for_subscription = open_count.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event, _| {
-                if matches!(event, Event::ShowCommandSearch(_)) {
-                    *open_count_for_subscription.borrow_mut() += 1;
-                }
-            });
-        });
-
-        input.update(&mut app, |input, ctx| {
-            input.user_insert("#", ctx);
-        });
-
-        assert_eq!(
-            *open_count.borrow(),
-            1,
-            "AI Command Search must open on typing '#' when the trigger setting defaults to enabled"
-        );
-    });
-}
-
-/// The `input:toggle_natural_language_command_search` hotkey action must still open AI Command
-/// Search even when the '#' character trigger has been disabled — only the typed-character
-/// shortcut is gated by the new setting.
-#[test]
-fn hotkey_opens_ai_command_search_even_when_hash_trigger_disabled() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        InputSettings::handle(&app).update(&mut app, |settings, ctx| {
-            settings
-                .enable_ai_command_search_hash_trigger
-                .set_value(false, ctx)
-                .expect("setting value must succeed");
-        });
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
@@ -9107,7 +9050,7 @@ fn hotkey_opens_ai_command_search_even_when_hash_trigger_disabled() {
         assert_eq!(
             *open_count.borrow(),
             1,
-            "the AI Command Search hotkey must still open the panel when the '#' trigger is disabled"
+            "the explicit AI Command Search action must still open the panel"
         );
     });
 }
