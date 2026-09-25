@@ -7738,7 +7738,9 @@ fn test_source_less_locked_config_clears_decision_source() {
 }
 
 #[test]
-fn should_enable_ai_context_respects_shell_setting_and_package_arguments() {
+fn typing_at_keeps_shell_input_literal() {
+    let _menu_enabled = FeatureFlag::AIContextMenuEnabled.override_enabled(true);
+    let _outside_ai = FeatureFlag::AtMenuOutsideOfAIMode.override_enabled(true);
     App::test((), |mut app| async move {
         initialize_app(&mut app);
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -7761,26 +7763,22 @@ fn should_enable_ai_context_respects_shell_setting_and_package_arguments() {
                 .at_context_menu_in_terminal_mode
                 .set_value(true, ctx)
                 .unwrap();
-        });
-        input.read(&app, |input, ctx| {
-            assert!(input.should_enable_ai_context("@", 1, false, None, ShellFamily::Posix, ctx));
-            assert!(!input.should_enable_ai_context(
-                "npm install @",
-                13,
-                false,
-                None,
-                ShellFamily::Posix,
-                ctx
-            ));
-        });
-        InputSettings::handle(&app).update(&mut app, |settings, ctx| {
             settings
-                .at_context_menu_in_terminal_mode
+                .completions_open_while_typing
                 .set_value(false, ctx)
                 .unwrap();
         });
+        input.update(&mut app, |input, ctx| {
+            input.user_insert("echo ", ctx);
+            input.user_insert("@", ctx);
+        });
         input.read(&app, |input, ctx| {
-            assert!(!input.should_enable_ai_context("@", 1, false, None, ShellFamily::Posix, ctx));
+            assert_eq!(input.buffer_text(ctx), "echo @");
+            assert_eq!(
+                input.ai_input_model.as_ref(ctx).input_type(),
+                InputType::Shell
+            );
+            assert!(!input.suggestions_mode_model.as_ref(ctx).is_visible());
         });
     });
 }
