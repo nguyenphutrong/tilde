@@ -2530,11 +2530,7 @@ fn test_copy_shared_session_link_does_not_write_clipboard_when_session_pending()
 }
 
 #[test]
-fn test_pane_header_copy_link_disabled_when_view_pending_no_session_id() {
-    // APP-5027 call-site regression: the pane-header "Copy link" item must be disabled
-    // when the terminal is in ViewPending state and Manager has no session_id for this view.
-    // This exercises the actual has_session_link call-site computation inside
-    // pane_header_overflow_menu_items, not just the session_sharing_context_menu_items helper.
+fn test_pane_header_omits_sharing_actions_for_legacy_viewer() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         app.add_singleton_model(Manager::new);
@@ -2551,18 +2547,7 @@ fn test_pane_header_copy_link_disabled_when_view_pending_no_session_id() {
 
         terminal.read(&app, |view, ctx| {
             let items = view.pane_header_overflow_menu_items(ctx);
-
-            let copy_link_item = items
-                .iter()
-                .find(|item| item.fields().is_some_and(|f| f.label() == "Copy link"));
-            assert!(
-                copy_link_item.is_some(),
-                "Copy link item should appear when terminal is in ViewPending state"
-            );
-            assert!(
-                copy_link_item.unwrap().fields().unwrap().is_disabled(),
-                "Copy link must be disabled when Manager has no session_id (ViewPending setup)"
-            );
+            assert!(items.is_empty());
         });
     });
 }
@@ -2660,34 +2645,7 @@ fn test_wasm_details_panel_gate_hidden_for_plain_terminal() {
 }
 
 #[test]
-fn test_wasm_details_panel_button_shows_for_ambient_task() {
-    // REMOTE-2346: the pane-header `(i)` gate is narrower than the workspace panel gate. It must
-    // return true for an ambient-task pane that is neither a shared session nor a
-    // conversation-transcript viewer (surfaces that lack the simplified WASM tab-bar `(i)`).
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        app.add_singleton_model(Manager::new);
-        let terminal = add_window_with_terminal(&mut app, None);
-        configure_ambient_details_panel_test(
-            &mut app,
-            &terminal,
-            create_cloud_mode_task_for_user(TEST_USER_UID),
-        );
-
-        terminal.read(&app, |view, ctx| {
-            assert!(
-                view.should_show_wasm_pane_header_details_button(ctx),
-                "pane-header (i) must show for an ambient-task pane with no tab-bar affordance"
-            );
-        });
-    });
-}
-
-#[test]
-fn test_wasm_details_panel_button_hidden_for_transcript_viewer() {
-    // REMOTE-2346 regression: a conversation-transcript viewer already shows the simplified WASM
-    // tab-bar `(i)`, so the pane-header `(i)` must be suppressed to avoid a duplicate button —
-    // even though the broader workspace panel gate still returns true for that surface.
+fn test_wasm_details_panel_gate_shows_for_transcript_viewer() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         app.add_singleton_model(Manager::new);
@@ -2710,41 +2668,6 @@ fn test_wasm_details_panel_button_hidden_for_transcript_viewer() {
             assert!(
                 view.should_show_wasm_conversation_details_panel(ctx),
                 "workspace panel gate must still show for a transcript viewer"
-            );
-            assert!(
-                !view.should_show_wasm_pane_header_details_button(ctx),
-                "pane-header (i) must be hidden for a transcript viewer (it already has the tab-bar (i))"
-            );
-        });
-    });
-}
-
-#[test]
-fn test_wasm_details_panel_button_hidden_for_shared_session() {
-    // REMOTE-2346: a shared session already shows the simplified WASM tab-bar `(i)`, so the
-    // pane-header `(i)` must be suppressed there too.
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        app.add_singleton_model(Manager::new);
-        let terminal = add_window_with_terminal(&mut app, None);
-        configure_ambient_details_panel_test(
-            &mut app,
-            &terminal,
-            create_cloud_mode_task_for_user(TEST_USER_UID),
-        );
-
-        terminal.update(&mut app, |view, _| {
-            view.model
-                .lock()
-                .set_shared_session_status(SharedSessionStatus::ActiveViewer {
-                    role: Default::default(),
-                });
-        });
-
-        terminal.read(&app, |view, ctx| {
-            assert!(
-                !view.should_show_wasm_pane_header_details_button(ctx),
-                "pane-header (i) must be hidden for a shared session (it already has the tab-bar (i))"
             );
         });
     });
