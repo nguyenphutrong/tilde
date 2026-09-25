@@ -107,7 +107,6 @@ use super::model::block::{
 use super::model::session::{Session, SessionId, SessionType, Sessions};
 use super::prompt_render_helper::{
     PromptRenderHelper, SameLinePromptElements, should_render_prompt_on_same_line,
-    should_render_prompt_using_editor_decorator_elements,
 };
 use super::safe_mode_settings::{
     SafeModeSettings, SafeModeSettingsChangedEvent, get_secret_obfuscation_mode,
@@ -2153,14 +2152,11 @@ impl Input {
         let prompt_view = ctx.add_typed_action_view(|ctx| {
             PromptDisplay::new(
                 current_prompt.clone(),
-                ai_input_model.clone(),
-                ai_context_model.clone(),
                 terminal_view_id,
                 menu_positioning_provider.clone(),
                 initial_session_context.clone(),
                 current_repo_path.clone(),
                 model_events.clone(),
-                agent_view_controller.clone(),
                 is_shared_session_viewer,
                 ctx,
             )
@@ -2281,7 +2277,6 @@ impl Input {
             prompt_selection_state_handle,
             view_id,
             input_render_state_model_handle.clone(),
-            ai_input_model.clone(),
         );
 
         let ai_follow_up_icon_mouse_state = MouseStateHandle::default();
@@ -2329,9 +2324,8 @@ impl Input {
 
                             if (!FeatureFlag::AgentView.is_enabled()
                                 || !agent_view_controller_clone.as_ref(app).is_active())
-                                && should_render_prompt_using_editor_decorator_elements(
+                                && should_render_prompt_on_same_line(
                                     is_universal_developer_input_enabled,
-                                    &ai_input_model,
                                     &terminal_model,
                                     app,
                                 )
@@ -5002,15 +4996,6 @@ impl Input {
                         self.input_contents_before_prompt_chip_command = Some(current_input);
                     }
                 }
-            }
-            PromptDisplayEvent::OpenAIDocument {
-                document_id,
-                document_version,
-            } => {
-                ctx.emit(Event::ToggleAIDocumentPane {
-                    document_id: *document_id,
-                    document_version: *document_version,
-                });
             }
         }
     }
