@@ -7,7 +7,6 @@ pub(crate) mod agent;
 pub(crate) mod agent_conversations_model;
 pub(crate) mod agent_events;
 pub(crate) mod agent_management;
-pub(crate) mod agent_tips;
 pub(crate) mod ai_document_view;
 pub mod ambient_agents;
 pub(crate) mod artifact_download;
@@ -51,7 +50,6 @@ pub(crate) mod skills;
 #[cfg(not(target_family = "wasm"))]
 pub(crate) mod tui_api_keys;
 pub(crate) mod voice;
-pub use agent_tips::*;
 pub use credit_availability::*;
 pub use request_usage_model::*;
 #[cfg(not(target_family = "wasm"))]

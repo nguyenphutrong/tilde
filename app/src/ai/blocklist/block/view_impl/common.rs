@@ -88,7 +88,7 @@ use crate::code::editor::view::CodeEditorView;
 use crate::code::editor_management::CodeSource;
 use crate::notebooks::editor::{markdown_table_appearance, rich_text_styles};
 use crate::search::slash_command_menu::static_commands::commands;
-use crate::settings::{FontSettings, InputSettings};
+use crate::settings::FontSettings;
 use crate::terminal::find::TerminalFindModel;
 use crate::terminal::grid_renderer::{FOCUSED_MATCH_COLOR, MATCH_COLOR};
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
@@ -528,13 +528,12 @@ pub struct WarpingIndicatorProps {
 
 /// Computes the fixed height of the warping-indicator footer.
 ///
-/// The warping text occupies a single line. When a secondary element (an agent
-/// tip or fallback-model explanation) is present, it renders on a second line
-/// below the warping text, so the footer must reserve room for that extra line;
+/// The warping text occupies a single line. When a fallback-model explanation is present, it renders
+/// on a second line below the warping text, so the footer must reserve room for that extra line;
 /// otherwise the `Clipped` wrapper — which keeps action chips from overflowing
 /// narrow panes — also clips the secondary line. The extra line accounts for the
 /// secondary element's font size (`monospace_font_size - 3`, see
-/// `render_agent_tip` / `render_fallback_explanation`) plus its 1px top margin.
+/// `render_fallback_explanation`) plus its 1px top margin.
 fn warping_footer_height(monospace_font_size: f32, has_secondary_element: bool) -> f32 {
     let mut height = STATUS_FOOTER_VERTICAL_PADDING * 2. + monospace_font_size;
     if has_secondary_element {
@@ -626,8 +625,6 @@ pub fn render_warping_indicator_base(
         text_col = text_col
             .with_child(text_content)
             .with_child(Container::new(sub_element).with_margin_top(1.).finish());
-    } else if FeatureFlag::AgentTips.is_enabled() && *InputSettings::as_ref(app).show_agent_tips {
-        text_col = text_col.with_child(text_content);
     } else {
         text_col = text_col.with_child(
             Container::new(text_content)

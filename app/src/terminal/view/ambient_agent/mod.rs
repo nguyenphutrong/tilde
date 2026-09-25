@@ -10,7 +10,6 @@ mod loading_screen;
 mod model;
 mod progress;
 mod progress_ui_state;
-mod tips;
 mod view_impl;
 
 pub use auth_secret_ftux_view::{
@@ -29,7 +28,6 @@ pub use loading_screen::{render_cloud_mode_error_screen, render_cloud_mode_loadi
 pub use model::{AgentProgress, AmbientAgentViewModel, AmbientAgentViewModelEvent, Status};
 pub use progress::{ProgressProps, ProgressStep, ProgressStepState, render_progress};
 pub use progress_ui_state::AmbientAgentProgressUIState;
-pub use tips::{CloudModeTip, get_cloud_mode_tips};
 use warp_core::features::FeatureFlag;
 use warpui::geometry::vector::Vector2F;
 use warpui::{AppContext, ModelHandle, ViewHandle, WindowId};
