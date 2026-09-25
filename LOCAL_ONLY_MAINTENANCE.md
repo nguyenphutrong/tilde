@@ -216,9 +216,11 @@ The terminal AI welcome block, autodetection footer control, classifier command 
 history-matching feature flag are removed. The three eager profile/model-selector controls and their
 visibility setting are removed. Legacy toolbar arrays still decode retired model-selector and NLD
 items without exposing them or discarding other saved items. Historical settings and database rows
-are untouched; OSC52 clipboard controls remain registered. Inline and cloud-V2 selectors remain for
-later removal. Prompt-restoration integration scenarios retain the explicit OpenModelSelector action;
-only the retired chip-toggle-close scenario is removed.
+are untouched; OSC52 clipboard controls remain registered. The cloud-V2 model selector and saved
+harness-model preference are removed. GUI `/model` dispatch is retired; its TUI-only registration
+remains. Inline selectors and the explicit OpenModelSelector action remain for later removal.
+Prompt-restoration integration scenarios retain that action; only the retired chip-toggle-close
+scenario is removed.
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions,
 and associated bootstrap/settings/UI contracts remain. Remove leaf consumers first, then their

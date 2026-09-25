@@ -28,7 +28,9 @@ fn retired_input_predictions_are_not_registered_settings() {
                             "ai_command_denylist"
                                 | "ai_auto_detection_enabled"
                                 | "nld_in_terminal_enabled"
+                                | "show_model_selectors_in_prompt"
                         )
+                    || entry.storage_key == "LastSelectedHarnessModel"
             })
     );
 }
