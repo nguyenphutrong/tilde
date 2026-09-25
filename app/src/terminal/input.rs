@@ -263,7 +263,6 @@ use crate::terminal::input::terminal_message_bar::TerminalInputMessageBar;
 use crate::terminal::input::user_query::{UserQueryMenuEvent, UserQueryMenuView};
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::session::shell_quote_arg;
-use crate::terminal::package_installers::command_at_cursor_has_common_package_installer_prefix;
 use crate::terminal::prompt_render_helper::should_render_ps1_prompt;
 use crate::terminal::view::{AIQueryRouting, resolve_ai_query_routing};
 use crate::ui_components::blended_colors;
@@ -8191,14 +8190,6 @@ impl Input {
 
                 let mut short_circuit_highlighting = false;
                 let mut check_alias_expansion = false;
-                let mut should_open_ai_context_menu = false;
-
-                let cursor_position = self.editor.read(ctx, |editor, editor_ctx| {
-                    editor.start_byte_index_of_last_selection(editor_ctx)
-                });
-
-                let is_alias_expansion_enabled = self.should_expand_aliases(ctx);
-                let session_context = self.completion_session_context(ctx);
 
                 self.editor.read(ctx, |editor, editor_ctx| {
                     let last_action = editor.get_last_action(editor_ctx);
@@ -8206,26 +8197,6 @@ impl Input {
                         && *edit_origin == EditOrigin::UserTyped
                     {
                         check_alias_expansion = true;
-                    }
-
-                    // Check if "@" was just typed in a valid context
-                    if FeatureFlag::AIContextMenuEnabled.is_enabled()
-                        && (is_ai_input_enabled || FeatureFlag::AtMenuOutsideOfAIMode.is_enabled())
-                        && Some(PlainTextEditorViewAction::InsertChar) == last_action
-                        && *edit_origin == EditOrigin::UserTyped
-                    {
-                        let buffer_text = editor.buffer_text(ctx);
-                        let should_enable = self.should_enable_ai_context(
-                            &buffer_text,
-                            cursor_position.as_usize(),
-                            is_alias_expansion_enabled,
-                            session_context.as_ref(),
-                            editor.shell_family().unwrap_or(ShellFamily::Posix),
-                            ctx,
-                        );
-                        if should_enable {
-                            should_open_ai_context_menu = true;
-                        }
                     }
 
                     if SHORT_CIRCUIT_HIGHLIGHTING_ACTIONS.contains(&last_action) {
@@ -8243,38 +8214,6 @@ impl Input {
                             ctx,
                         );
                     }
-                }
-
-                if should_open_ai_context_menu {
-                    let cursor_pos = self.editor.read(ctx, |editor, ctx| {
-                        editor.start_byte_index_of_last_selection(ctx)
-                    });
-                    self.suggestions_mode_model.update(ctx, |m, ctx| {
-                        m.set_mode(
-                            InputSuggestionsMode::AIContextMenu {
-                                filter_text: "".to_string(),
-                                // -1 since cursor is after the @ symbol
-                                at_symbol_position: cursor_pos.as_usize().saturating_sub(1),
-                            },
-                            ctx,
-                        );
-                    });
-
-                    // Update AI context menu input mode based on current state
-                    // Show AI categories if we're in AI mode OR if autodetection is enabled (not locked)
-                    let ai_input_model = self.ai_input_model.as_ref(ctx);
-                    let is_ai_or_autodetect_mode = ai_input_model.input_type().is_ai()
-                        || !ai_input_model.is_input_type_locked();
-
-                    self.editor.update(ctx, |editor, ctx| {
-                        if let Some(ai_context_menu) = editor.ai_context_menu() {
-                            ai_context_menu.update(ctx, |menu, ctx| {
-                                menu.set_input_mode(is_ai_or_autodetect_mode, ctx);
-                            });
-                        }
-                    });
-
-                    ctx.notify();
                 }
 
                 // Update filter text for AI context menu when text changes
@@ -9512,99 +9451,6 @@ impl Input {
         *InputSettings::as_ref(app)
             .completions_open_while_typing
             .value()
-    }
-
-    /// Returns true if an AI context menu should be enabled at the current cursor position based
-    /// on the buffer text and surrounding context. This is triggered when the user just typed '@'
-    /// in a valid context and the menu is not disabled for other reasons.
-    fn should_enable_ai_context(
-        &self,
-        buffer_text: &str,
-        cursor_position: usize,
-        is_alias_expansion_enabled: bool,
-        session_context: Option<&SessionContext>,
-        shell_family: ShellFamily,
-        app: &AppContext,
-    ) -> bool {
-        if cursor_position == 0 {
-            return false;
-        }
-
-        if buffer_text.chars().nth(cursor_position.saturating_sub(1)) != Some('@') {
-            return false;
-        }
-
-        // Check if '@' is at beginning of line or after non-alphanumeric
-        let is_valid_context = if cursor_position == 1 {
-            true // '@' is the first character
-        } else {
-            buffer_text
-                .chars()
-                .nth(cursor_position.saturating_sub(2))
-                .is_some_and(|c| !c.is_alphanumeric())
-        };
-
-        if !is_valid_context {
-            return false;
-        }
-
-        if cfg!(target_family = "wasm") {
-            return false;
-        }
-
-        #[cfg(not(target_family = "wasm"))]
-        {
-            let input_config = self.ai_input_model.as_ref(app).input_config();
-            let unsupported_session = self
-                .active_block_metadata
-                .as_ref()
-                .and_then(|metadata| metadata.session_id())
-                .and_then(|session_id| self.sessions.as_ref(app).get(session_id))
-                .is_some_and(|session| {
-                    let session_type = session.session_type();
-                    // SSH wrapper metadata survives an upgrade to a connected remote server.
-                    let has_connected_remote_server = matches!(
-                        session_type,
-                        SessionType::WarpifiedRemote { host_id: Some(_) }
-                    );
-                    session.subshell_info().is_some()
-                        || (!has_connected_remote_server
-                            && (session.is_ssh_wrapper_session()
-                                || matches!(
-                                    session_type,
-                                    SessionType::WarpifiedRemote { host_id: None }
-                                )))
-                });
-            if unsupported_session
-                || (input_config.input_type == InputType::Shell
-                    && !*InputSettings::as_ref(app)
-                        .at_context_menu_in_terminal_mode
-                        .value())
-                || AIContextMenu::get_categories_for_mode(
-                    input_config.input_type.is_ai() || !input_config.is_locked,
-                    false,
-                    false,
-                    false,
-                    app,
-                )
-                .is_empty()
-            {
-                return false;
-            }
-        }
-
-        // Don't trigger in shell mode for common package installer prefixes, where '@' is valid input.
-        let is_shell_mode = !self.ai_input_model.as_ref(app).is_ai_input_enabled();
-        let looks_like_package_install = is_shell_mode
-            && command_at_cursor_has_common_package_installer_prefix(
-                buffer_text,
-                cursor_position - 1,
-                shell_family,
-                is_alias_expansion_enabled,
-                session_context,
-            );
-
-        !looks_like_package_install
     }
 
     fn is_classic_completions_enabled(&self, ctx: &AppContext) -> bool {

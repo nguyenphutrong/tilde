@@ -352,3 +352,8 @@ including images, are transformed and shell-escaped. SSH uploads and the separat
 image relay remain. Backend attachments and persisted attachment chips remain removal debt. This
 increment also removes the unreachable image-picker helper/test missed in the earlier billing-alert
 recovery; the original transcript deleted them before attachment ingestion.
+
+Typing `@` no longer automatically opens the AI context menu; its package-installer classifier is
+removed. Alias expansion, highlighting, and shell completions remain. The literal-input regression
+enables the old menu flags/preferences explicitly. Explicit menu construction/dispatch remains for
+the next removal increment.
