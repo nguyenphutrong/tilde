@@ -6,8 +6,8 @@ use super::InlineMenuModel;
 use crate::terminal::input::inline_menu::{InlineMenuAction, InlineMenuType};
 
 #[test]
-fn retired_conversation_menu_preserves_saved_history_height() {
-    let saved = serde_json::json!({"ConversationMenu": 125.5, "InlineHistoryMenu": 210.25});
+fn retired_menus_preserve_saved_history_height() {
+    let saved = serde_json::json!({"ConversationMenu": 125.5, "ProfileSelector": 160.75, "InlineHistoryMenu": 210.25});
     let heights: HashMap<InlineMenuType, f32> = serde_json::from_value(saved.clone()).unwrap();
     assert_eq!(heights[&InlineMenuType::InlineHistoryMenu], 210.25);
     assert_eq!(serde_json::to_value(heights).unwrap(), saved);

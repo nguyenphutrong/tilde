@@ -483,20 +483,6 @@ pub const TEAM: StaticCommand = StaticCommand {
     argument: None,
 };
 
-pub static PROFILE: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: "/profile",
-    description: "Switch the active execution profile",
-    kind: SlashCommandKind::Profile,
-    supported_surfaces: SlashCommandSurfaces::GuiOnly {
-        icon_path: "bundled/svg/psychology.svg",
-    },
-    availability: Availability::AGENT_VIEW
-        | Availability::AI_ENABLED
-        | Availability::NOT_CLOUD_AGENT,
-    auto_enter_ai_mode: true,
-    argument: None,
-});
-
 pub const PLAN_NAME: &str = "/plan";
 
 pub static PLAN: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
@@ -909,10 +895,6 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
 
     if FeatureFlag::CloudMode.is_enabled() && FeatureFlag::CloudModeFromLocalSession.is_enabled() {
         commands.push(CLOUD_AGENT.clone());
-    }
-
-    if FeatureFlag::InlineProfileSelector.is_enabled() {
-        commands.push(PROFILE.clone());
     }
 
     if FeatureFlag::RevertToCheckpoints.is_enabled() && FeatureFlag::RewindSlashCommand.is_enabled()
