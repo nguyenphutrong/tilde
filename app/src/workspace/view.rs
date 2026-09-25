@@ -18313,12 +18313,6 @@ impl Workspace {
         }
 
         let ai_settings = AISettings::as_ref(app);
-        if ai_settings.is_ai_autodetection_enabled(app) {
-            context.set.insert(flags::AI_INPUT_AUTODETECTION_FLAG);
-        }
-        if ai_settings.is_nld_in_terminal_enabled(app) {
-            context.set.insert(flags::NLD_IN_TERMINAL_FLAG);
-        }
         if ai_settings.is_prompt_suggestions_enabled(app) {
             context.set.insert(flags::PROMPT_SUGGESTIONS_FLAG);
         }

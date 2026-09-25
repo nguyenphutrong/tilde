@@ -12,7 +12,9 @@ use serde::{Deserialize, Serialize};
 use session_sharing_protocol::common::{InputMode, InputType as ProtocolInputType};
 use settings::Setting as _;
 use warp_core::features::FeatureFlag;
-use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
+#[cfg(any(test, feature = "test-util"))]
+use warpui::ModelHandle;
+use warpui::{AppContext, Entity, EntityId, ModelContext, SingletonEntity};
 
 /// The type of input the user has provided.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -108,9 +110,8 @@ pub enum InputTypeAutoDetectionSource {
 use warp_errors::report_if_error;
 
 use super::ConversationSelectionHandle;
-use super::context_model::BlocklistAIContextModel;
 use super::input_mode_policy::{InputModePolicyHandle, PolicyConfigUpdate};
-use crate::settings::{AISettings, AISettingsChangedEvent, InputBoxType, InputSettings};
+use crate::settings::{AISettings, InputBoxType, InputSettings};
 use crate::terminal::TerminalModel;
 use crate::terminal::cli_agent_sessions::{
     CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
@@ -126,18 +127,16 @@ pub struct InputConfig {
     pub is_locked: bool,
 }
 
-impl InputConfig {
-    /// Create a sensible default InputConfig based on user's auto-detection setting.
-    pub fn new(app: &AppContext) -> Self {
-        let ai_settings = AISettings::as_ref(app);
-        let is_autodetection_enabled = ai_settings.is_ai_autodetection_enabled(app);
-
+impl Default for InputConfig {
+    fn default() -> Self {
         InputConfig {
             input_type: InputType::Shell,
-            is_locked: !is_autodetection_enabled, // Locked if auto-detection disabled
+            is_locked: true,
         }
     }
+}
 
+impl InputConfig {
     pub fn with_toggled_type(self) -> Self {
         let input_type = if self.input_type.is_ai() {
             InputType::Shell
@@ -156,21 +155,6 @@ impl InputConfig {
 
     pub fn with_input_type(self, input_type: InputType) -> Self {
         Self { input_type, ..self }
-    }
-
-    pub fn unlocked_if_autodetection_enabled(
-        self,
-        is_in_fullscreen_agent_view: bool,
-        app: &AppContext,
-    ) -> Self {
-        Self {
-            is_locked: if !FeatureFlag::AgentView.is_enabled() || is_in_fullscreen_agent_view {
-                !AISettings::as_ref(app).is_ai_autodetection_enabled(app)
-            } else {
-                !AISettings::as_ref(app).is_nld_in_terminal_enabled(app)
-            },
-            ..self
-        }
     }
 
     pub fn locked(self) -> Self {
@@ -217,13 +201,8 @@ pub struct BlocklistAIInputModel {
 
     conversation_selection: ConversationSelectionHandle,
 
-    /// Handle to the per-surface context model. Used to read pending image / file attachments
-    /// when deciding whether to force-lock the input to AI mode (see
-    /// [`BlocklistAIContextModel::has_locking_attachment`]).
-    ai_context_model: ModelHandle<BlocklistAIContextModel>,
-
     /// View-supplied policy for decisions the model cannot make view-agnostically
-    /// (lock gating, autodetection context, reactive config transitions).
+    /// (lock gating and reactive config transitions).
     policy: InputModePolicyHandle,
 
     model: Arc<FairMutex<TerminalModel>>,
@@ -234,7 +213,6 @@ impl BlocklistAIInputModel {
     pub fn new(
         model: Arc<FairMutex<TerminalModel>>,
         conversation_selection: ConversationSelectionHandle,
-        ai_context_model: ModelHandle<BlocklistAIContextModel>,
         policy: InputModePolicyHandle,
         terminal_surface_id: EntityId,
         ctx: &mut ModelContext<Self>,
@@ -271,23 +249,6 @@ impl BlocklistAIInputModel {
             },
         );
 
-        ctx.subscribe_to_model(&AISettings::handle(ctx), move |me, _, event, ctx| {
-            // Computing the guarded autodetection state takes the terminal-model
-            // lock, so only compute it for the one event whose handling can need
-            // it; policies must not rely on it for any other event.
-            let is_autodetection_enabled_for_current_context =
-                matches!(event, AISettingsChangedEvent::AIAutoDetectionEnabled { .. })
-                    && me.is_autodetection_enabled_for_current_context(ctx);
-            if let Some(update) = me.policy.config_on_ai_settings_changed(
-                event,
-                me.input_config(),
-                is_autodetection_enabled_for_current_context,
-                ctx,
-            ) {
-                me.apply_policy_update(update, ctx);
-            }
-        });
-
         ctx.subscribe_to_model(&conversation_selection, |me, _, event, ctx| {
             if let Some(update) =
                 me.policy
@@ -297,11 +258,10 @@ impl BlocklistAIInputModel {
             }
         });
 
-        let input_config = policy.initial_config(ctx);
+        let input_config = policy.initial_config();
         Self {
             input_config,
             conversation_selection,
-            ai_context_model,
             policy,
             last_ai_autodetection_ts: None,
             last_ai_autodetection_source: None,
@@ -320,20 +280,10 @@ impl BlocklistAIInputModel {
         let model = Arc::new(FairMutex::new(TerminalModel::mock(None, None)));
         let conversation_selection = ctx
             .add_model(|_| Box::new(MockConversationSelection) as Box<dyn ConversationSelection>);
-        let context_conversation_selection = conversation_selection.clone();
-        let context_terminal_model = model.clone();
-        let ai_context_model = ctx.add_model(|_| {
-            BlocklistAIContextModel::new_for_test(
-                context_terminal_model,
-                EntityId::new(),
-                context_conversation_selection,
-            )
-        });
-        let input_config = policy.initial_config(ctx);
+        let input_config = policy.initial_config();
         ctx.add_model(|_| Self {
             input_config,
             conversation_selection,
-            ai_context_model,
             policy,
             last_ai_autodetection_ts: None,
             last_ai_autodetection_source: None,
@@ -347,11 +297,6 @@ impl BlocklistAIInputModel {
         self.conversation_selection
             .as_ref(app)
             .is_conversation_active(app)
-    }
-
-    /// Convenience wrapper around `BlocklistAIContextModel::has_locking_attachment`.
-    fn has_locking_attachment(&self, app: &AppContext) -> bool {
-        self.ai_context_model.as_ref(app).has_locking_attachment()
     }
 
     /// Returns the InputType enum which specifies how we will handle the terminal input.
@@ -512,42 +457,6 @@ impl BlocklistAIInputModel {
         self.was_lock_set_with_empty_buffer = was_lock_set_with_empty_buffer;
     }
 
-    pub fn should_run_input_autodetection(&self, app: &AppContext) -> bool {
-        FeatureFlag::AgentMode.is_enabled()
-            && self.is_autodetection_enabled_for_current_context(app)
-            && !self.input_config.is_locked
-    }
-
-    /// Returns whether autodetection is enabled for the current context, layering view-agnostic
-    /// guards (agent in control, pending attachments) over the view policy's setting lookup.
-    pub fn is_autodetection_enabled_for_current_context(&self, app: &AppContext) -> bool {
-        // If the agent is in control or tagged in, don't run autodetection.
-        if self.is_terminal_use_active_or_pending() {
-            return false;
-        }
-
-        // Defense in depth: while there is a pending image / file attachment, the classifier
-        // must never have a chance to flip the input back to shell mode, even per-keystroke.
-        // The conversation-activation subscriber and `set_input_mode_agent` already lock at entry;
-        // this guard protects the window if any future caller forgets.
-        if self.has_locking_attachment(app) {
-            return false;
-        }
-
-        self.policy.is_autodetection_enabled(app)
-    }
-
-    pub fn enable_autodetection(&mut self, input_type: InputType, ctx: &mut ModelContext<Self>) {
-        self.set_input_config_internal(
-            InputConfig {
-                input_type,
-                is_locked: false,
-            },
-            None,
-            ctx,
-        );
-    }
-
     /// Handles the input buffer being submitted.
     pub fn handle_input_buffer_submitted(&mut self, ctx: &mut ModelContext<Self>) {
         // If the agent is still in control of a long-running command, keep the input locked to AI mode.
@@ -559,12 +468,7 @@ impl BlocklistAIInputModel {
                 is_locked: true,
             }
         } else {
-            // If NLD is enabled and input is currently locked, unlock it, as we want to
-            // resume autodetection for the next input.
-            InputConfig {
-                is_locked: !self.policy.is_autodetection_enabled(ctx),
-                ..self.input_config
-            }
+            self.input_config.locked()
         };
 
         self.set_input_config(

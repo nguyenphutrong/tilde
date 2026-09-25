@@ -85,16 +85,6 @@ pub const VOICE: StaticCommand = StaticCommand {
     argument: None,
 };
 
-pub const NATURAL_LANGUAGE_DETECTION: StaticCommand = StaticCommand {
-    name: "/natural-language-detection",
-    description: "Toggle natural language detection",
-    kind: SlashCommandKind::NaturalLanguageDetection,
-    supported_surfaces: SlashCommandSurfaces::TuiOnly,
-    availability: Availability::AI_ENABLED,
-    auto_enter_ai_mode: false,
-    argument: None,
-};
-
 pub const API_KEYS: StaticCommand = StaticCommand {
     name: "/api-keys",
     description: "View and manage API keys",
@@ -890,7 +880,6 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
         SET_TAB_COLOR.clone(),
         STATUSLINE,
         RESET_STATUSLINE,
-        NATURAL_LANGUAGE_DETECTION,
         THEME,
         VIM_MODE,
         EXPORT_TO_CLIPBOARD,

@@ -1187,33 +1187,6 @@ define_settings_group!(AISettings, settings: [
         toml_path: "agents.warp_agent.active_ai.enabled",
         description: "Controls whether proactive AI features like suggestions are enabled.",
     },
-    // This field should not be referenced directly to lookup autodetection enablement -- use the
-    // `is_ai_autodetection_enabled()` getter.
-    ai_autodetection_enabled_internal: AIAutoDetectionEnabled {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        surface: settings::SettingSurfaces::ALL,
-        private: false,
-        toml_path: "agents.warp_agent.input.ai_auto_detection_enabled",
-        description: "Controls whether AI automatically detects natural language input.",
-    },
-    // This field should not be referenced directly -- use the
-    // `is_nld_in_terminal_enabled()` getter.
-    // Controls whether natural language detection is enabled in the terminal input.
-    //
-    // This is only used when `FeatureFlag::AgentView` is enabled.
-    nld_in_terminal_enabled_internal: NLDInTerminalEnabled {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "agents.warp_agent.input.nld_in_terminal_enabled",
-        description: "Controls whether natural language detection is enabled in the terminal input.",
-    },
     // This field should not be referenced directly to lookup Prompt Suggestions
     // enablement -- use the `is_prompt_suggestions_enabled()` getter.
     // Note that AgentModeQuerySuggestionsEnabled is a legacy name (the feature was initially named Agent
@@ -2222,23 +2195,6 @@ impl AISettings {
     pub fn voice_input_language_code(&self) -> Option<&str> {
         let code = self.voice_input_language.as_str();
         if code.is_empty() { None } else { Some(code) }
-    }
-
-    /// Returns `true` if input autodetection is enabled.
-    ///
-    /// If `FeatureFlag::AgentView` is enabled, this specifically gates NLD enablement in the agent
-    /// view only.
-    pub fn is_ai_autodetection_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_any_ai_enabled(app) && *self.ai_autodetection_enabled_internal
-    }
-
-    /// Returns `true` if NLD is enabled in the terminal.
-    ///
-    /// This is only used when `FeatureFlag::AgentView` is enabled.
-    /// If the user has not explicitly set this setting, it defaults to the value of
-    /// `ai_autodetection_enabled_internal`.
-    pub fn is_nld_in_terminal_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_any_ai_enabled(app) && *self.nld_in_terminal_enabled_internal
     }
 
     pub fn is_memory_enabled(&self, app: &warpui::AppContext) -> bool {

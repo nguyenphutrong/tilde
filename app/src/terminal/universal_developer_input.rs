@@ -185,7 +185,6 @@ const BLURRED_OPACITY: Opacity = 50;
 pub enum InputToggleMode {
     Terminal,
     AgentMode,
-    AutoDetection,
 }
 
 /// Custom disabled theme for UDI buttons that preserves background but changes font color
@@ -209,13 +208,9 @@ impl ActionButtonTheme for UDIDisabledButtonTheme {
 
 impl From<&BlocklistAIInputModel> for InputToggleMode {
     fn from(input_model: &BlocklistAIInputModel) -> Self {
-        if input_model.is_input_type_locked() {
-            match input_model.input_type() {
-                InputType::Shell => InputToggleMode::Terminal,
-                InputType::AI => InputToggleMode::AgentMode,
-            }
-        } else {
-            InputToggleMode::AutoDetection
+        match input_model.input_type() {
+            InputType::Shell => InputToggleMode::Terminal,
+            InputType::AI => InputToggleMode::AgentMode,
         }
     }
 }
@@ -265,7 +260,6 @@ pub enum UniversalDeveloperInputButtonBarEvent {
     #[cfg(feature = "voice_input")]
     ToggleVoiceInput(voice_input::VoiceInputToggledFrom),
     InputTypeSelected(InputType),
-    EnableAutoDetection,
     SelectFile,
     SetAIContextMenuOpen(bool),
     PromptAlert(PromptAlertEvent),
@@ -421,9 +415,6 @@ impl UniversalDeveloperInputButtonBar {
                     ctx.emit(UniversalDeveloperInputButtonBarEvent::InputTypeSelected(
                         InputType::AI,
                     ));
-                }
-                InputToggleMode::AutoDetection => {
-                    ctx.emit(UniversalDeveloperInputButtonBarEvent::EnableAutoDetection);
                 }
             },
         });
@@ -881,11 +872,6 @@ fn build_renderable_option_config(
                 )),
                 background: bg_color.into(),
             }
-        }
-        InputToggleMode::AutoDetection => {
-            // Should not actually render anything, when using the new two-option
-            // UDI control.
-            return None;
         }
     };
 

@@ -3377,18 +3377,14 @@ impl TerminalView {
             let mut model = BlocklistAIInputModel::new(
                 model.clone(),
                 conversation_selection.clone(),
-                ai_context_model.clone(),
                 policy,
                 terminal_view_id,
                 ctx,
             );
 
-            // If NLD is disabled, restore any input config that was saved.
-            if !model.is_autodetection_enabled_for_current_context(ctx)
-                && let Some(input_config) = initial_input_config
-            {
+            if let Some(input_config) = initial_input_config {
                 let is_input_buffer_empty = true;
-                model.set_input_config(input_config, is_input_buffer_empty, None, ctx);
+                model.set_input_config(input_config.locked(), is_input_buffer_empty, None, ctx);
             }
             model
         });
@@ -21047,15 +21043,12 @@ impl TerminalView {
                 ctx,
             );
         } else {
-            // In general, user has expressed intent to "enter agent mode" by sending the inline review.
-            // When NLD is on, this means unlocking any status locks similar to other agent mode queries.
-            // When NLD is off, we override the input mode to AI.
             self.ai_input_model.update(ctx, |input_model, ctx| {
                 input_model.set_input_config(
                     input_model
                         .input_config()
                         .with_input_type(InputType::AI)
-                        .unlocked_if_autodetection_enabled(false, ctx),
+                        .locked(),
                     true,
                     Some(InputTypeAutoDetectionSource::InlineCodeReviewSend),
                     ctx,

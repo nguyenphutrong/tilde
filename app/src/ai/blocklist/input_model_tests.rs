@@ -7,20 +7,17 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use parking_lot::FairMutex;
-use settings::Setting as _;
 use warpui::r#async::executor::Background;
-use warpui::{App, AppContext, EntityId, ModelHandle, SingletonEntity};
+use warpui::{App, AppContext, EntityId, ModelHandle};
 
 use super::*;
 use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::blocklist::BlocklistAIContextModel;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::conversation_selection::{
     ConversationSelection, ConversationSelectionEvent, ConversationSelectionHandle,
     MockConversationSelection,
 };
 use crate::ai::blocklist::input_mode_policy::{InputModePolicy, PolicyConfigUpdate};
-use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::color::{self, Colors};
 use crate::terminal::event_listener::ChannelEventListener;
@@ -47,7 +44,6 @@ struct StubPolicy {
     allows_locked_ai: bool,
     on_conversation_activated: Option<InputConfig>,
     on_conversation_deactivated: Option<InputConfig>,
-    on_settings_changed: Option<InputConfig>,
 }
 
 impl StubPolicy {
@@ -58,22 +54,17 @@ impl StubPolicy {
             allows_locked_ai: true,
             on_conversation_activated: None,
             on_conversation_deactivated: None,
-            on_settings_changed: None,
         }
     }
 }
 
 impl InputModePolicy for StubPolicy {
-    fn initial_config(&self, _app: &AppContext) -> InputConfig {
+    fn initial_config(&self) -> InputConfig {
         self.initial
     }
 
     fn allows_locked_ai_input(&self, _app: &AppContext) -> bool {
         self.allows_locked_ai
-    }
-
-    fn is_autodetection_enabled(&self, _app: &AppContext) -> bool {
-        false
     }
 
     fn config_on_conversation_selection_changed(
@@ -91,16 +82,6 @@ impl InputModePolicy for StubPolicy {
                 .on_conversation_deactivated
                 .map(PolicyConfigUpdate::new),
         }
-    }
-
-    fn config_on_ai_settings_changed(
-        &self,
-        _event: &AISettingsChangedEvent,
-        _current: InputConfig,
-        _is_autodetection_enabled_for_current_context: bool,
-        _app: &AppContext,
-    ) -> Option<PolicyConfigUpdate> {
-        self.on_settings_changed.map(PolicyConfigUpdate::new)
     }
 }
 
@@ -130,18 +111,10 @@ fn build_input_model(
     let terminal_surface_id = EntityId::new();
     let conversation_selection =
         app.add_model(|_| Box::new(MockConversationSelection) as Box<dyn ConversationSelection>);
-    let context_model = app.add_model(|_| {
-        BlocklistAIContextModel::new_for_test(
-            terminal_model.clone(),
-            terminal_surface_id,
-            conversation_selection.clone(),
-        )
-    });
     let input_model = app.add_model(|ctx| {
         BlocklistAIInputModel::new(
             terminal_model,
             conversation_selection.clone(),
-            context_model,
             Rc::new(policy),
             terminal_surface_id,
             ctx,
@@ -247,19 +220,11 @@ fn conversation_events_apply_policy_updates() {
 }
 
 #[test]
-fn settings_change_applies_policy_update() {
+fn submitting_shell_input_does_not_resume_autodetection() {
     App::test((), |mut app| async move {
-        let policy = StubPolicy {
-            on_settings_changed: Some(SHELL_LOCKED),
-            ..StubPolicy::inert(AI_LOCKED)
-        };
-        let (input_model, _) = build_input_model(&mut app, policy);
-
-        AISettings::handle(&app).update(&mut app, |settings, ctx| {
-            settings
-                .ai_autodetection_enabled_internal
-                .set_value(false, ctx)
-                .unwrap();
+        let (input_model, _) = build_input_model(&mut app, StubPolicy::inert(SHELL_UNLOCKED));
+        input_model.update(&mut app, |model, ctx| {
+            model.handle_input_buffer_submitted(ctx);
         });
 
         input_model.read(&app, |model, _| {

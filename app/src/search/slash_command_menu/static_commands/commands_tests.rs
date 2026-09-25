@@ -518,31 +518,14 @@ fn clear_command_is_active_only_outside_cloud_mode() {
 }
 
 #[test]
-fn natural_language_detection_command_is_registered_only_for_tui_mode() {
-    let tui_commands = all_commands(settings::SettingsMode::Tui);
-    assert!(
-        tui_commands
-            .iter()
-            .any(|command| command == &NATURAL_LANGUAGE_DETECTION)
-    );
-
-    let gui_commands = all_commands(settings::SettingsMode::Gui);
-    assert!(
-        !gui_commands
-            .iter()
-            .any(|command| command == &NATURAL_LANGUAGE_DETECTION)
-    );
-}
-
-#[test]
-fn natural_language_detection_command_is_ai_enabled_and_executes_immediately() {
-    let command = all_commands(settings::SettingsMode::Tui)
-        .into_iter()
-        .find(|command| command.kind == SlashCommandKind::NaturalLanguageDetection)
-        .expect("expected /natural-language-detection to be registered in TUI mode");
-    assert_eq!(command.availability, Availability::AI_ENABLED);
-    assert!(!command.auto_enter_ai_mode);
-    assert!(command.argument.is_none());
+fn natural_language_detection_command_is_not_registered() {
+    for mode in [settings::SettingsMode::Gui, settings::SettingsMode::Tui] {
+        assert!(
+            !all_commands(mode)
+                .iter()
+                .any(|command| command.name == "/natural-language-detection")
+        );
+    }
 }
 
 #[test]

@@ -856,34 +856,6 @@ pub struct BlockMemoryUsageStats {
     pub estimated_memory_usage_bytes: usize,
 }
 
-/// Entrypoints to toggle the input auto-detection setting for Agent Mode.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum AgentModeAutoDetectionSettingOrigin {
-    /// The "speed bump" banner shown that's shown to the user when input is autodetected.
-    #[serde(rename = "banner")]
-    Banner,
-
-    /// The AI settings page.
-    #[serde(rename = "settings_page")]
-    SettingsPage,
-
-    /// A TUI slash command (`/enable-natural-language-detection` or
-    /// `/disable-natural-language-detection`).
-    #[serde(rename = "slash_command")]
-    SlashCommand,
-}
-
-/// Payload for the [`AgentModePotentialAutodetectionFalsePositive`] event.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum AgentModeAutoDetectionFalsePositivePayload {
-    /// Payload includes input text for dogfood channels.
-    InternalDogfoodUsers { input_text: String },
-
-    /// Do not include the misclassified input text in stable channels due to privacy concerns.
-    ExternalUsers,
-}
-
 /// How the user triggered the [`AgentModeCodeFilesNavigated`] event.
 #[derive(Clone, Copy, Debug, Serialize)]
 pub enum AgentModeCodeFileNavigationSource {
@@ -1859,29 +1831,6 @@ pub enum TelemetryEvent {
     AgentModeAttachedBlockContext {
         method: AgentModeAttachContextMethod,
     },
-
-    /// Emitted when the user toggles the "Input Auto-detection" setting in the AI settings page or
-    /// in the auto-detection "speed bump" banner.
-    AgentModeToggleAutoDetectionSetting {
-        is_autodetection_enabled: bool,
-        origin: AgentModeAutoDetectionSettingOrigin,
-    },
-
-    /// Emitted when the input type is changed from one type to new_input_type.
-    AgentModeChangedInputType {
-        input: Option<String>,
-        buffer_length: usize,
-        is_manually_changed: bool,
-        new_input_type: InputType,
-        active_block_id: BlockId,
-        /// Whether or not Universal Developer Input mode is enabled
-        is_udi_enabled: bool,
-    },
-
-    /// Emitted when the user manually toggles the terminal input from AI mode to shell mode when
-    /// the current input text has been auto-detected as AI input -- this is likely a natural
-    /// language auto-detection false-positive.
-    AgentModePotentialAutoDetectionFalsePositive(AgentModeAutoDetectionFalsePositivePayload),
 
     /// Keeps track of number of times the user is presented with a Prompt Suggestions banner.
     PromptSuggestionShown {
@@ -3327,12 +3276,6 @@ impl TelemetryEvent {
             TelemetryEvent::AgentModeAttachedBlockContext { method } => {
                 Some(json!({"method": method}))
             }
-            TelemetryEvent::AgentModeToggleAutoDetectionSetting {
-                is_autodetection_enabled,
-                origin,
-            } => Some(
-                json!({"is_autodetection_enabled": is_autodetection_enabled, "origin": origin }),
-            ),
             // Using legacy name to avoid breaking telemetry.
             TelemetryEvent::TogglePromptSuggestionsSetting {
                 is_prompt_suggestions_enabled,
@@ -3358,19 +3301,6 @@ impl TelemetryEvent {
             TelemetryEvent::ToggleVoiceInputSetting {
                 is_voice_input_enabled,
             } => Some(json!({"is_voice_input_enabled": is_voice_input_enabled})),
-            TelemetryEvent::AgentModePotentialAutoDetectionFalsePositive(
-                AgentModeAutoDetectionFalsePositivePayload::InternalDogfoodUsers { input_text },
-            ) => Some(json!({"input_text": input_text})),
-            TelemetryEvent::AgentModeChangedInputType {
-                input,
-                buffer_length,
-                is_manually_changed,
-                new_input_type,
-                active_block_id,
-                is_udi_enabled,
-            } => Some(
-                json!({"input": input, "buffer_length": buffer_length, "is_manually_changed": is_manually_changed, "new_input_type": new_input_type, "active_block_id": active_block_id, "is_udi_enabled": is_udi_enabled}),
-            ),
             TelemetryEvent::PromptSuggestionShown {
                 id,
                 request_duration_ms,
@@ -3894,9 +3824,6 @@ impl TelemetryEvent {
             | TelemetryEvent::PaneDragInitiated
             | TelemetryEvent::SharedObjectLimitHitBannerViewPlansButtonClicked
             | TelemetryEvent::SharedSessionModalUpgradePressed
-            | TelemetryEvent::AgentModePotentialAutoDetectionFalsePositive(
-                AgentModeAutoDetectionFalsePositivePayload::ExternalUsers,
-            )
             | TelemetryEvent::SettingsImportResetButtonClicked
             | TelemetryEvent::ITermMultipleHotkeys
             | TelemetryEvent::SettingsImportInitiated
@@ -4445,15 +4372,7 @@ impl TelemetryEvent {
             TelemetryEvent::CreateProjectPromptSubmitted { .. } => false,
             TelemetryEvent::CreateProjectPromptSubmittedContent { .. } => true,
             TelemetryEvent::InputBufferSubmitted { .. } => false,
-            TelemetryEvent::AgentModeChangedInputType { input, .. } => input.is_some(),
             TelemetryEvent::UnitTestSuggestionAccepted { query, .. } => query.is_some(),
-            TelemetryEvent::AgentModePotentialAutoDetectionFalsePositive(payload) => {
-                // For internal dogfood users, the payload contains UGC.
-                matches!(
-                    payload,
-                    AgentModeAutoDetectionFalsePositivePayload::InternalDogfoodUsers { .. }
-                )
-            }
             TelemetryEvent::ShowedSuggestedAgentModeWorkflowModal { .. }
             | TelemetryEvent::ShowedSuggestedAgentModeWorkflowChip { .. }
             | TelemetryEvent::AISuggestedAgentModeWorkflowAdded { .. }
@@ -4689,7 +4608,6 @@ impl TelemetryEvent {
             | TelemetryEvent::FileTreeToggled { .. }
             | TelemetryEvent::AgentModeClickedEntrypoint { .. }
             | TelemetryEvent::AgentModeAttachedBlockContext { .. }
-            | TelemetryEvent::AgentModeToggleAutoDetectionSetting { .. }
             | TelemetryEvent::PromptSuggestionShown { .. }
             | TelemetryEvent::SuggestedCodeDiffBannerShown { .. }
             | TelemetryEvent::SuggestedCodeDiffFailed { .. }
@@ -4972,7 +4890,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             | Self::AnonymousUserAttemptLoginGatedFeature
             | Self::AnonymousUserHitCloudObjectLimit => EnablementState::Always,
 
-            Self::AgentModeChangedInputType => EnablementState::Always,
             Self::StartedSharingCurrentSession
             | Self::StoppedSharingCurrentSession
             | Self::SharedSessionModalUpgradePressed => {
@@ -5211,10 +5128,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             },
             Self::MemoryUsageHigh => EnablementState::Always,
             Self::TransientMemorySpike => EnablementState::Always,
-            Self::AgentModeClickedEntrypoint
-            | Self::AgentModeAttachedBlockContext
-            | Self::AgentModeToggleAutoDetectionSetting
-            | Self::AgentModePotentialAutoDetectionFalsePositive => {
+            Self::AgentModeClickedEntrypoint | Self::AgentModeAttachedBlockContext => {
                 EnablementState::Flag(FeatureFlag::AgentMode)
             }
             Self::EnvVarCollectionInvoked | Self::EnvVarWorkflowParameterization => {
@@ -5685,11 +5599,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::MemoryUsageStats => "perf_metrics.memory_usage",
             Self::MemoryUsageHigh => "perf_metrics.memory_usage_high",
             Self::TransientMemorySpike => "perf_metrics.transient_memory_spike",
-            Self::AgentModeToggleAutoDetectionSetting => "AgentMode.ToggleAutoDetectionSetting",
-            Self::AgentModePotentialAutoDetectionFalsePositive => {
-                "AgentMode.PotentialAutoDetectionFalsePositive"
-            }
-            Self::AgentModeChangedInputType => "AgentMode.ChangedInputType",
             // Agent Mode Query Suggestions is the legacy name for Prompt Suggestions - we avoid renaming
             // the event to avoid breaking historical telemetry data.
             Self::PromptSuggestionShown => "Agent Mode Query Suggestions Banner Shown",
@@ -6378,15 +6287,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::TransientMemorySpike => {
                 "Application memory usage briefly crossed the excessive-usage threshold but \
                  dropped back under it before being reported as high"
-            }
-            Self::AgentModeToggleAutoDetectionSetting => {
-                "Toggled the setting that enables or disables natural language auto-detection in the input. "
-            }
-            Self::AgentModePotentialAutoDetectionFalsePositive => {
-                "Manually toggled input to shell mode after input was auto-detected as natural language."
-            }
-            Self::AgentModeChangedInputType => {
-                "The input type was changed from shell -> AI or AI -> shell"
             }
             Self::TogglePromptSuggestionsSetting => "Toggled on/off the prompt suggestions setting",
             Self::ToggleCodeSuggestionsSetting => "Toggled on/off the code suggestions setting",
