@@ -4961,19 +4961,6 @@ impl Input {
                     source: PaletteSource::ContextChip,
                 });
             }
-            PromptDisplayEvent::RunAgentQuery(query) => {
-                self.cancel_active_conversation(ctx, CancellationReason::UserCommandExecuted);
-                let query = query.clone();
-                self.ai_controller.update(ctx, |controller, ctx| {
-                    controller.send_user_query_in_new_conversation(
-                        query,
-                        None,
-                        EntrypointType::UserInitiated,
-                        None,
-                        ctx,
-                    );
-                });
-            }
             PromptDisplayEvent::TryExecuteCommand(command) => {
                 let Some(shell_type) = self
                     .active_session(ctx)
