@@ -11,6 +11,41 @@ mod file_search_model_tests {
     use super::*;
 
     #[test]
+    fn wildcard_paths_and_multi_term_queries() {
+        for query in [
+            "src/*/button.rs",
+            "*/ui/*.rs",
+            "butto?.rs",
+            "ui *.rs",
+            "UI BUTTON",
+        ] {
+            assert!(
+                FileSearchModel::fuzzy_match_path("src/ui/button.rs", query).is_some(),
+                "{query}"
+            );
+        }
+        for query in ["*.py", "ui *.py", "missing button"] {
+            assert!(
+                FileSearchModel::fuzzy_match_path("src/ui/button.rs", query).is_none(),
+                "{query}"
+            );
+        }
+    }
+
+    #[test]
+    fn path_proximity_rewards_matches_near_filename() {
+        let path = "/src/components/button.rs";
+        let near = FileSearchModel::apply_path_proximity_ranking(path, &[15, 16, 17], 1000);
+        let far = FileSearchModel::apply_path_proximity_ranking(path, &[1, 2, 3], 1000);
+        assert!(near > far);
+        assert!(far > 1000);
+        assert_eq!(
+            FileSearchModel::apply_path_proximity_ranking(path, &[], 1000),
+            1000
+        );
+    }
+
+    #[test]
     fn test_file_search_model_creation() {
         App::test((), |app| async move {
             app.add_singleton_model(|_| DetectedRepositories::default());
