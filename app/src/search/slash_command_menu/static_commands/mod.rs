@@ -88,8 +88,6 @@ pub enum SlashCommandKind {
     Clear,
     Model,
     Team,
-    Host,
-    Harness,
     Profile,
     Plan,
     Orchestrate,

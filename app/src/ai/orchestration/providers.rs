@@ -17,10 +17,6 @@ use crate::ai::llms::LLMInfo;
 use crate::ai::orchestration::config_state::AuthSecretSelection;
 use crate::workspaces::user_workspaces::{TeamScope, UserWorkspaces};
 
-/// Env var override for the workspace default host (developer testing).
-/// Mirrors the single-agent ambient flow.
-const DEFAULT_HOST_ENV_VAR: &str = "WARP_CLOUD_MODE_DEFAULT_HOST";
-
 pub const ORCHESTRATION_WARP_WORKER_HOST: &str = WARP_WORKER_HOST;
 pub const ORCHESTRATION_ENV_NONE_LABEL: &str = "Empty environment";
 pub const ORCHESTRATION_RUNNER_NONE_LABEL: &str = "Use default";
@@ -84,19 +80,11 @@ pub fn first_filtered_model_id(harness_type: &str, ctx: &AppContext) -> Option<S
     }
 }
 
-/// Resolves the default host slug configured for `scope`'s team, honoring the
-/// `WARP_CLOUD_MODE_DEFAULT_HOST` env var override for developer
-/// testing. Mirrors the single-agent ambient flow.
+/// Resolves the default host slug configured for `scope`'s team.
 pub fn resolve_default_host_slug<S: TeamScope + ?Sized>(
     scope: &S,
     ctx: &AppContext,
 ) -> Option<String> {
-    if let Ok(slug) = std::env::var(DEFAULT_HOST_ENV_VAR) {
-        let trimmed = slug.trim();
-        if !trimmed.is_empty() {
-            return Some(trimmed.to_string());
-        }
-    }
     UserWorkspaces::as_ref(ctx)
         .default_host_slug(scope)
         .map(str::to_string)
@@ -244,7 +232,7 @@ pub fn resolve_auth_secret_selection_for_harness(
 /// Persists the user's auth-secret choice for the active harness.
 /// `Named` writes to `last_selected_auth_secret` and clears any prior
 /// `Inherit` flag. `Inherit` clears the named entry and sets the inherit
-/// flag. `Unset`/`CreatingNew` clear both (no recorded choice). No-op for
+/// flag. `Unset` clears both (no recorded choice). No-op for
 /// Oz / unknown.
 pub(crate) fn persist_auth_secret_selection(
     harness_type: &str,
@@ -271,7 +259,7 @@ pub(crate) fn persist_auth_secret_selection(
                 named_map.remove(&key);
                 inherit_map.insert(key, true);
             }
-            AuthSecretSelection::Unset | AuthSecretSelection::CreatingNew => {
+            AuthSecretSelection::Unset => {
                 named_map.remove(&key);
                 inherit_map.remove(&key);
             }

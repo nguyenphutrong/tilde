@@ -544,9 +544,6 @@ pub enum FeatureFlag {
     /// Enables starting cloud mode from a local session.
     CloudModeFromLocalSession,
 
-    /// Enables host selection in cloud mode.
-    CloudModeHostSelector,
-
     /// Enables Warp Managed Secrets functionality.
     WarpManagedSecrets,
 

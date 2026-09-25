@@ -62,10 +62,7 @@ pub fn auth_secret_selection_required(state: &OrchestrationConfigState, _ctx: &A
     if !should_show_auth_secret_picker(state) {
         return false;
     }
-    if !matches!(
-        state.auth_secret_selection,
-        AuthSecretSelection::Unset | AuthSecretSelection::CreatingNew
-    ) {
+    if !matches!(state.auth_secret_selection, AuthSecretSelection::Unset) {
         return false;
     }
     let Some(harness) = Harness::parse_orchestration_harness(&state.harness_type) else {

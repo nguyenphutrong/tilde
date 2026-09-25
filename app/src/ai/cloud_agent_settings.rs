@@ -6,30 +6,13 @@
 use std::collections::HashMap;
 
 use settings::macros::define_settings_group;
-use settings::{Setting as _, SupportedPlatforms, SyncToCloud};
-use warp_cli::agent::Harness;
+use settings::{SupportedPlatforms, SyncToCloud};
 
 use crate::server::ids::SyncId;
 
 define_settings_group!(CloudAgentSettings, settings: [
     last_selected_environment_id: LastSelectedEnvironmentId {
         type: Option<SyncId>,
-        default: None,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    },
-    harness_auth_ftux_completed: HarnessAuthFtuxCompleted {
-        type: HashMap<String, bool>,
-        default: HashMap::new(),
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
-        surface: settings::SettingSurfaces::GUI,
-        private: true,
-    },
-    last_selected_harness: LastSelectedHarness {
-        type: Option<String>,
         default: None,
         supported_platforms: SupportedPlatforms::ALL,
         sync_to_cloud: SyncToCloud::Never,
@@ -65,23 +48,3 @@ define_settings_group!(CloudAgentSettings, settings: [
         private: true,
     }
 ]);
-
-impl CloudAgentSettings {
-    pub fn is_harness_auth_ftux_completed(&self, harness: Harness) -> bool {
-        self.harness_auth_ftux_completed
-            .value()
-            .get(harness.config_name())
-            .copied()
-            .unwrap_or(false)
-    }
-
-    pub fn mark_harness_auth_ftux_completed(
-        &mut self,
-        harness: Harness,
-        ctx: &mut warpui::ModelContext<Self>,
-    ) {
-        let mut map = self.harness_auth_ftux_completed.value().clone();
-        map.insert(harness.config_name().to_string(), true);
-        let _ = self.harness_auth_ftux_completed.set_value(map, ctx);
-    }
-}

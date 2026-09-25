@@ -1,4 +1,3 @@
-use warp_cli::agent::Harness;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
     Align, AnchorPair, Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
@@ -7,7 +6,7 @@ use warpui::elements::{
     PositioningAxis, Radius, SavePosition, Stack, XAxisAnchor, YAxisAnchor,
 };
 use warpui::presenter::ChildView;
-use warpui::{AppContext, SingletonEntity as _, ViewHandle};
+use warpui::{AppContext, SingletonEntity as _};
 
 use super::common::{
     add_command_xray_overlay, add_input_suggestions_overlays, add_voltron_overlay,
@@ -20,15 +19,12 @@ use crate::ai::blocklist::agent_view::AgentViewState;
 use crate::ai::blocklist::agent_view::shortcuts::{
     AgentShortcutsViewContext, render_agent_shortcuts_view,
 };
-use crate::ai::connected_self_hosted_workers::ConnectedSelfHostedWorkersModel;
-use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::appearance::Appearance;
 use crate::context_chips::spacing::{self};
 use crate::editor::position_id_for_cursor;
 use crate::features::FeatureFlag;
 use crate::terminal::settings::TerminalSettings;
 use crate::terminal::view::TerminalAction;
-use crate::terminal::view::ambient_agent::HostSelector;
 
 pub(super) const CLOUD_MODE_V2_MAX_WIDTH: f32 = 720.;
 
@@ -41,8 +37,6 @@ const CLOUD_MODE_V2_INPUT_HORIZONTAL_PADDING: f32 = 16.;
 const CLOUD_MODE_V2_INPUT_TOP_PADDING: f32 = 16.;
 
 const CLOUD_MODE_V2_INPUT_EDITOR_BOTTOM_PADDING: f32 = 8.;
-
-const CLOUD_MODE_V2_TOP_ROW_INNER_GAP: f32 = 4.;
 
 const CLOUD_MODE_V2_INPUT_MIN_EDITOR_HEIGHT: f32 = 80.;
 
@@ -90,30 +84,6 @@ impl Input {
             column.add_child(
                 Container::new(images)
                     .with_margin_top(spacing::UDI_CHIP_MARGIN)
-                    .finish(),
-            );
-        }
-
-        let show_harness_row = FeatureFlag::CloudMode.is_enabled()
-            && HarnessAvailabilityModel::as_ref(app).should_show_harness_selector()
-            && self
-                .ambient_agent_view_model()
-                .is_some_and(|ambient_agent_model| {
-                    ambient_agent_model
-                        .as_ref(app)
-                        .is_configuring_ambient_agent()
-                });
-        if show_harness_row && let Some(harness_selector) = self.harness_selector() {
-            // Temporarily render the harness selector in the cloud mode UDI until we fully
-            // implement the new designs.
-            let harness_row = Flex::row()
-                .with_main_axis_size(MainAxisSize::Min)
-                .with_child(ChildView::new(harness_selector).finish())
-                .finish();
-            column.add_child(
-                Container::new(harness_row)
-                    .with_padding_top(spacing::UDI_CHIP_MARGIN)
-                    .with_padding_bottom(4.)
                     .finish(),
             );
         }
@@ -432,32 +402,6 @@ impl Input {
         SavePosition::new(outer_stack.finish(), &self.save_position_id()).finish()
     }
 
-    pub(super) fn should_show_auth_secret_ftux(&self, app: &AppContext) -> bool {
-        let Some(view_model) = self.ambient_agent_view_model() else {
-            return false;
-        };
-        let vm = view_model.as_ref(app);
-        let harness = vm.selected_harness();
-        if harness == Harness::Oz {
-            return false;
-        }
-        // Skip FTUX for harnesses that have no auth secret types defined.
-        if crate::ai::auth_secret_types::auth_secret_types_for_harness(harness).is_empty() {
-            return false;
-        }
-        if let Some(ftux_view) = self.auth_secret_ftux_view()
-            && ftux_view.as_ref(app).has_creation_state()
-        {
-            return true;
-        }
-        if crate::ai::cloud_agent_settings::CloudAgentSettings::as_ref(app)
-            .is_harness_auth_ftux_completed(harness)
-        {
-            return false;
-        }
-        vm.selected_harness_auth_secret_name().is_none()
-    }
-
     fn render_cloud_mode_v2_content(
         &self,
         appearance: &Appearance,
@@ -468,19 +412,13 @@ impl Input {
             .with_main_axis_size(MainAxisSize::Min)
             .with_spacing(CLOUD_MODE_V2_TOP_ROW_GAP);
 
-        column.add_child(self.render_cloud_mode_v2_top_row(app));
-
         if let Some(panel) = self.queued_prompts_panel.as_ref()
             && panel.as_ref(app).should_render(app)
         {
             column.add_child(ChildView::new(panel).finish());
         }
 
-        if self.should_show_auth_secret_ftux(app) {
-            column.add_child(self.render_auth_secret_ftux_content());
-        } else {
-            column.add_child(self.render_cloud_mode_v2_input_container(appearance, app));
-        }
+        column.add_child(self.render_cloud_mode_v2_input_container(appearance, app));
 
         Align::new(
             ConstrainedBox::new(column.finish())
@@ -488,13 +426,6 @@ impl Input {
                 .finish(),
         )
         .finish()
-    }
-
-    fn render_auth_secret_ftux_content(&self) -> Box<dyn Element> {
-        match self.auth_secret_ftux_view() {
-            Some(view) => ChildView::new(view).finish(),
-            None => Empty::new().finish(),
-        }
     }
 
     fn render_cloud_mode_v2_history_menu(&self, app: &AppContext) -> Option<Box<dyn Element>> {
@@ -507,45 +438,6 @@ impl Input {
         }
         let view = self.cloud_mode_v2_history_menu_view.as_ref()?;
         Some(ChildView::new(view).finish())
-    }
-
-    /// Returns the composer-only Execution host dropdown when it should be shown.
-    pub(super) fn visible_host_selector(
-        &self,
-        app: &AppContext,
-    ) -> Option<&ViewHandle<HostSelector>> {
-        let host_selector = self.host_selector()?;
-        let should_show = host_selector.as_ref(app).has_default_host()
-            || !ConnectedSelfHostedWorkersModel::as_ref(app)
-                .worker_hosts_excluding(None)
-                .is_empty();
-        should_show.then_some(host_selector)
-    }
-
-    fn render_cloud_mode_v2_top_row(&self, app: &AppContext) -> Box<dyn Element> {
-        let mut row = Flex::row()
-            .with_main_axis_size(MainAxisSize::Min)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_spacing(CLOUD_MODE_V2_TOP_ROW_INNER_GAP);
-
-        if let Some(host) = self.visible_host_selector(app) {
-            row.add_child(ChildView::new(host).finish());
-        }
-        if let Some(harness_selector) = self.harness_selector() {
-            row.add_child(ChildView::new(harness_selector).finish());
-        }
-
-        if let Some(auth_secret_selector) = self.auth_secret_selector() {
-            let harness = self
-                .ambient_agent_view_model()
-                .map(|m| m.as_ref(app).selected_harness())
-                .unwrap_or(warp_cli::agent::Harness::Oz);
-            if harness != warp_cli::agent::Harness::Oz && !self.should_show_auth_secret_ftux(app) {
-                row.add_child(ChildView::new(auth_secret_selector).finish());
-            }
-        }
-
-        row.finish()
     }
 
     fn render_cloud_mode_v2_input_container(
