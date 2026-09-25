@@ -309,3 +309,8 @@ Credential pickers, catalog fetching/cache/retries, and their GraphQL client ope
 Model-catalog revalidation preserves explicit legacy names and inheritance; only unset credentials
 are restored from persisted settings. Legacy request/settings fields and execution consumers remain
 removal debt. No stored rows or tables are deleted.
+
+Shell prompt construction no longer receives AI input/context/controller handles or subscribes to
+AI history. Plan/todo chip rendering is removed; its saved enum remains decodable without a runtime
+generator. Same-line layout uses PS1 and saved prompt settings directly. Local chips are preserved;
+other context-chip AI actions and terminal AI constructors remain removal debt.

@@ -185,10 +185,7 @@ impl AgentToolbarItemKind {
 
     /// Default right-side items for the agent view footer.
     pub fn default_right() -> Vec<Self> {
-        let mut items = vec![
-            Self::ContextChip(ContextChipKind::AgentPlanAndTodoList),
-            Self::ContextWindowUsage,
-        ];
+        let mut items = vec![Self::ContextWindowUsage];
         if FeatureFlag::CreatingSharedSessions.is_enabled()
             && FeatureFlag::HOARemoteControl.is_enabled()
         {

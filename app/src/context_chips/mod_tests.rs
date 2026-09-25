@@ -13,7 +13,18 @@ use warp_core::ui::color::contrast::{MinimumAllowedContrast, high_enough_contras
 use warp_core::ui::theme::{Details, Fill, WarpTheme, mock_terminal_colors};
 use warpui::color::ColorU;
 
-use super::readable_chip_label_color;
+use super::{ContextChipKind, available_chips, readable_chip_label_color};
+
+#[test]
+fn retired_plan_chip_preserves_saved_local_chips_without_runtime_generator() {
+    let saved = r#"["WorkingDirectory","AgentPlanAndTodoList","Ssh"]"#;
+    let chips: Vec<ContextChipKind> = serde_json::from_str(saved).unwrap();
+    assert_eq!(serde_json::to_string(&chips).unwrap(), saved);
+    assert!(chips[0].to_chip().is_some());
+    assert!(chips[1].to_chip().is_none());
+    assert!(chips[2].to_chip().is_some());
+    assert!(!available_chips().contains(&ContextChipKind::AgentPlanAndTodoList));
+}
 
 /// Builds a solid-background/foreground theme (colors as `0xRRGGBBAA`). The
 /// terminal palette does not affect text/surface contrast, so a mock is fine.
