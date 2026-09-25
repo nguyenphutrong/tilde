@@ -100,7 +100,6 @@ use crate::terminal::model_events::ModelEvent;
 use crate::terminal::resizable_data::ResizableData;
 use crate::terminal::shared_session::permissions_manager::SessionPermissionsManager;
 use crate::terminal::shell::ShellType;
-use crate::terminal::universal_developer_input::UniversalDeveloperInputButtonBarEvent;
 use crate::terminal::view::inline_banner::ByoLlmAuthBannerSessionState;
 use crate::terminal::writeable_pty::command_history::update_command_history;
 use crate::test_util::settings::initialize_settings_for_tests;
@@ -7573,12 +7572,7 @@ fn test_voice_input_toggle_preserves_lock_state() {
 
         // Toggle voice input (should switch to AI mode but preserve lock state)
         input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::ToggleVoiceInput(
-                    VoiceInputToggledFrom::Button,
-                ),
-                ctx,
-            );
+            input.toggle_voice_input(&VoiceInputToggledFrom::Button, ctx);
         });
 
         // Verify we're now in AI mode but still locked
@@ -7610,12 +7604,7 @@ fn test_voice_input_toggle_preserves_lock_state() {
 
         // Toggle voice input again
         input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::ToggleVoiceInput(
-                    VoiceInputToggledFrom::Button,
-                ),
-                ctx,
-            );
+            input.toggle_voice_input(&VoiceInputToggledFrom::Button, ctx);
         });
 
         // Verify we're in AI mode but still unlocked
@@ -7628,102 +7617,6 @@ fn test_voice_input_toggle_preserves_lock_state() {
         assert!(
             !final_config.is_locked,
             "Input mode should remain unlocked (auto-detection) when toggling voice input"
-        );
-    });
-}
-
-#[test]
-fn test_input_type_button_explicit_lock() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(
-            &mut app, None, /* history_file_commands */
-            None,
-        )
-        .await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        // Start in unlocked shell mode (auto-detection enabled)
-        input.update(&mut app, |input, ctx| {
-            input.ai_input_model().update(ctx, |ai_input, ctx| {
-                ai_input.set_input_config(
-                    InputConfig {
-                        input_type: InputType::Shell,
-                        is_locked: false,
-                    },
-                    true, /* is_input_buffer_empty */
-                    None,
-                    ctx,
-                );
-            });
-        });
-
-        // Verify initial state
-        let initial_config = input.read(&app, |input, _| {
-            app.read_model(input.ai_input_model(), |ai_input, _| {
-                ai_input.input_config()
-            })
-        });
-        assert_eq!(initial_config.input_type, InputType::Shell);
-        assert!(!initial_config.is_locked);
-
-        // Explicitly click AgentMode button - should lock to AI mode
-        input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::InputTypeSelected(InputType::AI),
-                ctx,
-            );
-        });
-
-        // Verify we're now locked in AI mode
-        let after_click_config = input.read(&app, |input, _| {
-            app.read_model(input.ai_input_model(), |ai_input, _| {
-                ai_input.input_config()
-            })
-        });
-        assert_eq!(after_click_config.input_type, InputType::AI);
-        assert!(
-            after_click_config.is_locked,
-            "Input should be locked when user explicitly clicks AgentMode button"
-        );
-        let after_click_source = input.read(&app, |input, _| {
-            app.read_model(input.ai_input_model(), |ai_input, _| {
-                ai_input.last_ai_autodetection_source()
-            })
-        });
-        assert_eq!(
-            after_click_source,
-            Some(InputTypeAutoDetectionSource::ManualToggle)
-        );
-
-        // Explicitly click Terminal button - should lock to Shell mode
-        input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::InputTypeSelected(InputType::Shell),
-                ctx,
-            );
-        });
-
-        // Verify we're now locked in Shell mode
-        let final_config = input.read(&app, |input, _| {
-            app.read_model(input.ai_input_model(), |ai_input, _| {
-                ai_input.input_config()
-            })
-        });
-        assert_eq!(final_config.input_type, InputType::Shell);
-        assert!(
-            final_config.is_locked,
-            "Input should be locked when user explicitly clicks Terminal button"
-        );
-        let final_source = input.read(&app, |input, _| {
-            app.read_model(input.ai_input_model(), |ai_input, _| {
-                ai_input.last_ai_autodetection_source()
-            })
-        });
-        assert_eq!(
-            final_source,
-            Some(InputTypeAutoDetectionSource::ManualToggle)
         );
     });
 }
@@ -8027,10 +7920,7 @@ fn test_image_attachment_preserves_lock_state() {
 
         // Select image (should switch to AI mode but preserve lock state)
         input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::SelectFile,
-                ctx,
-            );
+            input.select_image(ctx);
         });
 
         // Verify we're in AI mode but still locked
@@ -8071,10 +7961,7 @@ fn test_image_attachment_preserves_lock_state() {
 
         // Select image again
         input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::SelectFile,
-                ctx,
-            );
+            input.select_image(ctx);
         });
 
         // Verify we're in AI mode but still unlocked
@@ -8101,6 +7988,54 @@ fn test_image_attachment_preserves_lock_state() {
 }
 
 #[test]
+fn should_enable_ai_context_respects_shell_setting_and_package_arguments() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
+        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
+        input.update(&mut app, |input, ctx| {
+            input.ai_input_model.update(ctx, |model, ctx| {
+                model.set_input_config(
+                    InputConfig {
+                        input_type: InputType::Shell,
+                        is_locked: false,
+                    },
+                    true,
+                    None,
+                    ctx,
+                );
+            });
+        });
+        InputSettings::handle(&app).update(&mut app, |settings, ctx| {
+            settings
+                .at_context_menu_in_terminal_mode
+                .set_value(true, ctx)
+                .unwrap();
+        });
+        input.read(&app, |input, ctx| {
+            assert!(input.should_enable_ai_context("@", 1, false, None, ShellFamily::Posix, ctx));
+            assert!(!input.should_enable_ai_context(
+                "npm install @",
+                13,
+                false,
+                None,
+                ShellFamily::Posix,
+                ctx
+            ));
+        });
+        InputSettings::handle(&app).update(&mut app, |settings, ctx| {
+            settings
+                .at_context_menu_in_terminal_mode
+                .set_value(false, ctx)
+                .unwrap();
+        });
+        input.read(&app, |input, ctx| {
+            assert!(!input.should_enable_ai_context("@", 1, false, None, ShellFamily::Posix, ctx));
+        });
+    });
+}
+
+#[test]
 fn test_ai_context_menu_closes_when_space_immediately_after_at_symbol() {
     let _ai_context_menu_enabled = FeatureFlag::AIContextMenuEnabled.override_enabled(true);
 
@@ -8115,10 +8050,8 @@ fn test_ai_context_menu_closes_when_space_immediately_after_at_symbol() {
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
 
         input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::SetAIContextMenuOpen(true),
-                ctx,
-            );
+            input.focus_input_box(ctx);
+            input.set_ai_context_menu_open(true, ctx);
         });
 
         input.read(&app, |input, ctx| {
@@ -8171,10 +8104,8 @@ fn test_ai_context_menu_preserves_lock_state() {
 
         // Open AI context menu (should no longer switch to AI mode)
         input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::SetAIContextMenuOpen(true),
-                ctx,
-            );
+            input.focus_input_box(ctx);
+            input.set_ai_context_menu_open(true, ctx);
         });
 
         // Verify we stay in Shell mode with lock state preserved
@@ -8206,10 +8137,8 @@ fn test_ai_context_menu_preserves_lock_state() {
 
         // Open AI context menu again
         input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::SetAIContextMenuOpen(true),
-                ctx,
-            );
+            input.focus_input_box(ctx);
+            input.set_ai_context_menu_open(true, ctx);
         });
 
         // Verify we stay in Shell mode and unlocked (@ button no longer switches to AI mode)
@@ -8226,10 +8155,8 @@ fn test_ai_context_menu_preserves_lock_state() {
 
         // Closing context menu should not change input config
         input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::SetAIContextMenuOpen(false),
-                ctx,
-            );
+            input.focus_input_box(ctx);
+            input.set_ai_context_menu_open(false, ctx);
         });
 
         let config_after_close = input.read(&app, |input, _| {
@@ -8239,88 +8166,6 @@ fn test_ai_context_menu_preserves_lock_state() {
         });
         assert_eq!(config_after_close.input_type, InputType::Shell);
         assert!(!config_after_close.is_locked);
-    });
-}
-
-#[test]
-#[cfg(feature = "voice_input")]
-fn test_input_config_transitions() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(
-            &mut app, None, /* history_file_commands */
-            None,
-        )
-        .await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        // Test sequence: Shell(locked) -> VoiceInput -> Shell(locked) -> AgentMode(locked)
-
-        // Start in locked Shell mode
-        input.update(&mut app, |input, ctx| {
-            input.ai_input_model().update(ctx, |ai_input, ctx| {
-                ai_input.set_input_config(
-                    InputConfig {
-                        input_type: InputType::Shell,
-                        is_locked: true,
-                    },
-                    true, /* is_input_buffer_empty */
-                    None,
-                    ctx,
-                );
-            });
-        });
-
-        // Toggle voice input (should go to AI mode, preserve lock)
-        input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::ToggleVoiceInput(
-                    VoiceInputToggledFrom::Button,
-                ),
-                ctx,
-            );
-        });
-
-        let config_after_voice = input.read(&app, |input, _| {
-            app.read_model(input.ai_input_model(), |ai_input, _| {
-                ai_input.input_config()
-            })
-        });
-        assert_eq!(config_after_voice.input_type, InputType::AI);
-        assert!(config_after_voice.is_locked);
-
-        // Explicitly switch back to Shell mode.
-        input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::InputTypeSelected(InputType::Shell),
-                ctx,
-            );
-        });
-
-        let config_after_auto = input.read(&app, |input, _| {
-            app.read_model(input.ai_input_model(), |ai_input, _| {
-                ai_input.input_config()
-            })
-        });
-        assert_eq!(config_after_auto.input_type, InputType::Shell);
-        assert!(config_after_auto.is_locked);
-
-        // Explicitly click AgentMode button (should lock in AI mode)
-        input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::InputTypeSelected(InputType::AI),
-                ctx,
-            );
-        });
-
-        let final_config = input.read(&app, |input, _| {
-            app.read_model(input.ai_input_model(), |ai_input, _| {
-                ai_input.input_config()
-            })
-        });
-        assert_eq!(final_config.input_type, InputType::AI);
-        assert!(final_config.is_locked);
     });
 }
 
