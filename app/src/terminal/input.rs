@@ -73,8 +73,7 @@ use warp_util::path::ShellFamily;
 pub use warpui::WindowId;
 use warpui::accessibility::{AccessibilityContent, ActionAccessibilityContent, WarpA11yRole};
 use warpui::r#async::SpawnedFutureHandle;
-use warpui::clipboard::{ClipboardContent, ImageData};
-use warpui::clipboard_utils::CLIPBOARD_IMAGE_MIME_TYPES;
+use warpui::clipboard::ClipboardContent;
 use warpui::color::ColorU;
 use warpui::elements::{
     Align, AnchorPair, ChildAnchor, Clipped, ConstrainedBox, Container, CornerRadius,
@@ -159,7 +158,7 @@ use crate::ai::conversation_export::export_conversation_markdown;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
-use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
+use crate::ai::llms::LLMPreferences;
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::ai::skills::{SkillOpenOrigin, SkillTelemetryEvent};
 use crate::appearance::{Appearance, AppearanceEvent};
@@ -176,14 +175,13 @@ use crate::context_chips::display_chip::PromptChipShellCommand;
 use crate::context_chips::prompt_type::PromptType;
 use crate::context_chips::spacing;
 use crate::editor::{
-    AttachedImage as AttachedImageRawData, AutosuggestionLocation, AutosuggestionType,
-    BaselinePositionComputationMethod, CommandXRayAnchor, CrdtOperation, CursorColors,
-    DisplayPoint, EditOrigin, EditorAction, EditorDecoratorElements, EditorOptions, EditorSnapshot,
-    EditorView, Event as EditorEvent, ImageContextOptions, InteractionState,
-    MAX_IMAGES_PER_CONVERSATION, PathTransformerFn, PlainTextEditorViewAction,
-    Point as BufferPoint, PropagateAndNoOpEscapeKey, PropagateAndNoOpNavigationKeys,
-    PropagateHorizontalNavigationKeys, ReplicaId, TextColors, TextRun, default_cursor_colors,
-    position_id_for_cached_point, position_id_for_cursor, position_id_for_first_cursor,
+    AutosuggestionLocation, AutosuggestionType, BaselinePositionComputationMethod,
+    CommandXRayAnchor, CrdtOperation, CursorColors, DisplayPoint, EditOrigin, EditorAction,
+    EditorDecoratorElements, EditorOptions, EditorSnapshot, EditorView, Event as EditorEvent,
+    InteractionState, PathTransformerFn, PlainTextEditorViewAction, Point as BufferPoint,
+    PropagateAndNoOpEscapeKey, PropagateAndNoOpNavigationKeys, PropagateHorizontalNavigationKeys,
+    ReplicaId, TextColors, TextRun, default_cursor_colors, position_id_for_cached_point,
+    position_id_for_cursor, position_id_for_first_cursor,
 };
 use crate::env_vars::EnvVarCollectionExt;
 use crate::features::FeatureFlag;
@@ -274,7 +272,6 @@ use crate::user_config::WarpConfig;
 use crate::util::bindings::{self, CustomAction, keybinding_name_to_normalized_string};
 #[cfg(feature = "local_fs")]
 use crate::util::file::external_editor;
-use crate::util::image::MAX_IMAGE_COUNT_FOR_QUERY;
 use crate::util::truncation::truncate_from_end;
 use crate::view_components::{DismissibleToast, ToastFlavor};
 use crate::voltron::{
@@ -1535,8 +1532,6 @@ pub struct Input {
 
     attachment_chips: Vec<AttachmentChip>,
 
-    is_processing_attached_images: bool,
-
     terminal_input_message_bar: ViewHandle<TerminalInputMessageBar>,
 
     inline_slash_commands_view: ViewHandle<InlineSlashCommandView>,
@@ -2277,7 +2272,6 @@ impl Input {
             ctx.subscribe_to_model(&ai_input_model, |me, _, _, ctx| {
                 #[cfg(feature = "voice_input")]
                 me.update_voice_transcription_options(ctx);
-                me.update_image_context_options(ctx);
                 me.update_ai_context_menu(ctx);
             });
 
@@ -2427,7 +2421,7 @@ impl Input {
                     })),
                     ..Default::default()
                 };
-                EditorView::new(options, ctx).with_context_model(ai_context_model.clone())
+                EditorView::new(options, ctx)
             })
         };
 
@@ -2768,8 +2762,6 @@ impl Input {
         ctx.subscribe_to_model(&ai_context_model, |me, context_model, event, ctx| {
             match event {
                 BlocklistAIContextEvent::PendingQueryStateUpdated => {
-                    me.remove_excess_images(ctx);
-                    me.update_image_context_options(ctx);
                     me.set_zero_state_hint_text(ctx);
                     // If buffer empty and autodetect enabled, set the underlying input type to AI.
                     // Visually to the user, empty buffer is really a separate unclassified state. But since we don't support a third state
@@ -2794,7 +2786,6 @@ impl Input {
                     })
                 }
                 BlocklistAIContextEvent::UpdatedPendingContext { .. } => {
-                    me.update_image_context_options(ctx);
                     me.attachment_chips = context_model
                         .as_ref(ctx)
                         .pending_attachments()
@@ -2810,33 +2801,6 @@ impl Input {
                 }
             }
             ctx.notify();
-        });
-
-        ctx.subscribe_to_model(&LLMPreferences::handle(ctx), |me, _, event, ctx| {
-            if let LLMPreferencesEvent::UpdatedActiveAgentModeLLM = event {
-                // If the new model doesn't support vision and we had image chips,
-                // the context model already cleared them — show a toast.
-                let has_image_chips = me
-                    .attachment_chips
-                    .iter()
-                    .any(|c| matches!(c.attachment_type, AttachmentType::Image));
-                let vision_supported =
-                    LLMPreferences::as_ref(ctx).vision_supported(ctx, Some(me.terminal_view_id));
-                if has_image_chips && !vision_supported {
-                    let window_id = ctx.window_id();
-                    ToastStack::handle(ctx).update(ctx, |ts, ctx| {
-                        ts.add_ephemeral_toast(
-                            DismissibleToast::error(
-                                "Attached images were removed — the selected model does not support images.".to_string(),
-                            ),
-                            window_id,
-                            ctx,
-                        );
-                    });
-                }
-                me.update_image_context_options(ctx);
-                ctx.notify();
-            }
         });
 
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| {
@@ -3185,7 +3149,6 @@ impl Input {
             #[cfg(feature = "local_fs")]
             conn: None,
             attachment_chips: Default::default(),
-            is_processing_attached_images: false,
             slash_command_model,
             inline_slash_commands_view,
             cloud_mode_v2_slash_commands_view,
@@ -3232,7 +3195,6 @@ impl Input {
 
         #[cfg(feature = "voice_input")]
         input.update_voice_transcription_options(ctx);
-        input.update_image_context_options(ctx);
         input.update_ai_context_menu(ctx);
         // Ambient wiring goes through the single setter path (`attach_ambient_agent_view_model`)
         // so construction and the lazy shared-session viewer attach share one implementation.
@@ -4782,87 +4744,6 @@ impl Input {
             editor.clear_buffer(ctx);
         });
     }
-    /// When the active conversation is changed, the number of attached images may exceed the
-    /// limit of images for a conversation
-    pub fn remove_excess_images(&mut self, ctx: &mut ViewContext<Self>) {
-        let num_images_attached = self.ai_context_model.as_ref(ctx).pending_images().len();
-
-        let Some(conversation) = self.ai_context_model.as_ref(ctx).selected_conversation(ctx)
-        else {
-            return;
-        };
-
-        let num_images_in_conversation = conversation
-            .get_root_task()
-            .into_iter()
-            .flat_map(|task| {
-                task.all_contexts()
-                    .filter(|context| matches!(context, AIAgentContext::Image(_)))
-            })
-            .count();
-
-        let excess_images = (num_images_in_conversation + num_images_attached)
-            .saturating_sub(MAX_IMAGES_PER_CONVERSATION);
-
-        let images_removed = self.ai_context_model.update(ctx, |context_model, ctx| {
-            context_model.remove_last_pending_images(excess_images, ctx)
-        });
-
-        if images_removed > 0 {
-            let window_id = ctx.window_id();
-
-            let message = if images_removed == 1 {
-                "1 image was removed - limit is 20 per conversation.".into()
-            } else {
-                format!("{images_removed} images were removed - limit is 20 per conversation.")
-            };
-
-            ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                toast_stack.add_persistent_toast(DismissibleToast::error(message), window_id, ctx);
-            });
-        }
-    }
-
-    pub fn update_image_context_options(&mut self, ctx: &mut ViewContext<Self>) {
-        let ai_input_model = self.ai_input_model.as_ref(ctx);
-
-        let llm_prefs = LLMPreferences::as_ref(ctx);
-
-        let vision_supported = llm_prefs.vision_supported(ctx, Some(self.terminal_view_id));
-
-        let num_images_attached = self.ai_context_model.as_ref(ctx).pending_images().len();
-
-        let conversation = self.ai_context_model.as_ref(ctx).selected_conversation(ctx);
-
-        let num_images_in_conversation = conversation
-            .and_then(|conversation| conversation.get_root_task())
-            .into_iter()
-            .flat_map(|task| {
-                task.all_contexts()
-                    .filter(|context| matches!(context, AIAgentContext::Image(_)))
-            })
-            .count();
-
-        // Image context is available whenever the feature flag is enabled and we're in AI input
-        // mode, including cloud mode
-        let image_context_options = if FeatureFlag::ImageAsContext.is_enabled()
-            && matches!(ai_input_model.input_type(), InputType::AI)
-        {
-            ImageContextOptions::Enabled {
-                unsupported_model: !vision_supported,
-                is_processing_attached_images: self.is_processing_attached_images,
-                num_images_attached,
-                num_images_in_conversation,
-            }
-        } else {
-            ImageContextOptions::Disabled
-        };
-
-        self.editor.update(ctx, move |editor, ctx| {
-            editor.update_image_context_options(image_context_options, ctx);
-            ctx.notify();
-        });
-    }
 
     pub fn set_shared_session_presence_manager(
         &mut self,
@@ -5262,23 +5143,6 @@ impl Input {
         if did_start_listening {
             self.focus_input_box(ctx);
         }
-    }
-
-    fn select_image(&mut self, ctx: &mut ViewContext<Self>) {
-        self.focus_input_box(ctx);
-        self.ensure_agent_mode_for_ai_features(
-            true,
-            Some(InputTypeAutoDetectionSource::AttachmentForcedAi),
-            ctx,
-        );
-
-        // Update image context options immediately after switching to AI mode
-        // to ensure attach_images has the correct state
-        self.update_image_context_options(ctx);
-
-        self.editor.update(ctx, |editor, ctx| {
-            editor.attach_files(ctx);
-        });
     }
 
     /// Switches to AI mode but preserves current lock state.
@@ -9097,9 +8961,6 @@ impl Input {
                 ctx.emit(Event::InputFocusedFromMiddleClick);
             }
             EditorEvent::Focused => ctx.emit(Event::EditorFocused),
-            EditorEvent::ProcessingAttachedImages(is_processing) => {
-                self.set_is_processing_attached_images(*is_processing, ctx);
-            }
             EditorEvent::VoiceStateUpdated {
                 is_listening,
                 is_transcribing,
@@ -9240,33 +9101,6 @@ impl Input {
             EditorEvent::Paste => {
                 self.process_paste_event(ctx);
             }
-            EditorEvent::DroppedImageFiles(image_filepaths) => {
-                // Handle image processing from EditorView drag-and-drop
-                let num_attached =
-                    self.handle_pasted_or_dragdropped_image_filepaths(image_filepaths.clone(), ctx);
-
-                // If any attachment failed, insert all dropped image paths as text. Apply the
-                // same session-aware path transformation that the editor uses for dropped
-                // non-image paths so the fallback matches the primary drop flow (e.g.
-                // `/mnt/c/...` in a WSL session).
-                if num_attached < image_filepaths.len() {
-                    let shell_family = self.editor.read(ctx, |editor, _| editor.shell_family());
-                    let converter = self
-                        .active_session(ctx)
-                        .as_deref()
-                        .and_then(Session::windows_path_converter);
-                    let transformed: Vec<String> = match converter {
-                        Some(convert) => image_filepaths.iter().map(|p| convert(p)).collect(),
-                        None => image_filepaths.clone(),
-                    };
-                    let paths_str =
-                        warpui::clipboard_utils::escaped_paths_str(&transformed, shell_family);
-
-                    self.editor.update(ctx, |editor, ctx| {
-                        editor.user_insert(&paths_str, ctx);
-                    });
-                }
-            }
             EditorEvent::IgnoreAutosuggestion { suggestion } => {
                 IgnoredSuggestionsModel::handle(ctx).update(ctx, |model, ctx| {
                     model.add_ignored_suggestion(
@@ -9284,58 +9118,9 @@ impl Input {
         }
     }
 
-    /// Process paste event by checking clipboard for images and handling appropriately.
     fn process_paste_event(&mut self, ctx: &mut ViewContext<Self>) {
-        // Read from app clipboard
         let content = ctx.clipboard().read();
-
-        // If AI is disabled, attachment isn't possible
-        if !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
-            self.insert_clipboard_text_content(ctx, content);
-            return;
-        }
-
-        // Shared session viewers cannot attach images unless in cloud mode
-        let is_viewer = self.model.lock().shared_session_status().is_viewer();
-        let is_cloud_mode_with_images = FeatureFlag::CloudModeImageContext.is_enabled()
-            && self
-                .ambient_agent_view_model()
-                .is_some_and(|ambient_agent_model| {
-                    ambient_agent_model.as_ref(ctx).is_ambient_agent()
-                });
-        if is_viewer && !is_cloud_mode_with_images {
-            self.insert_clipboard_text_content(ctx, content);
-            return;
-        }
-
-        // Check if we should insert clipboard text in advance
-        let mut already_inserted_text = false;
-        if warpui::clipboard::should_insert_text_on_paste(&content) {
-            self.insert_clipboard_text_content(ctx, content.clone());
-            already_inserted_text = true;
-        }
-
-        // Try to attach images
-        // If any attachment fails, should_insert_text = true.
-        let should_insert_text = if content.has_image_data() {
-            // If we have image data, process the image data.
-            self.handle_pasted_image_data(content.clone(), ctx) == 0
-        } else if content.num_paths() > 0 {
-            // Else, we check the pasted file paths for any images.
-            let image_filepaths = warpui::clipboard_utils::get_image_filepaths_from_paths(
-                content.paths.as_deref().unwrap_or(&[]),
-            );
-            let num_images_expected = image_filepaths.len();
-            self.handle_pasted_or_dragdropped_image_filepaths(image_filepaths, ctx)
-                < num_images_expected
-        } else {
-            true
-        };
-
-        // Fallback to inserting text
-        if should_insert_text && !already_inserted_text {
-            self.insert_clipboard_text_content(ctx, content);
-        }
+        self.insert_clipboard_text_content(ctx, content);
     }
 
     /// Insert clipboard text content (paths / plaintext)
@@ -9354,253 +9139,6 @@ impl Input {
                 ctx,
             );
         });
-    }
-
-    /// Check if we can attach on filepaths paste or drag-drop
-    fn can_attach_on_filepaths_paste_or_dragdrop(&self, ctx: &mut ViewContext<Self>) -> bool {
-        // Shared session viewers cannot attach images unless in cloud mode
-        // with the CloudModeImageContext feature enabled.
-        let is_viewer = self.model.lock().shared_session_status().is_viewer();
-        let is_cloud_mode_with_images = FeatureFlag::CloudModeImageContext.is_enabled()
-            && self
-                .ambient_agent_view_model()
-                .is_some_and(|ambient_agent_model| {
-                    ambient_agent_model.as_ref(ctx).is_ambient_agent()
-                });
-        if is_viewer && !is_cloud_mode_with_images {
-            return false;
-        }
-
-        // CLI agent rich input always supports image attachment, independent of
-        // the UDI setting or the `AgentView` feature flag. Its own composer
-        // gates image chips on `ImageAsContext` + an active CLI agent session.
-        let is_cli_agent_input_open =
-            CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id);
-        if is_cli_agent_input_open {
-            return true;
-        }
-
-        let is_udi_enabled = InputSettings::as_ref(ctx).is_universal_developer_input_enabled(ctx);
-        if !is_udi_enabled && !FeatureFlag::AgentView.is_enabled() {
-            return false;
-        }
-
-        // Check if Agent Mode enabled, in active agent view, or if the buffer is empty
-        // (if the buffer is empty, we assume that the user wants the images to be attached).
-        let ai_input = self.ai_input_model.as_ref(ctx);
-        let in_agent_mode = matches!(ai_input.input_type(), InputType::AI);
-        let is_buffer_empty = self.buffer_text(ctx).is_empty();
-        let in_active_agent_view = self.agent_view_controller.as_ref(ctx).is_active();
-        in_agent_mode || is_buffer_empty || in_active_agent_view
-    }
-
-    /// Handle direct image data from clipboard (e.g., copied images). Returns number of images attached.
-    fn handle_pasted_image_data(
-        &mut self,
-        clipboard_content: ClipboardContent,
-        ctx: &mut ViewContext<Self>,
-    ) -> usize {
-        if self.check_image_limits_for_paste(1, ctx) == 0 {
-            return 0;
-        }
-
-        if let Some(images) = clipboard_content.images {
-            let best_image = CLIPBOARD_IMAGE_MIME_TYPES
-                .iter()
-                .find_map(|format| images.iter().find(|img| img.mime_type == *format));
-
-            if let Some(image) = best_image {
-                self.process_and_attach_clipboard_image(image.clone(), ctx);
-                return 1;
-            }
-        }
-
-        0
-    }
-
-    /// Handle pasted file paths that point to images for auto-attachment. Returns number of images attached.
-    pub fn handle_pasted_or_dragdropped_image_filepaths(
-        &mut self,
-        image_filepaths: Vec<String>,
-        ctx: &mut ViewContext<Self>,
-    ) -> usize {
-        // Return early if no image paths
-        if image_filepaths.is_empty() {
-            return 0;
-        }
-
-        if !self.can_attach_on_filepaths_paste_or_dragdrop(ctx) {
-            return 0;
-        }
-
-        self.maybe_enter_agent_view_for_image_add(ctx);
-
-        let num_images_to_attach = self.check_image_limits_for_paste(image_filepaths.len(), ctx);
-        if num_images_to_attach == 0 {
-            return 0;
-        }
-
-        let is_buffer_empty = self.buffer_text(ctx).is_empty();
-        let in_active_agent_view = self.agent_view_controller.as_ref(ctx).is_active();
-        if is_buffer_empty || in_active_agent_view {
-            self.set_input_mode_agent(true, ctx);
-            self.update_image_context_options(ctx);
-        }
-
-        let paths_to_process: Vec<String> = image_filepaths
-            .into_iter()
-            .take(num_images_to_attach)
-            .collect();
-
-        let num_paths = paths_to_process.len();
-        self.editor.update(ctx, |editor, ctx| {
-            editor.read_and_process_images_async(num_paths, paths_to_process, ctx);
-        });
-        num_paths
-    }
-
-    /// Convert clipboard image data to AttachedImage and attach to editor in Agent Mode.
-    fn process_and_attach_clipboard_image(
-        &mut self,
-        image: ImageData,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.maybe_enter_agent_view_for_image_add(ctx);
-
-        // Switch to AI mode with block-level lock, unless already AI-mode-locked
-        if !self.is_locked_in_ai_mode(ctx) {
-            self.set_input_mode_agent(true, ctx);
-            self.update_image_context_options(ctx);
-        }
-
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
-        let ext = match image.mime_type.as_str() {
-            "image/png" => "png",
-            "image/jpeg" | "image/jpg" => "jpg",
-            "image/gif" => "gif",
-            "image/webp" => "webp",
-            _ => "img",
-        };
-
-        // Use preserved filename if available, otherwise generate fallback name
-        let file_name = if let Some(original_filename) = &image.filename {
-            original_filename.clone()
-        } else {
-            format!("pasted-image-{timestamp}.{ext}")
-        };
-
-        let attached_image = AttachedImageRawData {
-            data: image.data,
-            mime_type: image.mime_type,
-            file_name,
-        };
-
-        self.editor.update(ctx, |editor, ctx| {
-            editor.process_and_attach_images_as_ai_context(1, vec![attached_image], ctx);
-        });
-    }
-
-    /// Enters agent view when adding images, unless the CLI agent rich input is
-    /// open (which is already a composer context and doesn't use the agent view),
-    /// Agent View is disabled, we're already in the agent view, or a long running
-    /// command is in progress.
-    fn maybe_enter_agent_view_for_image_add(&mut self, ctx: &mut ViewContext<Self>) {
-        let is_cli_agent_input_open =
-            CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id);
-        if is_cli_agent_input_open {
-            return;
-        }
-
-        let is_in_long_running_command = self
-            .model
-            .lock()
-            .block_list()
-            .active_block()
-            .is_active_and_long_running();
-        if !FeatureFlag::AgentView.is_enabled()
-            || self.agent_view_controller.as_ref(ctx).is_active()
-            || is_in_long_running_command
-        {
-            return;
-        }
-
-        if let Err(e) = self.agent_view_controller.update(ctx, |controller, ctx| {
-            controller.try_enter_agent_view(None, AgentViewEntryOrigin::ImageAdded, ctx)
-        }) {
-            log::warn!("Failed to enter agent view when adding images: {e}");
-        }
-    }
-
-    /// Display an error toast for image paste operation failures.
-    fn show_image_paste_error(&self, ctx: &mut ViewContext<Self>, message: String) {
-        let window_id = ctx.window_id();
-        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            toast_stack.add_persistent_toast(DismissibleToast::error(message), window_id, ctx);
-        });
-    }
-
-    /// Check attachment limits, return attachable count (shows toast for excess).
-    fn check_image_limits_for_paste(
-        &self,
-        num_images_to_add: usize,
-        ctx: &mut ViewContext<Self>,
-    ) -> usize {
-        let (num_images_attached, num_images_in_conversation) =
-            self.editor.read(ctx, |editor, _| {
-                (
-                    editor.image_context_options.num_images_attached(),
-                    editor.image_context_options.num_images_in_conversation(),
-                )
-            });
-
-        // Calculate how many images we can add based on per-query limit
-        let available_per_query = MAX_IMAGE_COUNT_FOR_QUERY.saturating_sub(num_images_attached);
-
-        // Calculate how many images we can add based on per-conversation limit
-        let total_images_current = num_images_attached + num_images_in_conversation;
-        let available_per_conversation =
-            MAX_IMAGES_PER_CONVERSATION.saturating_sub(total_images_current);
-
-        // Take the more restrictive limit
-        let max_attachable = available_per_query.min(available_per_conversation);
-
-        // Determine how many we can actually attach
-        let images_to_attach = num_images_to_add.min(max_attachable);
-        let excess_images = num_images_to_add.saturating_sub(images_to_attach);
-
-        // Show toast for excess images if any
-        if excess_images > 0 {
-            let (limit_name, limit_value) = if available_per_query < available_per_conversation {
-                ("per query", MAX_IMAGE_COUNT_FOR_QUERY)
-            } else {
-                ("per conversation", MAX_IMAGES_PER_CONVERSATION)
-            };
-
-            let message = if excess_images == 1 {
-                format!("1 image wasn't attached - limit is {limit_value} images {limit_name}.")
-            } else {
-                format!(
-                    "{excess_images} images weren't attached - limit is {limit_value} images {limit_name}."
-                )
-            };
-            self.show_image_paste_error(ctx, message);
-        }
-
-        images_to_attach
-    }
-
-    pub fn set_is_processing_attached_images(
-        &mut self,
-        is_processing_attached_images: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.is_processing_attached_images = is_processing_attached_images;
-        self.update_image_context_options(ctx);
-        ctx.notify();
     }
 
     /// Handles backspace at the buffer boundary (empty buffer or cursor at position 0). Covers
@@ -12087,10 +11625,6 @@ impl Input {
     /// machine. This is the local case of [`Self::submit_ai_query_with_routing`]; prefer calling
     /// that so cloud/remote panes are routed correctly.
     fn submit_ai_query_local(&mut self, ctx: &mut ViewContext<Self>) {
-        self.editor.update(ctx, |editor, ctx| {
-            editor.abort_attached_images_future_handle(ctx);
-        });
-
         // Cloud/remote follow-up routing (live viewer, new cloud VM, stale or read-only) is handled
         // by `submit_ai_query_with_routing` / `maybe_route_ai_query_to_remote_target` before this point,
         // so this method only performs local submission.
@@ -12226,13 +11760,7 @@ impl Input {
             return false;
         }
 
-        // We're committed to sending the prompt, so finalize any in-flight image-attachment
-        // processing. This drops images that haven't finished processing; already-processed ones
-        // are collected as pending context below. (Local-action slash commands returned above.)
         self.emit_input_buffer_submitted_telemetry(ctx);
-        self.editor.update(ctx, |editor, ctx| {
-            editor.abort_attached_images_future_handle(ctx);
-        });
 
         // Freeze the editor and put it in a loading state
         self.freeze_input_in_loading_state(ctx);

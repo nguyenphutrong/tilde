@@ -345,3 +345,10 @@ Passive AI suggestion dispatch and keybindings are removed. Down retains local c
 navigation and editor movement. Editor Ctrl-C no longer traverses workspace or AI history: it retains
 Vim handling, Windows selected-text copying, and undoable input clearing. Other terminal-level agent
 Ctrl-C branches remain removal debt.
+
+Editor/input attachment ingestion, file-picker actions, image-processing futures and limits, and
+Figma-PNG detection are removed. Paste uses clipboard text/path conversion; all dropped paths,
+including images, are transformed and shell-escaped. SSH uploads and the separate long-running CLI
+image relay remain. Backend attachments and persisted attachment chips remain removal debt. This
+increment also removes the unreachable image-picker helper/test missed in the earlier billing-alert
+recovery; the original transcript deleted them before attachment ingestion.
