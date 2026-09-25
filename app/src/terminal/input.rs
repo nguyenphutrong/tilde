@@ -1,7 +1,5 @@
-mod agent;
 pub mod buffer_model;
 mod classic;
-mod cli_agent;
 mod common;
 pub mod decorations;
 pub mod inline_history;
@@ -210,15 +208,12 @@ use crate::settings_view::{SettingsSection, flags};
 use crate::suggestions::ignored_suggestions_model::{
     IgnoredSuggestionsModel, IgnoredSuggestionsModelEvent, SuggestionType,
 };
-use crate::terminal::CLIAgent;
 #[cfg(feature = "local_fs")]
 use crate::terminal::autosuggestions::get_similar_history_context;
 use crate::terminal::autosuggestions::{
     get_reverse_chronological_potential_autosuggestions, is_command_valid,
 };
-use crate::terminal::cli_agent_sessions::{
-    CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
-};
+use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::input::buffer_model::InputBufferModel;
 use crate::terminal::input::inline_history::InlineHistoryMenuView;
 use crate::terminal::input::inline_menu::InlineMenuPositioner;
@@ -241,7 +236,6 @@ use crate::terminal::input::terminal_message_bar::TerminalInputMessageBar;
 use crate::terminal::input::user_query::{UserQueryMenuEvent, UserQueryMenuView};
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::session::shell_quote_arg;
-use crate::terminal::prompt_render_helper::should_render_ps1_prompt;
 use crate::terminal::view::{AIQueryRouting, resolve_ai_query_routing};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
@@ -298,12 +292,6 @@ impl DropTargetData for InputDropTargetData {
 }
 
 pub const DEBOUNCE_INPUT_DECORATION_PERIOD: Duration = Duration::from_millis(10);
-pub(super) const CLI_AGENT_RICH_INPUT_EDITOR_MAX_HEIGHT: f32 = 236.;
-pub(super) const CLI_AGENT_RICH_INPUT_EDITOR_TOP_PADDING: f32 = 10.;
-pub(super) const CLI_AGENT_RICH_INPUT_EDITOR_BOTTOM_PADDING: f32 = 8.;
-pub(super) const CLI_AGENT_RICH_INPUT_HINT_TEXT: &str = "Tell the agent what to build...";
-
-const CLOUD_MODE_V2_HINT_TEXT: &str = "Kick off a cloud agent";
 const SHORT_CIRCUIT_HIGHLIGHTING_ACTIONS: [Option<PlainTextEditorViewAction>; 7] = [
     Some(PlainTextEditorViewAction::Space),
     Some(PlainTextEditorViewAction::NonExpandingSpace),
@@ -929,9 +917,6 @@ pub enum Event {
     ToggleAIDocumentPane {
         document_id: AIDocumentId,
         document_version: AIDocumentVersion,
-    },
-    SubmitCLIAgentInput {
-        text: String,
     },
     OpenAIDocumentPane {
         document_id: AIDocumentId,
@@ -2052,14 +2037,6 @@ impl Input {
                 me.handle_theme_change(ctx);
             }
         });
-        // Keep the rich input editor's text colors legible against alt-screen
-        // CLI agent backgrounds (e.g. OpenCode) when the terminal enters/exits
-        // the alt screen.
-        ctx.subscribe_to_model(&model_events, |me, _, event, ctx| {
-            if let crate::terminal::model_events::ModelEvent::TerminalModeSwapped(_) = event {
-                me.update_cli_agent_editor_text_colors(ctx);
-            }
-        });
         ctx.subscribe_to_model(&TerminalSettings::handle(ctx), move |_, _, event, ctx| {
             if let TerminalSettingsChangedEvent::Spacing { .. } = event {
                 ctx.notify();
@@ -2099,51 +2076,6 @@ impl Input {
         // and the lazy shared-session viewer path.
         let ambient_agent_view_state: Option<AmbientAgentViewState> = None;
 
-        ctx.subscribe_to_model(&CLIAgentSessionsModel::handle(ctx), |me, _, event, ctx| {
-            let CLIAgentSessionsModelEvent::InputSessionChanged {
-                terminal_view_id,
-                new_input_state,
-                ..
-            } = event
-            else {
-                return;
-            };
-            if *terminal_view_id != me.terminal_view_id {
-                return;
-            }
-
-            match new_input_state {
-                CLIAgentInputState::Open { .. } => {
-                    // Input just opened — switch to agent mode.
-                    me.set_input_mode_agent(true, ctx);
-                    me.clear_buffer_and_reset_undo_stack(ctx);
-
-                    // Restore any draft text saved when the composer was last
-                    // closed, so the user doesn't lose work-in-progress.
-                    let terminal_view_id = me.terminal_view_id;
-                    let draft = CLIAgentSessionsModel::handle(ctx)
-                        .update(ctx, |sessions_model, _| {
-                            sessions_model.take_draft(terminal_view_id)
-                        });
-                    if let Some(draft) = draft {
-                        me.replace_buffer_content(&draft, ctx);
-                    }
-                }
-                CLIAgentInputState::Closed => {
-                    // Input just closed — clear the buffer.
-                    me.clear_buffer_and_reset_undo_stack(ctx);
-                }
-            }
-
-            // Sync the editor text colors with the (now active or inactive)
-            // alt-screen CLI agent background so input text stays legible.
-            me.update_cli_agent_editor_text_colors(ctx);
-            // Re-sync enter_settings whenever the rich input opens or closes.
-            me.update_cli_agent_enter_settings(ctx);
-            me.set_zero_state_hint_text(ctx);
-            ctx.notify();
-        });
-
         let prompt_render_helper = PromptRenderHelper::new(
             sessions.clone(),
             prompt_view,
@@ -2171,7 +2103,6 @@ impl Input {
             let ai_input_model_clone = ai_input_model.clone();
             let ai_follow_up_icon_mouse_state_clone = ai_follow_up_icon_mouse_state.clone();
             let agent_view_controller_clone = agent_view_controller.clone();
-            let other_agent_view_controller_clone = agent_view_controller.clone();
             ctx.add_typed_action_view(|ctx| {
                 let options = EditorOptions {
                     autogrow: true,
@@ -2231,7 +2162,6 @@ impl Input {
                                 &ai_context_model_clone,
                                 &agent_view_controller_clone,
                                 ai_follow_up_icon_mouse_state_clone.clone(),
-                                terminal_view_id,
                                 app,
                             ) {
                                 editor_decorator_elements.left_notch =
@@ -2288,25 +2218,10 @@ impl Input {
                     middle_click_paste: false,
                     allow_user_cursor_preference: true,
                     delegate_paste_handling: true,
-                    keymap_context_modifier: Some(Box::new(move |context, app| {
+                    keymap_context_modifier: Some(Box::new(move |context, _| {
                         context
                             .set
                             .insert(flags::TERMINAL_INPUT_PAGE_KEYS_HANDLED_BY_INPUT);
-
-                        if FeatureFlag::AgentView.is_enabled() {
-                            context.set.insert(flags::AGENT_VIEW_ENABLED);
-                        }
-
-                        if !other_agent_view_controller_clone.as_ref(app).is_active()
-                            && !cfg!(target_os = "macos")
-                            && !CLIAgentSessionsModel::as_ref(app).is_input_open(terminal_view_id)
-                        {
-                            context.set.insert(flags::CTRL_ENTER_ENTERS_AGENT_VIEW);
-                        }
-
-                        if CLIAgentSessionsModel::as_ref(app).is_input_open(terminal_view_id) {
-                            context.set.insert(flags::CLI_AGENT_RICH_INPUT_OPEN);
-                        }
                     })),
                     ..Default::default()
                 };
@@ -3227,18 +3142,21 @@ impl Input {
         request_attachments
     }
 
-    fn open_slash_commands_menu(&mut self, ctx: &mut ViewContext<Self>) {
-        // Don't open menu if there's a long-running command — unless the CLI agent
-        // rich input is open (the CLI agent itself is the long-running command).
-        let is_cli_agent_input =
-            CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id);
-        if !is_cli_agent_input
+    pub fn is_cloud_mode_input_v2_composing(&self, app: &AppContext) -> bool {
+        FeatureFlag::CloudModeInputV2.is_enabled()
+            && FeatureFlag::CloudMode.is_enabled()
             && self
-                .model
-                .lock()
-                .block_list()
-                .active_block()
-                .is_active_and_long_running()
+                .ambient_agent_view_model()
+                .is_some_and(|model| model.as_ref(app).is_configuring_ambient_agent())
+    }
+
+    fn open_slash_commands_menu(&mut self, ctx: &mut ViewContext<Self>) {
+        if self
+            .model
+            .lock()
+            .block_list()
+            .active_block()
+            .is_active_and_long_running()
         {
             return;
         }
@@ -4073,10 +3991,6 @@ impl Input {
         if self.should_apply_decorations(ctx) {
             self.run_input_background_jobs(ctx);
         }
-        // Recompute the contrast-adjusted editor text colors for the CLI agent
-        // rich input, in case the new theme's defaults contrast differently
-        // against an alt-screen CLI agent background.
-        self.update_cli_agent_editor_text_colors(ctx);
     }
 
     pub fn sessions<'a, A: ModelAsRef>(&self, ctx: &'a A) -> &'a Sessions {
@@ -4357,22 +4271,6 @@ impl Input {
     pub fn clear_cached_hint_text(&mut self) {
         self.cached_agent_mode_hint_text = None;
     }
-    fn cli_agent_rich_input_hint_text(&self, ctx: &ViewContext<Self>) -> Cow<'static, str> {
-        if self.is_locked_in_shell_mode(ctx) {
-            return Cow::Borrowed(TERMINAL_INPUT_HINT_TEXT);
-        }
-
-        CLIAgentSessionsModel::as_ref(ctx)
-            .session(self.terminal_view_id)
-            .map(|session| match session.agent {
-                CLIAgent::Unknown => Cow::Borrowed(CLI_AGENT_RICH_INPUT_HINT_TEXT),
-                _ => Cow::Owned(format!(
-                    "Enter prompt for {}...",
-                    session.agent.display_name()
-                )),
-            })
-            .unwrap_or(Cow::Borrowed(CLI_AGENT_RICH_INPUT_HINT_TEXT))
-    }
 
     pub fn set_zero_state_hint_text(&mut self, ctx: &mut ViewContext<Self>) {
         let slash_command_hint_prefixes = COMMAND_REGISTRY
@@ -4393,24 +4291,6 @@ impl Input {
             }
         });
 
-        if CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id) {
-            let hint = self.cli_agent_rich_input_hint_text(ctx);
-            self.editor.update(ctx, |editor, ctx| {
-                editor.set_placeholder_text(hint, ctx);
-            });
-            return;
-        }
-        if self.is_cloud_mode_input_v2_composing(ctx) {
-            let show_hint = *InputSettings::as_ref(ctx).show_hint_text;
-            self.editor.update(ctx, |editor, ctx| {
-                if show_hint {
-                    editor.set_placeholder_text(CLOUD_MODE_V2_HINT_TEXT, ctx);
-                } else {
-                    editor.clear_placeholder_text(ctx);
-                }
-            });
-            return;
-        }
         // If the current input suggestions mode has a custom placeholder,
         // that takes precedence over other placeholders.
         if let Some(placeholder) = self
@@ -4447,21 +4327,9 @@ impl Input {
             }
         });
 
-        if self.should_show_universal_developer_input(ctx) {
+        if self.should_show_universal_developer_input(ctx) || toggled_on {
             self.editor.update(ctx, |editor, ctx| {
                 editor.set_placeholder_text(TERMINAL_INPUT_HINT_TEXT, ctx);
-            });
-            return;
-        }
-
-        // Now handle the default (empty prefix) placeholder
-        if toggled_on
-            && AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
-            && FeatureFlag::AgentMode.is_enabled()
-        {
-            let hint_text = self.agent_mode_hint_text(ctx);
-            self.editor.update(ctx, |editor, ctx| {
-                editor.set_placeholder_text(hint_text, ctx);
             });
         } else {
             self.editor.update(ctx, |editor, ctx| {
@@ -4534,11 +4402,6 @@ impl Input {
             #[cfg(feature = "voice_input")]
             AISettingsChangedEvent::VoiceInputEnabled { .. } => {
                 self.update_voice_transcription_options(ctx);
-            }
-            AISettingsChangedEvent::SubmitRichInputOnCtrlEnter { .. } => {
-                // ctrl_enter now depends on the toggle: re-sync so flipping
-                // the setting mid-session takes effect immediately.
-                self.update_cli_agent_enter_settings(ctx);
             }
             _ => {}
         }
@@ -7132,17 +6995,9 @@ impl Input {
                     .block_list()
                     .active_block()
                     .is_agent_in_control_or_tagged_in();
-                let is_cli_agent_bash_mode_input_open = CLIAgentSessionsModel::as_ref(ctx)
-                    .session(self.terminal_view_id)
-                    .is_some_and(|s| {
-                        s.agent.supports_bash_mode()
-                            && matches!(s.input_state, CLIAgentInputState::Open { .. })
-                    });
                 if FeatureFlag::AgentMode.is_enabled()
                     && !is_locked_shell_mode
-                    && (!FeatureFlag::AgentView.is_enabled()
-                        || is_agent_view_active
-                        || is_cli_agent_bash_mode_input_open)
+                    && (!FeatureFlag::AgentView.is_enabled() || is_agent_view_active)
                     && !is_agent_in_control_or_tagged_in
                 {
                     let buffer_text = self.buffer_text(ctx);
@@ -7555,7 +7410,6 @@ impl Input {
 
             EditorEvent::Enter => self.input_enter(ctx),
             EditorEvent::CmdEnter => self.input_cmd_enter(ctx),
-            EditorEvent::CtrlEnter => self.input_ctrl_enter(ctx),
             EditorEvent::Escape => self.editor_escape(ctx),
             EditorEvent::CtrlC { cleared_buffer_len } => {
                 self.close_input_suggestions(/*should_focus_input=*/ true, ctx);
@@ -7574,11 +7428,9 @@ impl Input {
                             .set_input_config_for_classic_mode(InputConfig::default(), ctx);
                     });
                 } else if self.ai_input_model.as_ref(ctx).is_input_type_locked() {
-                    let is_cli_agent_input_open =
-                        CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id);
                     let is_agent_view_fullscreen =
                         self.agent_view_controller.as_ref(ctx).is_fullscreen();
-                    if is_agent_view_fullscreen || is_cli_agent_input_open {
+                    if is_agent_view_fullscreen {
                         self.exit_shell_mode_to_ai(ctx);
                     }
                 }
@@ -7723,10 +7575,7 @@ impl Input {
     fn handle_backspace_at_buffer_boundary(&mut self, ctx: &mut ViewContext<Self>) {
         match self.prefix_mode(ctx) {
             InputPrefixMode::Shell => {
-                let is_cli_agent_input_open =
-                    CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id);
-                if self.agent_view_controller.as_ref(ctx).is_fullscreen() || is_cli_agent_input_open
-                {
+                if self.agent_view_controller.as_ref(ctx).is_fullscreen() {
                     self.exit_shell_mode_to_ai(ctx);
                     ctx.notify();
                 }
@@ -8125,18 +7974,8 @@ impl Input {
                 && model.block_list().active_block().is_command_grid_active()
         };
 
-        // CLI agent rich input in shell mode (! prefix) should allow completions
-        // even though the active block is a long-running command.
-        // However, completions are disabled on warpified remote hosts because
-        // in-band generators don't work in this context (with CLI agent).
-        let is_cli_agent_shell_mode = self.is_locked_in_shell_mode(ctx)
-            && CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id)
-            && !self
-                .active_session(ctx)
-                .is_some_and(|s| matches!(s.session_type(), SessionType::WarpifiedRemote { .. }));
-
         // If the cursor is in a valid completion position, go into CompletionSuggestions mode
-        if (is_command_grid_active || is_cli_agent_shell_mode) && self.can_query_history(ctx) {
+        if is_command_grid_active && self.can_query_history(ctx) {
             let matcher = MatchStrategy::Fuzzy;
 
             if let Some(completion_context) = self.completion_session_context(ctx) {
@@ -9208,28 +9047,6 @@ impl Input {
             }
             self.model.lock().set_is_input_dirty(false);
         }
-    }
-
-    /// Submits the rich-input buffer on Ctrl+Enter when `submit_on_ctrl_enter` is enabled.
-    pub(crate) fn input_ctrl_enter(&mut self, ctx: &mut ViewContext<Self>) {
-        if CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id)
-            && *AISettings::as_ref(ctx).submit_on_ctrl_enter
-        {
-            self.emit_submit_cli_agent_input(ctx);
-        }
-    }
-
-    /// Emits [`Event::SubmitCLIAgentInput`] with the current buffer contents.
-    fn emit_submit_cli_agent_input(&mut self, ctx: &mut ViewContext<Self>) {
-        // When the `!` prefix was stripped (shell mode in CLI agent input),
-        // prepend it back so the CLI agent receives the mode-switch prefix,
-        // then exit shell mode so the next prompt starts in AI mode.
-        let mut text = self.editor.as_ref(ctx).buffer_text(ctx);
-        if self.is_locked_in_shell_mode(ctx) {
-            text = format!("{TERMINAL_INPUT_PREFIX}{text}");
-            self.exit_shell_mode_to_ai(ctx);
-        }
-        ctx.emit(Event::SubmitCLIAgentInput { text });
     }
 
     fn input_cmd_enter(&mut self, ctx: &mut ViewContext<Self>) {
@@ -11022,28 +10839,7 @@ impl View for Input {
     }
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
-        if CLIAgentSessionsModel::as_ref(app).is_input_open(self.terminal_view_id) {
-            return self.render_cli_agent_input(app);
-        }
-        let is_universal_input = self.should_show_universal_developer_input(app);
-        let should_show_status_footer =
-            self.ambient_agent_view_model()
-                .is_some_and(|ambient_agent_model| {
-                    ambient_agent_model.as_ref(app).should_show_status_footer()
-                });
-
-        if FeatureFlag::CloudMode.is_enabled() && should_show_status_footer {
-            self.render_ambient_agent_status_footer(app)
-        } else if FeatureFlag::AgentView.is_enabled()
-            && self.agent_view_controller.as_ref(app).is_active()
-        {
-            self.render_agent_input(app)
-        } else if FeatureFlag::AgentView.is_enabled()
-            && !self.agent_view_controller.as_ref(app).is_active()
-            && !should_render_ps1_prompt(&self.model.lock(), app)
-        {
-            self.render_terminal_input(app)
-        } else if !FeatureFlag::AgentView.is_enabled() && is_universal_input {
+        if self.should_show_universal_developer_input(app) {
             self.render_terminal_input(app)
         } else {
             self.render_classic_input(app)
@@ -11129,7 +10925,6 @@ fn maybe_render_ai_input_indicators(
     ai_context_model: &ModelHandle<BlocklistAIContextModel>,
     agent_view_controller: &ModelHandle<AgentViewController>,
     ai_follow_up_icon_mouse_state: MouseStateHandle,
-    terminal_view_id: EntityId,
     app: &AppContext,
 ) -> Option<Box<dyn Element>> {
     let ai_input_model = ai_input_model.as_ref(app);
@@ -11143,12 +10938,8 @@ fn maybe_render_ai_input_indicators(
     let is_ai_input_enabled = ai_input_model.is_ai_input_enabled();
     let is_input_type_locked = ai_input_model.is_input_type_locked();
 
-    // Show the `!` shell mode indicator when in locked shell mode inside the
-    // agent view OR inside the CLI agent rich input (e.g. Claude Code bash mode).
     let is_locked_shell = !is_ai_input_enabled && is_input_type_locked;
-    let is_cli_agent_input_open =
-        CLIAgentSessionsModel::as_ref(app).is_input_open(terminal_view_id);
-    if is_locked_shell && (is_agent_view_active || is_cli_agent_input_open) {
+    if is_locked_shell && is_agent_view_active {
         return Some(render_prefix_mode_indicator(
             TERMINAL_INPUT_PREFIX,
             appearance.theme().ansi_fg_blue(),

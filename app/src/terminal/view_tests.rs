@@ -7692,17 +7692,17 @@ fn ctrl_g_toggles_cli_agent_rich_input_from_terminal_context() {
 }
 
 #[test]
-fn cli_agent_rich_input_hint_text_mentions_active_cli_agent() {
+fn legacy_cli_agent_sessions_keep_local_command_hint() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
 
-        for (agent, expected_hint_text) in [
-            (CLIAgent::Claude, "Enter prompt for Claude Code..."),
-            (CLIAgent::Gemini, "Enter prompt for Gemini..."),
-            (CLIAgent::Codex, "Enter prompt for Codex..."),
-            (CLIAgent::Unknown, "Tell the agent what to build..."),
+        for agent in [
+            CLIAgent::Claude,
+            CLIAgent::Gemini,
+            CLIAgent::Codex,
+            CLIAgent::Unknown,
         ] {
             let terminal = open_cli_agent_rich_input_for_agent(&mut app, agent);
             terminal.read(&app, |view, ctx| {
@@ -7712,7 +7712,7 @@ fn cli_agent_rich_input_hint_text_mentions_active_cli_agent() {
                     .editor()
                     .as_ref(ctx)
                     .placeholder_text("");
-                assert_eq!(placeholder_text, Some(expected_hint_text));
+                assert_eq!(placeholder_text, Some("Run commands"));
             });
         }
     })

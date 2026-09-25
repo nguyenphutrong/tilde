@@ -19014,9 +19014,6 @@ impl TerminalView {
                     document_version: *document_version,
                 });
             }
-            InputEvent::SubmitCLIAgentInput { text } => {
-                self.submit_cli_agent_rich_input(text.clone(), ctx);
-            }
             InputEvent::OpenAIDocumentPane {
                 document_id,
                 document_version,
