@@ -286,29 +286,6 @@ impl Input {
 
         stack.add_child(centered_content);
 
-        if let Some(history_menu) = self.render_cloud_mode_v2_history_menu(app) {
-            let prompt_position = self.prompt_save_position_id();
-            stack.add_positioned_overlay_child(
-                ConstrainedBox::new(history_menu)
-                    .with_max_width(CLOUD_MODE_V2_MAX_WIDTH)
-                    .finish(),
-                OffsetPositioning::from_axes(
-                    PositioningAxis::relative_to_stack_child(
-                        &prompt_position,
-                        PositionedElementOffsetBounds::WindowByPosition,
-                        OffsetType::Pixel(0.),
-                        AnchorPair::new(XAxisAnchor::Left, XAxisAnchor::Left),
-                    ),
-                    PositioningAxis::relative_to_stack_child(
-                        &prompt_position,
-                        PositionedElementOffsetBounds::Unbounded,
-                        OffsetType::Pixel(-CLOUD_MODE_V2_TOP_ROW_GAP),
-                        AnchorPair::new(YAxisAnchor::Top, YAxisAnchor::Bottom),
-                    ),
-                ),
-            );
-        }
-
         if self.suggestions_mode_model.as_ref(app).is_slash_commands()
             && let Some(view) = self.cloud_mode_v2_slash_commands_view.as_ref()
         {
@@ -419,18 +396,6 @@ impl Input {
                 .finish(),
         )
         .finish()
-    }
-
-    fn render_cloud_mode_v2_history_menu(&self, app: &AppContext) -> Option<Box<dyn Element>> {
-        if !self
-            .suggestions_mode_model
-            .as_ref(app)
-            .is_inline_history_menu()
-        {
-            return None;
-        }
-        let view = self.cloud_mode_v2_history_menu_view.as_ref()?;
-        Some(ChildView::new(view).finish())
     }
 
     fn render_cloud_mode_v2_input_container(
