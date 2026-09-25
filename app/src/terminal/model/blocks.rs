@@ -3008,9 +3008,6 @@ impl BlockList {
             tree_before_active_block
         };
         self.update_live_block_height(background_block_index);
-
-        self.event_proxy
-            .send_app_event(TerminalEvent::BackgroundBlockStarted);
     }
 
     /// Initializes a [`BlockSize`] for a new block

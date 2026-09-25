@@ -162,7 +162,6 @@ impl ModelEventDispatcher {
             Event::BlockWorkingDirectoryUpdated(block_working_directory_updated_event) => {
                 ModelEvent::BlockWorkingDirectoryUpdated(block_working_directory_updated_event)
             }
-            Event::BackgroundBlockStarted => ModelEvent::BackgroundBlockStarted,
             Event::ClipboardStore(clipboard_type, text) => {
                 ModelEvent::ClipboardStore(clipboard_type, text)
             }
@@ -285,8 +284,6 @@ pub enum ModelEvent {
     /// Sent when an existing block's working directory has been updated
     /// outside of the precmd path (e.g. via an OSC 7 escape sequence).
     BlockWorkingDirectoryUpdated(BlockWorkingDirectoryUpdatedEvent),
-    /// Sent after a background block is started and added to the block list.
-    BackgroundBlockStarted,
     ClipboardStore(ClipboardType, String),
     ClipboardLoad(
         ClipboardType,

@@ -337,3 +337,6 @@ test now exercises that handler. Legacy shell timing payloads and local session 
 Terminal teardown no longer sends abandonment telemetry or retains a server, background executor,
 privacy snapshot, or bootstrap timestamp for it. Terminal/input constructors and pane resources no
 longer carry that server handle. Nonblocking local teardown logging remains unchanged.
+
+Background block creation and SSH bootstrap no longer emit telemetry-only events. Background output
+insertion, block-height updates, completion events, and the supported-shell SSH bootstrap timer remain.
