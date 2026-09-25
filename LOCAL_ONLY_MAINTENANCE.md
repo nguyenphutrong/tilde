@@ -396,3 +396,8 @@ The local-only guard also scans extensionless scripts and orb bootstrap/service 
 RPM bundling no longer imports Warp's public key or invokes its signing identity; packages remain
 unsigned. RPM branding is separate debt. Guard tests and shell syntax cover this change; full RPM
 assembly/signature verification is unavailable because this orb has no `rpmbuild`.
+
+Command search no longer registers or renders AI prompt history. The unused natural-language
+command-generation API, generated-command types/conversions, and GraphQL mutation are deleted.
+A regression enables AI and verifies only the local workflow source registers before shell history
+initializes. Persisted history is untouched; inline AI history and shared GraphQL remain debt.

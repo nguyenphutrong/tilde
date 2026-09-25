@@ -41,10 +41,6 @@ use warp_graphql::mutations::generate_code_embeddings::{
     GenerateCodeEmbeddings, GenerateCodeEmbeddingsInput, GenerateCodeEmbeddingsResult,
     GenerateCodeEmbeddingsVariables,
 };
-use warp_graphql::mutations::generate_commands::{
-    GenerateCommands, GenerateCommandsInput, GenerateCommandsResult, GenerateCommandsStatus,
-    GenerateCommandsVariables,
-};
 use warp_graphql::mutations::generate_metadata_for_command::{
     GenerateMetadataForCommand, GenerateMetadataForCommandInput, GenerateMetadataForCommandResult,
     GenerateMetadataForCommandStatus, GenerateMetadataForCommandVariables,
@@ -142,8 +138,6 @@ use crate::ai::llms::{
 #[cfg(feature = "agent_mode_evals")]
 use crate::ai::request_usage_model::RequestLimitInfo;
 use crate::ai::{AICreditAvailability, RequestUsageInfo};
-use crate::ai_assistant::execution_context::WarpAiExecutionContext;
-use crate::ai_assistant::{AIGeneratedCommand, GenerateCommandsFromNaturalLanguageError};
 use crate::drive::workflows::ai_assist::{GeneratedCommandMetadata, GeneratedCommandMetadataError};
 use crate::persistence::model::ConversationUsageMetadata;
 use crate::server::graphql::{get_request_context, get_user_facing_error_message};
@@ -1155,12 +1149,6 @@ pub struct UpdateMemoryResponse {
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 pub trait AIClient: 'static + Send + Sync {
-    async fn generate_commands_from_natural_language(
-        &self,
-        prompt: String,
-        ai_execution_context: Option<WarpAiExecutionContext>,
-    ) -> Result<Vec<AIGeneratedCommand>, GenerateCommandsFromNaturalLanguageError>;
-
     async fn generate_metadata_for_command(
         &self,
         command: String,
@@ -1622,44 +1610,6 @@ fn convert_upload_field(
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 impl AIClient for ServerApi {
-    async fn generate_commands_from_natural_language(
-        &self,
-        prompt: String,
-        // TODO: use relevant context from RequestContext and deprecate usage of ai_execution_context
-        _ai_execution_context: Option<WarpAiExecutionContext>,
-    ) -> Result<Vec<AIGeneratedCommand>, GenerateCommandsFromNaturalLanguageError> {
-        let default_err = GenerateCommandsFromNaturalLanguageError::Other;
-
-        let variables = GenerateCommandsVariables {
-            input: GenerateCommandsInput { prompt },
-            request_context: get_request_context(),
-        };
-
-        let operation = GenerateCommands::build(variables);
-        let response = self
-            .send_graphql_request(
-                operation,
-                Some(Duration::from_secs(AI_ASSISTANT_REQUEST_TIMEOUT_SECONDS)),
-            )
-            .await
-            .map_err(|_| default_err)?;
-
-        match response.generate_commands {
-            GenerateCommandsResult::GenerateCommandsOutput(output) => match output.status {
-                GenerateCommandsStatus::GenerateCommandsSuccess(success) => {
-                    Ok(success.commands.into_iter().map(Into::into).collect_vec())
-                }
-                GenerateCommandsStatus::GenerateCommandsFailure(failure) => {
-                    Err(failure.type_.into())
-                }
-                GenerateCommandsStatus::Unknown => {
-                    Err(GenerateCommandsFromNaturalLanguageError::Other)
-                }
-            },
-            _ => Err(GenerateCommandsFromNaturalLanguageError::Other),
-        }
-    }
-
     async fn generate_metadata_for_command(
         &self,
         command: String,
