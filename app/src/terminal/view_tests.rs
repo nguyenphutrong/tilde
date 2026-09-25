@@ -26,7 +26,6 @@ use crate::ai::agent::{
 use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::ambient_agents::task::TaskPrincipalInfo;
 use crate::ai::ambient_agents::{AmbientAgentTask, AmbientAgentTaskId, AmbientAgentTaskState};
-use crate::ai::blocklist::agent_view::toolbar_item::AgentToolbarItemKind;
 use crate::ai::blocklist::agent_view::{
     AgentViewEntryBlock, AgentViewEntryOrigin, AgentViewState, EnterAgentBlockAction,
     ExitAgentViewError,
@@ -73,7 +72,6 @@ use crate::terminal::model::block::AgentViewVisibility;
 use crate::terminal::model::blocks::{TotalIndex, insert_block};
 use crate::terminal::model::grid::Dimensions as _;
 use crate::terminal::model::terminal_model::WithinBlock;
-use crate::terminal::session_settings::AgentToolbarChipSelection;
 use crate::terminal::shared_session::shared_handlers::{
     RemoteUpdateGuard, apply_cli_agent_state_update,
 };
@@ -6782,83 +6780,6 @@ fn test_prompt_context_menu_items_for_agent_toolbelt_flag() {
                 assert!(labels.contains(&"Edit agent toolbelt"));
             });
         }
-    })
-}
-
-#[test]
-fn agent_footer_updates_chip_groups_when_side_assignment_changes() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        FeatureFlag::AgentView.set_enabled(true);
-
-        let terminal = add_window_with_terminal(&mut app, None);
-        terminal.update(&mut app, |view, ctx| {
-            view.agent_view_controller().update(ctx, |controller, ctx| {
-                controller
-                    .try_enter_agent_view(
-                        None,
-                        AgentViewEntryOrigin::Input {
-                            was_prompt_autodetected: false,
-                        },
-                        ctx,
-                    )
-                    .expect("Should be able to enter agent view");
-            });
-        });
-
-        terminal.update(&mut app, |view, ctx| {
-            let model = view.model.lock();
-            view.current_prompt.update(ctx, |prompt, ctx| {
-                let PromptType::Dynamic { prompt } = prompt else {
-                    return;
-                };
-                prompt.update(ctx, |prompt, ctx| {
-                    prompt.update_context(model.block_list().active_block(), ctx);
-                });
-            });
-        });
-
-        SessionSettings::handle(&app).update(&mut app, |settings, ctx| {
-            let _ = settings.agent_footer_chip_selection.set_value(
-                AgentToolbarChipSelection::Custom {
-                    left: vec![AgentToolbarItemKind::ContextChip(ContextChipKind::Time12)],
-                    right: vec![AgentToolbarItemKind::ContextChip(ContextChipKind::Time24)],
-                },
-                ctx,
-            );
-        });
-
-        assert_eventually!(
-            terminal.read(&app, |view, ctx| {
-                view.input().as_ref(ctx).agent_footer_chip_kinds(ctx)
-                    == (vec![ContextChipKind::Time12], vec![ContextChipKind::Time24])
-            }),
-            "Agent footer should render separate left and right chip groups"
-        );
-
-        SessionSettings::handle(&app).update(&mut app, |settings, ctx| {
-            let _ = settings.agent_footer_chip_selection.set_value(
-                AgentToolbarChipSelection::Custom {
-                    left: vec![
-                        AgentToolbarItemKind::ContextChip(ContextChipKind::Time12),
-                        AgentToolbarItemKind::ContextChip(ContextChipKind::Time24),
-                    ],
-                    right: vec![],
-                },
-                ctx,
-            );
-        });
-
-        assert_eventually!(
-            terminal.read(&app, |view, ctx| {
-                view.input().as_ref(ctx).agent_footer_chip_kinds(ctx)
-                    == (
-                        vec![ContextChipKind::Time12, ContextChipKind::Time24],
-                        vec![],
-                    )
-            }),
-            "Agent footer should update when a chip moves between sides without changing overall chip order"
-        );
     })
 }
 

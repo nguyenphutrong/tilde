@@ -42,8 +42,6 @@ const CLOUD_MODE_V2_INPUT_TOP_PADDING: f32 = 16.;
 
 const CLOUD_MODE_V2_INPUT_EDITOR_BOTTOM_PADDING: f32 = 8.;
 
-const CLOUD_MODE_V2_INPUT_BOTTOM_PADDING: f32 = 16.;
-
 const CLOUD_MODE_V2_TOP_ROW_INNER_GAP: f32 = 4.;
 
 const CLOUD_MODE_V2_INPUT_MIN_EDITOR_HEIGHT: f32 = 80.;
@@ -130,14 +128,6 @@ impl Input {
                 )
                 .finish(),
         );
-        column.add_child(
-            SavePosition::new(
-                ChildView::new(&self.agent_input_footer).finish(),
-                &self.prompt_save_position_id(),
-            )
-            .finish(),
-        );
-
         stack.add_child(wrap_input_with_terminal_padding_and_focus_handler(
             self.is_active_session(app),
             column.finish(),
@@ -600,20 +590,7 @@ impl Input {
 
         let editor = editor_column.finish();
 
-        let footer = Container::new(ChildView::new(&self.agent_input_footer).finish())
-            .with_padding_bottom(CLOUD_MODE_V2_INPUT_BOTTOM_PADDING)
-            .with_padding_left(CLOUD_MODE_V2_INPUT_HORIZONTAL_PADDING)
-            .with_padding_right(CLOUD_MODE_V2_INPUT_HORIZONTAL_PADDING)
-            .finish();
-
-        let stacked = Flex::column()
-            .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-            .with_main_axis_size(MainAxisSize::Min)
-            .with_child(editor)
-            .with_child(footer)
-            .finish();
-
-        Container::new(SavePosition::new(stacked, &self.prompt_save_position_id()).finish())
+        Container::new(SavePosition::new(editor, &self.prompt_save_position_id()).finish())
             .with_background(background)
             .with_border(Border::all(1.).with_border_color(border_color))
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(

@@ -1,16 +1,12 @@
 //! Footer bar for "Use agent" functionality during long-running commands.
 //!
 //! This module provides a footer that appears at the bottom of active long running blocks,
-//! offering users the option to bring in the agent. For CLI agent commands (e.g., Claude Code,
-//! Gemini CLI, Codex), it displays a specialized footer with additional functionality.
+//! offering users the option to bring in the agent.
 
 use base64::Engine;
 use warpui::clipboard::{ClipboardContent, ImageData};
 
 use crate::ai::agent::ImageContext;
-use crate::ai::blocklist::agent_view::agent_input_footer::{
-    AgentInputFooter, AgentInputFooterEvent,
-};
 use crate::terminal::cli_agent_sessions::{CLIAgentInputEntrypoint, CLIAgentSessionsModel};
 use crate::terminal::shared_session::{
     SharedSessionActionSource, SharedSessionScrollbackType, SharedSessionSource,
@@ -1100,8 +1096,6 @@ impl TerminalView {
 /// Footer rendered at the bottom of the active long running block or alt screen element.
 ///
 /// For regular commands, displays a 'Use agent' keystroke button to enter agent mode.
-/// For CLI agent commands (e.g., Claude Code, Gemini CLI, Codex), displays a specialized
-/// footer with image attachment, voice input, file explorer, view changes, and share buttons.
 pub struct UseAgentToolbar {
     terminal_view_id: EntityId,
     terminal_model: Arc<FairMutex<TerminalModel>>,
@@ -1111,9 +1105,6 @@ pub struct UseAgentToolbar {
     give_control_back_button: ViewHandle<ActionButton>,
     dismiss_button: ViewHandle<ActionButton>,
     dont_show_again_button: ViewHandle<ActionButton>,
-
-    // Shared agent input footer (renders CLI agent mode when a CLI session is active).
-    agent_input_footer: ViewHandle<AgentInputFooter>,
 
     // Warpify footer UI (shown when a subshell/SSH command is detected).
     warpify_footer_view: ViewHandle<WarpifyFooterView>,
@@ -1130,7 +1121,6 @@ impl UseAgentToolbar {
         terminal_view_id: EntityId,
         terminal_model: Arc<FairMutex<TerminalModel>>,
         model_event_dispatcher: &ModelHandle<ModelEventDispatcher>,
-        agent_input_footer: ViewHandle<AgentInputFooter>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let button_size = ButtonSize::XSmall;
@@ -1184,11 +1174,6 @@ impl UseAgentToolbar {
             .with_size(button_size)
         });
 
-        // Subscribe to agent input footer events to forward CLI-relevant ones.
-        ctx.subscribe_to_view(&agent_input_footer, |me, _, event, ctx| {
-            me.handle_agent_input_footer_event(event, ctx);
-        });
-
         let warpify_footer_view =
             ctx.add_typed_action_view(|ctx| WarpifyFooterView::new(terminal_model.clone(), ctx));
 
@@ -1218,54 +1203,9 @@ impl UseAgentToolbar {
             give_control_back_button,
             dismiss_button,
             dont_show_again_button,
-            agent_input_footer,
             warpify_footer_view,
             terminal_model,
             did_user_dismiss: false,
-        }
-    }
-
-    fn handle_agent_input_footer_event(
-        &mut self,
-        event: &AgentInputFooterEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Forward CLI-relevant events from the shared agent input footer.
-        match event {
-            AgentInputFooterEvent::WriteToPty(text) => {
-                ctx.emit(UseAgentToolbarEvent::WriteToPty(text.clone()));
-            }
-            AgentInputFooterEvent::InsertIntoCLIPty(text) => {
-                ctx.emit(UseAgentToolbarEvent::InsertIntoCLIPty(text.clone()));
-            }
-            AgentInputFooterEvent::InsertIntoCLIRichInput(text) => {
-                ctx.emit(UseAgentToolbarEvent::InsertIntoRichInput(text.clone()));
-            }
-            AgentInputFooterEvent::ToggleCodeReviewPane(agent) => {
-                ctx.emit(UseAgentToolbarEvent::ToggleCodeReviewPane(*agent));
-            }
-            AgentInputFooterEvent::ToggleFileExplorer(agent) => {
-                ctx.emit(UseAgentToolbarEvent::ToggleFileExplorer(*agent));
-            }
-            AgentInputFooterEvent::StartRemoteControl => {
-                let scrollback_type = if self.cli_agent(ctx).is_some() {
-                    SharedSessionScrollbackType::None
-                } else {
-                    SharedSessionScrollbackType::All
-                };
-                ctx.emit(UseAgentToolbarEvent::StartRemoteControl { scrollback_type });
-            }
-            AgentInputFooterEvent::StopRemoteControl => {
-                ctx.emit(UseAgentToolbarEvent::StopRemoteControl);
-            }
-            AgentInputFooterEvent::OpenRichInput => {
-                ctx.emit(UseAgentToolbarEvent::OpenRichInput);
-            }
-            AgentInputFooterEvent::HideRichInput => {
-                ctx.emit(UseAgentToolbarEvent::HideRichInput);
-            }
-            // Non-CLI events are handled by Input's subscription, not here.
-            _ => {}
         }
     }
 
@@ -1289,7 +1229,7 @@ impl UseAgentToolbar {
 
     pub(in crate::terminal) fn notify_and_notify_children(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.notify();
-        self.agent_input_footer.update(ctx, |_, ctx| ctx.notify());
+
         self.warpify_footer_view.update(ctx, |_, ctx| ctx.notify());
         self.button.update(ctx, |_, ctx| ctx.notify());
         self.give_control_back_button
@@ -1330,12 +1270,6 @@ impl UseAgentToolbar {
     /// Returns whether the warpify footer is currently active.
     pub(in crate::terminal) fn is_warpify_active(&self, app: &AppContext) -> bool {
         self.warpify_footer_view.as_ref(app).is_active()
-    }
-
-    /// Returns whether there's a current CLI agent (like Claude Code).
-    #[cfg(feature = "voice_input")]
-    pub fn has_cli_agent(&self, app: &AppContext) -> bool {
-        self.cli_agent(app).is_some()
     }
 }
 
@@ -1385,33 +1319,12 @@ impl View for UseAgentToolbar {
             return ChildView::new(&self.warpify_footer_view).finish();
         }
 
-        // Hide the toolbar entirely when CLI rich input is open,
-        // since the Input view renders its own footer in that state.
         if CLIAgentSessionsModel::as_ref(app).is_input_open(self.terminal_view_id) {
             return Empty::new().finish();
         }
 
-        // If a CLI agent is detected, delegate rendering to the CLI agent footer view.
-        // Wrap with horizontal padding matching the terminal view padding so the footer
-        // aligns consistently with the input context (which inherits terminal padding).
-        if let Some(cli_agent) = self.cli_agent(app) {
-            if !cli_agent.supports_cli_agent_footer() {
-                return Empty::new().finish();
-            }
-            let mut container = Container::new(ChildView::new(&self.agent_input_footer).finish())
-                .with_horizontal_padding(*super::PADDING_LEFT);
-
-            // Apply the alt screen background on this outer container so it covers
-            // the horizontal padding area as well, preventing a visible color mismatch
-            // between the padding and the footer content.
-            let terminal_model = self.terminal_model.lock();
-            if terminal_model.is_alt_screen_active()
-                && let Some(bg_color) = terminal_model.alt_screen().inferred_bg_color()
-            {
-                container = container.with_background(bg_color);
-            }
-
-            return container.finish();
+        if self.cli_agent(app).is_some() {
+            return Empty::new().finish();
         }
 
         let terminal_model = self.terminal_model.lock();
