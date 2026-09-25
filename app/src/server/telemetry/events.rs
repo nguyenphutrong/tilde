@@ -1195,13 +1195,6 @@ pub enum TelemetryEvent {
         redact_secrets: bool,
     },
     BlockSelection(BlockSelectionDetails),
-    /// Logged when a pending session is abandoned before it hits Bootstrapped.
-    SessionAbandonedBeforeBootstrap {
-        pending_shell: Option<ShellType>,
-        has_pending_ssh_session: bool,
-        was_ever_visible: bool,
-        duration_since_start: Duration,
-    },
     CopyInviteLink,
     OpenThemeChooser,
     ThemeSelection {
@@ -2712,17 +2705,6 @@ impl TelemetryEvent {
             TelemetryEvent::ToggleSettingsSync {
                 is_settings_sync_enabled,
             } => Some(json!({ "is_settings_sync_enabled": is_settings_sync_enabled })),
-            TelemetryEvent::SessionAbandonedBeforeBootstrap {
-                pending_shell,
-                has_pending_ssh_session,
-                was_ever_visible,
-                duration_since_start,
-            } => Some(json!({
-                "pending_shell": pending_shell.map(|shell| shell.name()),
-                "has_pending_ssh_session": has_pending_ssh_session,
-                "was_ever_visible": was_ever_visible,
-                "duration_since_start_secs": duration_since_start.as_secs_f32(),
-            })),
             TelemetryEvent::BlockCompleted {
                 block_finished_to_precmd_delay_ms,
                 honor_ps1_enabled,
@@ -4331,7 +4313,6 @@ impl TelemetryEvent {
             | TelemetryEvent::CopyBlockSharingLink(_)
             | TelemetryEvent::GenerateBlockSharingLink { .. }
             | TelemetryEvent::BlockSelection(_)
-            | TelemetryEvent::SessionAbandonedBeforeBootstrap { .. }
             | TelemetryEvent::CopyInviteLink
             | TelemetryEvent::OpenThemeChooser
             | TelemetryEvent::ThemeSelection { .. }
@@ -4846,7 +4827,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CopyBlockSharingLink => EnablementState::Always,
             Self::GenerateBlockSharingLink => EnablementState::Always,
             Self::BlockSelection => EnablementState::Always,
-            Self::SessionAbandonedBeforeBootstrap => EnablementState::Always,
             Self::CopyInviteLink => EnablementState::Always,
             Self::OpenThemeChooser => EnablementState::Always,
             Self::ThemeSelection => EnablementState::Always,
@@ -5296,7 +5276,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AISuggestedRuleEdited { .. } => "AI Suggested Rule Edited",
             Self::AISuggestedRuleContentChanged { .. } => "AI Suggested Rule Content Changed",
             Self::AnonymousUserHitCloudObjectLimit => "Anonymous User Hit Cloud Object Limit",
-            Self::SessionAbandonedBeforeBootstrap => "Session Abandoned Before Bootstrap",
             Self::ConfirmSuggestion => "Confirm Suggestion",
             Self::ContextMenuInsertSelectedText => "Context Menu Insert Selected Text into Input",
             Self::ContextMenuCopyPrompt => "Context Menu Copy Prompt",
@@ -5814,9 +5793,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CopyBlockSharingLink => "Clicked \"Share block...\" in context menu",
             Self::GenerateBlockSharingLink => "Generated Block sharing link",
             Self::BlockSelection => "Selected Block",
-            Self::SessionAbandonedBeforeBootstrap => {
-                "Abandoned session before the bootstrapping completes"
-            }
             Self::CopyInviteLink => "Clicked \"Copy Link\" on Referral Modal",
             Self::OpenThemeChooser => {
                 "Opened theme chooser (list of different themes and visualizations of those themes)"

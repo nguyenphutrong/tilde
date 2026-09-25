@@ -11,9 +11,9 @@ use warp_errors::report_error;
 use warpui::ModelHandle;
 use warpui::ViewContext;
 #[cfg(feature = "local_tty")]
-use warpui::geometry::vector::Vector2F;
+use warpui::ViewHandle;
 #[cfg(feature = "local_tty")]
-use warpui::{SingletonEntity, ViewHandle};
+use warpui::geometry::vector::Vector2F;
 
 use super::TerminalView;
 #[cfg(all(feature = "local_tty", not(feature = "remote_tty")))]
@@ -22,8 +22,6 @@ use crate::banner::BannerState;
 use crate::pane_group::TerminalViewResources;
 #[cfg(feature = "local_tty")]
 use crate::persistence::ModelEvent;
-#[cfg(feature = "local_tty")]
-use crate::server::server_api::ServerApiProvider;
 #[cfg(feature = "local_tty")]
 use crate::terminal::TerminalManager;
 #[cfg(all(feature = "local_tty", not(feature = "remote_tty")))]
@@ -181,7 +179,6 @@ impl TerminalView {
 
         let resources = TerminalViewResources {
             tips_completed: self.tips_completed.clone(),
-            server_api: ServerApiProvider::as_ref(ctx).get(),
             model_event_sender: self.model_event_sender.clone(),
         };
         let pane_configuration = self.pane_configuration().clone();

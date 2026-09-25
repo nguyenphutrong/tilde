@@ -1005,7 +1005,6 @@ pub enum SplitPaneState {
 #[derive(Clone)]
 pub struct TerminalViewResources {
     pub tips_completed: ModelHandle<TipsCompleted>,
-    pub server_api: Arc<ServerApi>,
     pub model_event_sender: Option<SyncSender<ModelEvent>>,
 }
 
@@ -3007,7 +3006,6 @@ impl PaneGroup {
 
         let resources = TerminalViewResources {
             tips_completed: tips_completed.clone(),
-            server_api: server_api.clone(),
             model_event_sender: model_event_sender.clone(),
         };
 
@@ -4119,7 +4117,6 @@ impl PaneGroup {
         let uuid = Uuid::new_v4();
         let resources = TerminalViewResources {
             tips_completed: self.tips_completed.clone(),
-            server_api: self.server_api.clone(),
             model_event_sender: self.model_event_sender.clone(),
         };
         let view_bounds = Self::estimated_view_bounds(ctx);
@@ -5371,7 +5368,6 @@ impl PaneGroup {
     ) -> bool {
         let resources = TerminalViewResources {
             tips_completed: self.tips_completed.clone(),
-            server_api: self.server_api.clone(),
             model_event_sender: self.model_event_sender.clone(),
         };
         let view_bounds = Self::estimated_view_bounds(ctx);
@@ -6422,7 +6418,6 @@ impl PaneGroup {
         let uuid = Uuid::new_v4();
         let resources = TerminalViewResources {
             tips_completed: self.tips_completed.clone(),
-            server_api: self.server_api.clone(),
             model_event_sender: self.model_event_sender.clone(),
         };
 
@@ -6495,7 +6490,6 @@ impl PaneGroup {
         let uuid = Uuid::new_v4();
         let resources = TerminalViewResources {
             tips_completed: self.tips_completed.clone(),
-            server_api: self.server_api.clone(),
             model_event_sender: self.model_event_sender.clone(),
         };
 
@@ -6614,7 +6608,6 @@ impl PaneGroup {
         let uuid = Uuid::new_v4();
         let resources = TerminalViewResources {
             tips_completed: self.tips_completed.clone(),
-            server_api: self.server_api.clone(),
             model_event_sender: self.model_event_sender.clone(),
         };
 
@@ -8037,7 +8030,6 @@ impl PaneGroup {
         let uuid = Uuid::new_v4();
         let resources = TerminalViewResources {
             tips_completed: self.tips_completed.clone(),
-            server_api: self.server_api.clone(),
             model_event_sender: self.model_event_sender.clone(),
         };
 
