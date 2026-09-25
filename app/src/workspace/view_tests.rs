@@ -4605,3 +4605,29 @@ fn test_tools_panel_restores_legacy_cloud_tabs_as_local_file_tree() {
         });
     });
 }
+
+#[test]
+fn closing_command_search_preserves_shell_draft() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let workspace = mock_workspace(&mut app);
+        workspace.update(&mut app, |workspace, ctx| {
+            let input = workspace.get_active_input_view_handle(ctx).unwrap();
+            for draft in ["#", "  #  ", "echo unfinished"] {
+                input.update(ctx, |input, ctx| {
+                    input.replace_buffer_content(draft, ctx);
+                });
+                workspace.current_workspace_state.is_command_search_open = true;
+                workspace.handle_command_search_event(
+                    &CommandSearchEvent::Close {
+                        query: String::new(),
+                        filter: None,
+                    },
+                    ctx,
+                );
+                assert!(!workspace.current_workspace_state.is_command_search_open);
+                assert_eq!(input.read(ctx, |input, ctx| input.buffer_text(ctx)), draft);
+            }
+        });
+    });
+}

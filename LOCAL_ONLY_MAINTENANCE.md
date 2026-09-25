@@ -386,3 +386,8 @@ Typed `#` stays literal shell-comment input instead of opening AI command search
 menu and hash-trigger preferences and workspace context flags are removed, without database writes
 or migrations. The Agent Mode placeholder and explicit AI command-search action remain for their
 separate removal increments; literal `@` and `#` regressions cover the default input behavior.
+
+AI command-generation sources, actions, context-menu entry, upgrade handling, and associated
+telemetry are removed from command search. Ordinary history/workflow sources and generic errors
+remain. Closing search only refocuses input, preserving literal `#`, padded `#`, and normal drafts.
+AI prompt-history search, backend command-generation APIs, and shared GraphQL remain removal debt.
