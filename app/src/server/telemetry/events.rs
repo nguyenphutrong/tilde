@@ -413,7 +413,6 @@ pub enum PaletteSource {
     ConversationManager,
     ContextChip,
     PaneHeader,
-    AgentTip,
     TitleBarSearchBar,
 }
 
@@ -1991,11 +1990,6 @@ pub enum TelemetryEvent {
         is_voice_input_enabled: bool,
     },
 
-    /// Emitted when the user toggles the "Show Agent Tips" setting in the AI settings page.
-    ToggleShowAgentTips {
-        is_enabled: bool,
-    },
-
     TierLimitHit(TierLimitHitEvent),
     SharedObjectLimitHitBannerViewPlansButtonClicked,
     ResourceUsageStats {
@@ -2450,13 +2444,6 @@ pub enum TelemetryEvent {
         platform: warp_isolation_platform::IsolationPlatformType,
     },
 
-    AgentTipShown {
-        tip: String,
-    },
-    AgentTipClicked {
-        tip: String,
-        click_target: String,
-    },
     /// Emitted when an agent-requested command causes the shell to exit.
     AgentExitedShellProcess {
         command: String,
@@ -4183,16 +4170,6 @@ impl TelemetryEvent {
                 "source": source,
                 "is_code_mode_v2": is_code_mode_v2,
             })),
-            TelemetryEvent::AgentTipShown { tip } => Some(json!({
-                "tip": tip,
-            })),
-            TelemetryEvent::AgentTipClicked { tip, click_target } => Some(json!({
-                "tip": tip,
-                "click_target": click_target,
-            })),
-            TelemetryEvent::ToggleShowAgentTips { is_enabled } => Some(json!({
-                "is_enabled": is_enabled,
-            })),
             TelemetryEvent::CLISubagentControlStateChanged {
                 conversation_id,
                 block_id,
@@ -4739,9 +4716,6 @@ impl TelemetryEvent {
             | TelemetryEvent::AgentManagementViewOpenedSession
             | TelemetryEvent::AgentManagementViewCopiedSessionLink
             | TelemetryEvent::DetectedIsolationPlatform { .. }
-            | TelemetryEvent::AgentTipShown { .. }
-            | TelemetryEvent::AgentTipClicked { .. }
-            | TelemetryEvent::ToggleShowAgentTips { .. }
             | TelemetryEvent::CLIAgentToolbarVoiceInputUsed { .. }
             | TelemetryEvent::CLIAgentToolbarImageAttached { .. }
             | TelemetryEvent::CLIAgentToolbarShown { .. }
@@ -4900,9 +4874,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 EnablementState::Always
             }
             Self::ToggleSettingsSync { .. } => EnablementState::Always,
-            Self::AgentTipShown | Self::AgentTipClicked | Self::ToggleShowAgentTips => {
-                EnablementState::Flag(FeatureFlag::AgentTips)
-            }
             Self::BlockCompleted => EnablementState::Always,
             Self::BackgroundBlockStarted => EnablementState::Always,
             Self::SessionCreation => EnablementState::Always,
@@ -5779,9 +5750,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 "Agent Management View Copied Session Link"
             }
             Self::DetectedIsolationPlatform { .. } => "Isolation.DetectedIsolationPlatform",
-            Self::AgentTipShown => "AgentTip Shown",
-            Self::AgentTipClicked => "AgentTip Clicked",
-            Self::ToggleShowAgentTips => "Toggle Show Agent Tips",
             Self::AgentExitedShellProcess => "AgentMode.ExitedShellProcess",
             Self::CLIAgentToolbarVoiceInputUsed { .. } => "CLIAgentFooter.VoiceInputUsed",
             Self::CLIAgentToolbarImageAttached { .. } => "CLIAgentFooter.ImageAttached",
@@ -5975,7 +5943,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::NotificationSent => "Sent desktop notification",
             Self::NotificationFailedToSend => "Failed to send desktop notification",
             Self::NotificationClicked => "Clicked desktop notification sent from Warp",
-            Self::ToggleShowAgentTips => "Toggled the Show Agent Tips setting in AI settings",
             Self::ToggleFindOption => "Changed settings in Find Toggle",
             Self::SignUpButtonClicked => "Clicked \"Sign Up\" button",
             Self::LoginButtonClicked => "Clicked on \"Log in\" button",
@@ -6540,8 +6507,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::DetectedIsolationPlatform { .. } => {
                 "Detected that Warp is running in an isolated sandbox"
             }
-            Self::AgentTipShown => "Selected an Agent Tip to show in the Agent Mode status bar",
-            Self::AgentTipClicked => "User clicked a link or action in an Agent Tip",
             Self::AgentExitedShellProcess => {
                 "An agent-requested command caused the shell process to exit"
             }

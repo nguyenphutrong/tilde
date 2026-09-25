@@ -288,3 +288,8 @@ configuration remain removal debt.
 At the pane-header recovery increment, all eight focused tests and the Linux GUI build pass.
 Xvfb startup exits 101 before creating a window: `AgentViewConversationSelection::new` requests the
 unregistered `BlocklistAIHistoryModel`. Live terminal rendering remains unverified.
+
+Agent/cloud promotional tips, cooldown timers, tip settings/flags, and tip analytics transport are
+removed. Stored settings rows remain untouched. Ambient progress, errors, authentication, and the
+status bar's model-fallback explanation remain legacy AI/cloud debt. The reviewed cloud-residue inventory
+shrinks from 237 to 170 entries, with no additions.

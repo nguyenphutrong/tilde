@@ -29,6 +29,7 @@ fn retired_input_predictions_are_not_registered_settings() {
                                 | "ai_auto_detection_enabled"
                                 | "nld_in_terminal_enabled"
                                 | "show_model_selectors_in_prompt"
+                                | "show_agent_tips"
                         )
                     || entry.storage_key == "LastSelectedHarnessModel"
                     || entry.storage_key == "should_render_use_agent_toolbar_for_user_commands"

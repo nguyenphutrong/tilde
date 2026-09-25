@@ -24,7 +24,6 @@ use super::*;
 use crate::ai::AIRequestUsageModel;
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent_conversations_model::AgentConversationsModel;
-use crate::ai::agent_tips::AITipModel;
 use crate::ai::ambient_agents::github_auth_notifier::GitHubAuthNotifier;
 use crate::ai::blocklist::{BlocklistAIHistoryModel, BlocklistAIPermissions};
 use crate::ai::cloud_environments::CloudEnvironmentCatalog;
@@ -155,7 +154,6 @@ pub(crate) fn initialize_app(app: &mut App) {
     app.add_singleton_model(SessionPermissionsManager::new);
     app.add_singleton_model(LLMPreferences::new);
     app.add_singleton_model(HarnessAvailabilityModel::new);
-    app.add_singleton_model(|ctx| AITipModel::new_for_agent_tips(ctx));
     app.add_singleton_model(|_| SettingsPaneManager::new());
 
     // Initialize file-based MCP dependencies.
