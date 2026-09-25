@@ -5,7 +5,6 @@ use super::*;
 #[test]
 fn retired_cloud_menus_are_not_registered() {
     let _cloud_input = FeatureFlag::CloudModeInputV2.override_enabled(true);
-    let _profile_selector = FeatureFlag::InlineProfileSelector.override_enabled(true);
     for settings_mode in [settings::SettingsMode::Gui, settings::SettingsMode::Tui] {
         assert!(all_commands(settings_mode).iter().all(|command| {
             ![

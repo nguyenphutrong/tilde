@@ -7739,8 +7739,6 @@ fn test_source_less_locked_config_clears_decision_source() {
 
 #[test]
 fn typing_at_keeps_shell_input_literal() {
-    let _menu_enabled = FeatureFlag::AIContextMenuEnabled.override_enabled(true);
-    let _outside_ai = FeatureFlag::AtMenuOutsideOfAIMode.override_enabled(true);
     App::test((), |mut app| async move {
         initialize_app(&mut app);
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
