@@ -2,6 +2,8 @@ use warpui::App;
 use warpui::platform::WindowStyle;
 
 use super::*;
+use crate::auth::AuthStateProvider;
+use crate::auth::auth_manager::AuthManager;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::listener::Listener;
@@ -44,9 +46,8 @@ fn test_render_view() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
-        let (_window_id, _view) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
-            CommandSearchView::new(ServerApiProvider::as_ref(ctx).get_ai_client(), ctx)
-        });
+        let (_window_id, _view) =
+            app.add_window(WindowStyle::NotStealFocus, CommandSearchView::new);
 
         app.update(|_| {
             // This will force a redraw of the window, which lays out the

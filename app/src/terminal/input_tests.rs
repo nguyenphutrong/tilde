@@ -9026,36 +9026,6 @@ fn typing_hash_keeps_shell_comment_literal() {
 }
 
 #[test]
-fn explicit_action_opens_ai_command_search() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        let open_count = Rc::new(RefCell::new(0));
-        let open_count_for_subscription = open_count.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event, _| {
-                if matches!(event, Event::ShowCommandSearch(_)) {
-                    *open_count_for_subscription.borrow_mut() += 1;
-                }
-            });
-        });
-
-        input.update(&mut app, |input, ctx| {
-            input.handle_action(&InputAction::ShowAiCommandSearch, ctx);
-        });
-
-        assert_eq!(
-            *open_count.borrow(),
-            1,
-            "the explicit AI Command Search action must still open the panel"
-        );
-    });
-}
-
-#[test]
 fn inline_menu_position_follows_terminal_input_mode() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);

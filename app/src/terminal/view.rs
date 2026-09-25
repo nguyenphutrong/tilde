@@ -1351,7 +1351,6 @@ pub enum InputContextMenuAction {
     SelectAll,
     Paste,
     ShowCommandSearch,
-    ShowAICommandSearch,
     AskWarpAI,
     SaveAsWorkflow,
     ToggleInputHintText,
@@ -1439,7 +1438,6 @@ impl fmt::Debug for InputContextMenuAction {
             SelectAll => f.write_str("SelectAll"),
             Paste => f.write_str("Paste"),
             ShowCommandSearch => f.write_str("CommandSearch"),
-            ShowAICommandSearch => f.write_str("AICommandSearch"),
             AskWarpAI => f.write_str("AskWarpAI"),
             SaveAsWorkflow => f.write_str("SaveAsWorkflow"),
             ToggleInputHintText => f.write_str("ToggleInputHintText"),
@@ -15117,7 +15115,7 @@ impl TerminalView {
             items.extend(self.session_sharing_context_menu_items(&model, false, has_session_link));
         }
 
-        // Section 2: AI Command Search, Ask Warp AI
+        // Section 2: Command Search, Ask Warp AI
         items.extend([
             MenuItem::Separator,
             MenuItemFields::new("Command search")
@@ -15133,19 +15131,6 @@ impl TerminalView {
         ]);
 
         if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
-            items.push(
-                MenuItemFields::new("AI command search")
-                    .with_on_select_action(TerminalAction::InputContextMenuItem(
-                        InputContextMenuAction::ShowAICommandSearch,
-                    ))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "input:toggle_natural_language_command_search",
-                        ctx,
-                    ))
-                    .with_disabled(is_editor_disabled)
-                    .into_item(),
-            );
-
             if !selected_input_text.is_empty() && !FeatureFlag::AgentMode.is_enabled() {
                 items.push(
                     MenuItemFields::new("Ask Tilde AI")
@@ -16835,13 +16820,6 @@ impl TerminalView {
     fn command_search_from_input(&mut self, ctx: &mut ViewContext<Self>) {
         send_telemetry_from_ctx!(TelemetryEvent::InputCommandSearch, ctx);
         ctx.emit(Event::ShowCommandSearch(Default::default()))
-    }
-
-    fn ai_command_search_from_input(&mut self, ctx: &mut ViewContext<Self>) {
-        self.input.update(ctx, |input, ctx| {
-            input.handle_action(&InputAction::ShowAiCommandSearch, ctx)
-        });
-        send_telemetry_from_ctx!(TelemetryEvent::InputAICommandSearch, ctx);
     }
 
     fn save_as_workflow_from_input(&mut self, ctx: &mut ViewContext<Self>) {
@@ -22723,7 +22701,6 @@ impl TerminalView {
             Paste => self.paste_in_input(ctx),
             ShowCommandSearch => self.command_search_from_input(ctx),
             AskWarpAI => self.ask_ai(&AskAISource::SelectedInputText, ctx),
-            ShowAICommandSearch => self.ai_command_search_from_input(ctx),
             SaveAsWorkflow => self.save_as_workflow_from_input(ctx),
             ToggleInputHintText => self.toggle_input_hint_text(ctx),
         }

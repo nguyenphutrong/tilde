@@ -19,10 +19,6 @@ lazy_static! {
     /// These are rendered as clickable 'chips' in the zero state.
     static ref SAMPLE_QUERY_TO_FILTER: HashMap<&'static str, QueryFilter> = HashMap::from([
         ("history: git checkout", QueryFilter::History),
-        (
-            "# find \"foo\" in files",
-            QueryFilter::NaturalLanguage
-        ),
     ]);
 }
 

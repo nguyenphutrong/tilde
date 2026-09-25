@@ -157,8 +157,6 @@ use crate::ai::execution_profiles::ExecutionProfileId;
 use crate::ai::execution_profiles::editor::ExecutionProfileEditorManager;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::llms::LLMPreferences;
-use crate::ai_assistant::AskAIType;
-use crate::ai_assistant::execution_context::execution_context_for_session;
 use crate::app_state::{
     LeafContents, LeafSnapshot, LeftPanelDisplayedTab, LeftPanelSnapshot, NotebookPaneSnapshot,
     PaneNodeSnapshot, PaneUuid, PersistedAgentManagementFilters, RightPanelSnapshot,
@@ -2109,7 +2107,6 @@ impl Workspace {
 
         let server_api_provider = ServerApiProvider::as_ref(ctx);
         let server_api = server_api_provider.get();
-        let ai_client = server_api_provider.get_ai_client();
 
         // Inserting a (window, ModalSizes) pair to the ResizableData singleton. A restored window
         // reads the sizes from the window snapshot. A new window initializes with all default sizes.
@@ -2221,8 +2218,7 @@ impl Workspace {
         let rewind_confirmation_dialog = Self::build_rewind_confirmation_dialog(ctx);
         let delete_conversation_confirmation_dialog =
             Self::build_delete_conversation_confirmation_dialog(ctx);
-        let command_search_view =
-            ctx.add_typed_action_view(|ctx| CommandSearchView::new(ai_client.clone(), ctx));
+        let command_search_view = ctx.add_typed_action_view(CommandSearchView::new);
         ctx.subscribe_to_view(&command_search_view, |me, _, event, ctx| {
             me.handle_command_search_event(event, ctx);
         });
@@ -13651,10 +13647,6 @@ impl Workspace {
                 input_handle.read(ctx, |input, ctx| input.completion_session_context(ctx))
             });
 
-            let ai_execution_context = session_context
-                .as_ref()
-                .map(|session_context| execution_context_for_session(&session_context.session));
-
             let menu_positioning = active_input_handle
                 .as_ref()
                 .map_or_else(MenuPositioning::default, |input_handle| {
@@ -13685,7 +13677,6 @@ impl Workspace {
                     initial_query,
                     query_filter,
                     menu_positioning,
-                    ai_execution_context,
                     ctx,
                 );
             });
@@ -14233,14 +14224,11 @@ impl Workspace {
             return;
         };
         match event {
-            Close {
-                query: query_when_closed,
-                filter: filter_when_closed,
-            } => {
+            Close { .. } => {
                 self.current_workspace_state.is_command_search_open = false;
 
                 active_input_handle.update(ctx, |input, ctx| {
-                    input.handle_command_search_closed(query_when_closed, filter_when_closed, ctx);
+                    input.focus_input_box(ctx);
                     ctx.notify();
                 });
 
@@ -14250,7 +14238,7 @@ impl Workspace {
                 self.current_workspace_state.is_command_search_open = false;
                 ctx.notify();
             }
-            ItemSelected { query, payload } => {
+            ItemSelected { payload, .. } => {
                 use CommandSearchItemAction::*;
                 match payload.as_ref() {
                     AcceptHistory(AcceptedHistoryItem {
@@ -14321,16 +14309,6 @@ impl Workspace {
                             ctx.notify();
                         });
                     }
-                    TranslateUsingWarpAI => {
-                        active_input_handle.update(ctx, |input, ctx| {
-                            let content = format!("# {query}");
-                            input.focus_input_box(ctx);
-                            // Mimic the user replacing the editor text, as the replacement
-                            // is done in response to an explicit user action.
-                            input.user_replace_editor_text(content.as_str(), ctx);
-                            ctx.notify();
-                        });
-                    }
                     AcceptNotebook(sync_id) => {
                         self.open_notebook(
                             &NotebookSource::Existing(*sync_id),
@@ -14345,22 +14323,6 @@ impl Workspace {
                             false,
                             ctx,
                         );
-                    }
-                    OpenWarpAI => {
-                        if !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
-                            return;
-                        }
-
-                        let active_terminal_view = self.active_session_view(ctx).expect("There must be an active terminal view if the user selected a command search result");
-
-                        active_terminal_view.update(ctx, |terminal_view, ctx| {
-                            terminal_view.ask_blocklist_ai(
-                                &AskAIType::FromAICommandSearch {
-                                    query: Arc::new(query.to_owned()),
-                                },
-                                ctx,
-                            )
-                        });
                     }
                     AcceptAIQuery(ai_query) => {
                         let active_terminal_view = self.active_session_view(ctx).expect("There must be an active terminal view if the user selected a command search result");

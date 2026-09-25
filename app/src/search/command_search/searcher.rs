@@ -18,7 +18,7 @@ pub struct AcceptedHistoryItem {
 ///
 /// Cloud workflows carry only a `SyncId` so the handler can resolve the full
 /// object from `CloudModel` at accept time (produced by the async
-/// `cloud_workflows_data_source`). Local/AI-generated workflows are produced
+/// `cloud_workflows_data_source`). Local workflows are produced
 /// by separate sync data sources and carry owned data since they don't live
 /// in `CloudModel`.
 #[derive(Clone, Debug)]
@@ -59,12 +59,6 @@ pub enum CommandSearchItemAction {
 
     /// The user requested to run the AI query search item with this query text.
     RunAIQuery(String),
-
-    /// The user accepted the search item to open Warp AI.
-    OpenWarpAI,
-
-    /// The user accepted the search item to translate the query to a command using Warp AI.
-    TranslateUsingWarpAI,
 }
 
 #[cfg(test)]

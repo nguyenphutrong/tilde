@@ -445,8 +445,6 @@ pub enum WarpDriveSource {
 pub enum CommandSearchResultType {
     History,
     Workflow,
-    OpenWarpAI,
-    TranslateUsingWarpAI,
     Notebook,
     EnvVarCollection,
     ViewInWarpDrive,
@@ -462,8 +460,6 @@ impl From<&CommandSearchItemAction> for CommandSearchResultType {
             AcceptWorkflow(_) => Self::Workflow,
             AcceptNotebook(_) => Self::Notebook,
             AcceptEnvVarCollection(_) => Self::EnvVarCollection,
-            OpenWarpAI => Self::OpenWarpAI,
-            TranslateUsingWarpAI => Self::TranslateUsingWarpAI,
             AcceptAIQuery(_) | RunAIQuery(_) => Self::AIQuery,
         }
     }
@@ -529,12 +525,6 @@ pub enum LaunchConfigUiLocation {
     AppMenu,
     TabMenu,
     Uri,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum AICommandSearchEntrypoint {
-    ShortHandTrigger,
-    Keybinding,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -1413,9 +1403,6 @@ pub enum TelemetryEvent {
         /// source completed.
         remote_source_failures: usize,
     },
-    AICommandSearchOpened {
-        entrypoint: AICommandSearchEntrypoint,
-    },
     OpenNotebook(NotebookTelemetryMetadata),
     EditNotebook {
         metadata: NotebookTelemetryMetadata,
@@ -1487,7 +1474,6 @@ pub enum TelemetryEvent {
     InputSelectAll,
     InputPaste,
     InputCommandSearch,
-    InputAICommandSearch,
     InputAskWarpAI,
     SaveAsWorkflowModal {
         source: SaveAsWorkflowModalSource,
@@ -2867,9 +2853,6 @@ impl TelemetryEvent {
                 "buffer_length": buffer_length,
                 "was_immediately_executed": was_immediately_executed
             })),
-            TelemetryEvent::AICommandSearchOpened { entrypoint } => {
-                Some(json!({ "entrypoint": entrypoint }))
-            }
             TelemetryEvent::OpenNotebook(metadata) => Some(json!(metadata)),
             TelemetryEvent::EditNotebook {
                 metadata,
@@ -3671,7 +3654,6 @@ impl TelemetryEvent {
             | TelemetryEvent::InputSelectAll
             | TelemetryEvent::InputPaste
             | TelemetryEvent::InputCommandSearch
-            | TelemetryEvent::InputAICommandSearch
             | TelemetryEvent::InputAskWarpAI
             | TelemetryEvent::SetNewWindowsAtCustomSize
             | TelemetryEvent::DisableInputSync
@@ -4361,7 +4343,6 @@ impl TelemetryEvent {
             | TelemetryEvent::CommandSearchOpened { .. }
             | TelemetryEvent::CommandSearchExited { .. }
             | TelemetryEvent::CommandSearchResultAccepted { .. }
-            | TelemetryEvent::AICommandSearchOpened { .. }
             | TelemetryEvent::OpenNotebook(_)
             | TelemetryEvent::EditNotebook { .. }
             | TelemetryEvent::NotebookAction(_)
@@ -4391,7 +4372,6 @@ impl TelemetryEvent {
             | TelemetryEvent::InputSelectAll
             | TelemetryEvent::InputPaste
             | TelemetryEvent::InputCommandSearch
-            | TelemetryEvent::InputAICommandSearch
             | TelemetryEvent::InputAskWarpAI
             | TelemetryEvent::SaveAsWorkflowModal { .. }
             | TelemetryEvent::ExperimentTriggered { .. }
@@ -4868,7 +4848,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CommandSearchOpened => EnablementState::Always,
             Self::CommandSearchExited => EnablementState::Always,
             Self::CommandSearchResultAccepted => EnablementState::Always,
-            Self::AICommandSearchOpened => EnablementState::Always,
             Self::OpenedAltScreenFind => EnablementState::Always,
             Self::UserInitiatedClose => EnablementState::Always,
             Self::QuitModalShown => EnablementState::Always,
@@ -4894,7 +4873,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::InputSelectAll => EnablementState::Always,
             Self::InputPaste => EnablementState::Always,
             Self::InputCommandSearch => EnablementState::Always,
-            Self::InputAICommandSearch => EnablementState::Always,
             Self::InputAskWarpAI => EnablementState::Always,
             Self::SaveAsWorkflowModal => EnablementState::Always,
             Self::ExperimentTriggered => EnablementState::Always,
@@ -5311,7 +5289,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CommandSearchOpened => "Command Search Opened",
             Self::CommandSearchExited => "Command Search Exited",
             Self::CommandSearchResultAccepted => "Command Search Result Accepted",
-            Self::AICommandSearchOpened => "AI Command Search opened",
             Self::OpenNotebook => "Notebook Opened",
             Self::EditNotebook => "Notebook Edited",
             Self::NotebookAction => "Notebook Action",
@@ -5344,7 +5321,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::InputSelectAll => "InputBoxSelectAll",
             Self::InputPaste => "InputBoxPaste",
             Self::InputCommandSearch => "InputBoxCommandSearch",
-            Self::InputAICommandSearch => "InputBoxAICommandSearch",
             Self::InputAskWarpAI => "InputBoxAskWarpAI",
             Self::SaveAsWorkflowModal => "Opened Save As Workflow Modal",
             Self::ExperimentTriggered => "experiments.client.enroll_client",
@@ -5869,9 +5845,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 "Exited command search (universal search panel to search) without accepting a result"
             }
             Self::CommandSearchResultAccepted => "Accepted command search result",
-            Self::AICommandSearchOpened => {
-                "Opened the modal for AI Command Search, where you can use natural language to search for commands"
-            }
             Self::OpenNotebook => "Opened a notebook",
             Self::EditNotebook => "Edited a notebook",
             Self::NotebookAction => {
@@ -5931,9 +5904,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             }
             Self::InputCommandSearch => {
                 "Opened Command Search via the Input Editor's context menu (right clicking the buffer)"
-            }
-            Self::InputAICommandSearch => {
-                "Opened AI Command Search via the Input Editor's context menu (right clicking the buffer)"
             }
             Self::InputAskWarpAI => "Clicked \"Ask Warp AI\" from the Input Editor's context menu",
             Self::SaveAsWorkflowModal => {
