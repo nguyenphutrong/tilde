@@ -10,7 +10,6 @@ pub mod inline_menu;
 pub mod message_bar;
 pub mod models;
 pub mod plans;
-pub mod profiles;
 pub mod prompts;
 pub mod repos;
 pub mod rewind;
@@ -237,7 +236,6 @@ use crate::terminal::input::models::{
     InlineModelSelectorEvent, InlineModelSelectorTab, InlineModelSelectorView,
 };
 use crate::terminal::input::plans::{InlinePlanMenuEvent, InlinePlanMenuView};
-use crate::terminal::input::profiles::{InlineProfileSelectorEvent, InlineProfileSelectorView};
 use crate::terminal::input::prompts::{InlinePromptsMenuEvent, InlinePromptsMenuView};
 use crate::terminal::input::repos::{InlineReposMenuEvent, InlineReposMenuView};
 use crate::terminal::input::rewind::{RewindMenuEvent, RewindMenuView};
@@ -483,7 +481,6 @@ pub enum TelemetryInputSuggestionsMode {
     SlashCommands,
     ConversationMenu,
     ModelSelector,
-    ProfileSelector,
     PromptsMenu,
     SkillMenu,
     InlineHistoryMenu,
@@ -611,8 +608,6 @@ pub enum InputSuggestionsMode {
 
     /// Model selector mode for selecting the Agent base model.
     ModelSelector,
-    /// Profile selector mode for selecting an execution profile.
-    ProfileSelector,
 
     /// Skill menu mode for /open-skill command.
     SkillMenu,
@@ -675,9 +670,7 @@ impl InputSuggestionsMode {
                 | Self::UserQueryMenu { .. }
                 | Self::InlineHistoryMenu { .. }
                 | Self::PlanMenu { .. }
-        ) || (FeatureFlag::InlineProfileSelector.is_enabled()
-            && matches!(self, Self::ProfileSelector))
-            || (FeatureFlag::ListSkills.is_enabled() && matches!(self, Self::SkillMenu))
+        ) || (FeatureFlag::ListSkills.is_enabled() && matches!(self, Self::SkillMenu))
             || (FeatureFlag::InlineRepoMenu.is_enabled() && matches!(self, Self::IndexedReposMenu))
     }
 
@@ -710,7 +703,6 @@ impl InputSuggestionsMode {
             } => Some("Search queries to rewind to"),
             InputSuggestionsMode::SkillMenu => Some("Search skills"),
             InputSuggestionsMode::ModelSelector => Some("Search models"),
-            InputSuggestionsMode::ProfileSelector => Some("Search profiles"),
             InputSuggestionsMode::SlashCommands if FeatureFlag::AgentView.is_enabled() => {
                 Some("Search commands")
             }
@@ -743,7 +735,6 @@ impl InputSuggestionsMode {
 
             InputSuggestionsMode::SlashCommands => TelemetryInputSuggestionsMode::SlashCommands,
             InputSuggestionsMode::ModelSelector => TelemetryInputSuggestionsMode::ModelSelector,
-            InputSuggestionsMode::ProfileSelector => TelemetryInputSuggestionsMode::ProfileSelector,
             InputSuggestionsMode::PromptsMenu => TelemetryInputSuggestionsMode::PromptsMenu,
             InputSuggestionsMode::SkillMenu => TelemetryInputSuggestionsMode::SkillMenu,
             InputSuggestionsMode::UserQueryMenu { .. } => {
@@ -1523,8 +1514,6 @@ pub struct Input {
 
     /// Inline model selector for choosing the Agent base model.
     inline_model_selector_view: ViewHandle<InlineModelSelectorView>,
-    /// Inline profile selector for choosing the active execution profile.
-    inline_profile_selector_view: ViewHandle<InlineProfileSelectorView>,
 
     /// Inline skill selector for /open-skill command.
     inline_skill_selector_view: ViewHandle<InlineSkillSelectorView>,
@@ -2851,20 +2840,6 @@ impl Input {
             me.handle_inline_model_selector_event(event, ctx);
         });
 
-        let inline_profile_selector_view = ctx.add_view(|ctx| {
-            InlineProfileSelectorView::new(
-                terminal_view_id,
-                suggestions_mode_model.clone(),
-                agent_view_controller.clone(),
-                &buffer_model,
-                &inline_terminal_menu_positioner,
-                ctx,
-            )
-        });
-        ctx.subscribe_to_view(&inline_profile_selector_view, |me, _, event, ctx| {
-            me.handle_inline_profile_selector_event(event, ctx);
-        });
-
         let inline_prompts_menu_view = ctx.add_view(|ctx| {
             InlinePromptsMenuView::new(
                 suggestions_mode_model.clone(),
@@ -3107,7 +3082,6 @@ impl Input {
             inline_plan_menu_view,
             inline_repos_menu_view,
             inline_model_selector_view,
-            inline_profile_selector_view,
             inline_prompts_menu_view,
             inline_skill_selector_view,
             skill_selector_should_invoke: false,
@@ -3662,55 +3636,6 @@ impl Input {
         self.focus_input_box(ctx);
     }
 
-    fn handle_inline_profile_selector_event(
-        &mut self,
-        event: &InlineProfileSelectorEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            InlineProfileSelectorEvent::SelectedProfile { profile_id } => {
-                AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                    profiles_model.set_active_profile(
-                        self.terminal_view_id,
-                        profile_id.clone(),
-                        ctx,
-                    );
-                });
-
-                // Remove any LLM override when switching profiles
-                // (mirroring the profile-selecting behavior from the profile chip).
-                LLMPreferences::handle(ctx).update(ctx, |llm_prefs, ctx| {
-                    llm_prefs.remove_llm_override(self.terminal_view_id, ctx);
-                });
-            }
-            InlineProfileSelectorEvent::Dismissed => {
-                if self
-                    .suggestions_mode_model
-                    .as_ref(ctx)
-                    .is_profile_selector()
-                {
-                    self.suggestions_mode_model.update(ctx, |model, ctx| {
-                        model.close_and_restore_buffer(ctx);
-                    });
-                    ctx.notify();
-                }
-                return;
-            }
-        }
-
-        if self
-            .suggestions_mode_model
-            .as_ref(ctx)
-            .is_profile_selector()
-        {
-            self.suggestions_mode_model.update(ctx, |model, ctx| {
-                model.close_and_restore_buffer(ctx);
-            });
-            ctx.notify();
-        }
-        self.focus_input_box(ctx);
-    }
-
     fn handle_inline_prompts_menu_event(
         &mut self,
         event: &InlinePromptsMenuEvent,
@@ -3826,18 +3751,6 @@ impl Input {
             });
         }
         self.focus_input_box(ctx);
-    }
-
-    fn open_profile_selector(&mut self, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::InlineProfileSelector.is_enabled() {
-            return;
-        }
-
-        self.suggestions_mode_model.update(ctx, |model, ctx| {
-            model.set_mode(InputSuggestionsMode::ProfileSelector, ctx);
-        });
-
-        ctx.notify();
     }
 
     fn open_prompts_menu(&mut self, ctx: &mut ViewContext<Self>) {
@@ -6584,10 +6497,6 @@ impl Input {
                         // Model selector selection is handled separately
                         // This shouldn't be reached since model selector doesn't use InputSuggestions
                     }
-                    InputSuggestionsMode::ProfileSelector => {
-                        // Profile selector selection is handled separately.
-                        // This shouldn't be reached since profile selector doesn't use InputSuggestions
-                    }
                     InputSuggestionsMode::PromptsMenu => {
                         // Prompts menu selection is handled via InlinePromptsMenuView
                     }
@@ -6737,10 +6646,6 @@ impl Input {
             }
             InputSuggestionsMode::ModelSelector => {
                 // Model selector selection is handled separately
-                false
-            }
-            InputSuggestionsMode::ProfileSelector => {
-                // Profile selector selection is handled separately
                 false
             }
             InputSuggestionsMode::PromptsMenu => {
@@ -6994,12 +6899,6 @@ impl Input {
             }
             InputSuggestionsMode::ModelSelector => {
                 self.inline_model_selector_view.update(ctx, |view, ctx| {
-                    view.select_up(ctx);
-                });
-                true
-            }
-            InputSuggestionsMode::ProfileSelector => {
-                self.inline_profile_selector_view.update(ctx, |view, ctx| {
                     view.select_up(ctx);
                 });
                 true
@@ -7282,12 +7181,6 @@ impl Input {
             }
             InputSuggestionsMode::ModelSelector => {
                 self.inline_model_selector_view.update(ctx, |view, ctx| {
-                    view.select_down(ctx);
-                });
-                true
-            }
-            InputSuggestionsMode::ProfileSelector => {
-                self.inline_profile_selector_view.update(ctx, |view, ctx| {
                     view.select_down(ctx);
                 });
                 true
@@ -8098,9 +7991,6 @@ impl Input {
                     InputSuggestionsMode::ModelSelector => {
                         // Model selector handles its own state
                     }
-                    InputSuggestionsMode::ProfileSelector => {
-                        // Profile selector handles its own state
-                    }
                     InputSuggestionsMode::PromptsMenu => {
                         // Prompts menu handles its own state
                     }
@@ -8211,9 +8101,6 @@ impl Input {
                         }
                         InputSuggestionsMode::ModelSelector => {
                             // Model selector handles its own selection state
-                        }
-                        InputSuggestionsMode::ProfileSelector => {
-                            // Profile selector handles its own selection state
                         }
                         InputSuggestionsMode::PromptsMenu => {
                             // Prompts menu handles its own selection state
@@ -10003,16 +9890,6 @@ impl Input {
         {
             self.inline_model_selector_view
                 .update(ctx, |view, ctx| view.accept_selected_item(false, ctx));
-            return;
-        }
-
-        if self
-            .suggestions_mode_model
-            .as_ref(ctx)
-            .is_profile_selector()
-        {
-            self.inline_profile_selector_view
-                .update(ctx, |view, ctx| view.accept_selected_item(ctx));
             return;
         }
 

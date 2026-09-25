@@ -372,3 +372,8 @@ Inline-menu positioning depends on terminal input mode and available space, with
 controller. Standard message-bar and border overhead always count toward the frame height. A
 bootstrapped-terminal regression checks pinned-top and pinned-bottom placement. Rendered GUI
 verification remains blocked by the earlier startup failure; shared menu views still retain AI debt.
+
+The execution-profile selector, its eager Input construction, navigation, telemetry mode, and
+`/profile` registry/dispatch are removed. Old `ProfileSelector` height-map keys still deserialize and
+round-trip without affecting local history heights. Both GUI and TUI registries reject `/profile`
+even with its old flag enabled. Execution-profile backend and other AI constructors remain.

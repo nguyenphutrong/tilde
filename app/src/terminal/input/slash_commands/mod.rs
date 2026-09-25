@@ -838,13 +838,6 @@ impl Input {
                 // Open the skill selector menu for invocation - skill command will be inserted into buffer
                 self.open_invoke_skill_selector(ctx);
             }
-            SlashCommandKind::Profile => {
-                if !FeatureFlag::InlineProfileSelector.is_enabled() {
-                    return false;
-                }
-
-                self.open_profile_selector(ctx);
-            }
             SlashCommandKind::Prompts => {
                 if self.is_cloud_mode_input_v2_composing(ctx) {
                     self.apply_v2_slash_section_filter(CloudModeV2Section::Prompts, ctx);

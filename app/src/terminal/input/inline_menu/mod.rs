@@ -40,6 +40,7 @@ pub enum InlineMenuType {
     ModelSelector,
     /// Retained for decoding saved menu heights.
     ConversationMenu,
+    /// Retained for decoding saved menu heights.
     ProfileSelector,
     PromptsMenu,
     SkillMenu,
@@ -71,7 +72,6 @@ impl InlineMenuType {
         match mode {
             InputSuggestionsMode::SlashCommands => Some(InlineMenuType::SlashCommands),
             InputSuggestionsMode::ModelSelector => Some(InlineMenuType::ModelSelector),
-            InputSuggestionsMode::ProfileSelector => Some(InlineMenuType::ProfileSelector),
             InputSuggestionsMode::PromptsMenu => Some(InlineMenuType::PromptsMenu),
             InputSuggestionsMode::SkillMenu => Some(InlineMenuType::SkillMenu),
             InputSuggestionsMode::UserQueryMenu {
