@@ -11546,12 +11546,6 @@ impl TerminalView {
                     input.handle_after_block_completed_event(block_type.clone(), ctx);
                 });
             }
-            ModelEvent::BackgroundBlockStarted => {
-                // For now, this event is only used for telemetry. It may also
-                // be useful to request attention if the user's session starts
-                //receiving background output, or to auto-scroll it.
-                send_telemetry_from_ctx!(TelemetryEvent::BackgroundBlockStarted, ctx);
-            }
             ModelEvent::PreInteractiveSSHSession => {}
             ModelEvent::SSH(remote_shell) => {
                 if let Some(shell) = ShellType::from_name(remote_shell)
@@ -11561,10 +11555,6 @@ impl TerminalView {
                     // takes too long to initialize
                     self.start_bootstrap_timer(BOOTSTRAP_FAILED_DURATION, ctx);
                 }
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::SSHBootstrapAttempt(remote_shell.clone()),
-                    ctx
-                );
             }
             ModelEvent::SSHControlMasterError => {
                 self.handle_control_master_error(ctx);

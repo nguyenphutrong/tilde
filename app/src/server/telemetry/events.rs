@@ -1157,8 +1157,6 @@ pub enum TelemetryEvent {
         exit_code: ExitCode,
         terminal_session_id: Option<SessionId>,
     },
-    /// A new block of background output was started and added to the block list.
-    BackgroundBlockStarted,
     SessionCreation,
     Login,
     ConfirmSuggestion {
@@ -1228,9 +1226,6 @@ pub enum TelemetryEvent {
     /// The download source, if it can be determined. Will only be sent when
     /// the app is launched while logged out.
     DownloadSource(DownloadSource),
-    /// We attempted to bootstrap an SSH session via the SSH wrapper.  The
-    /// argument is the name of the remote shell.
-    SSHBootstrapAttempt(String),
     SSHControlMasterError {
         has_remote_server: bool,
     },
@@ -2748,9 +2743,6 @@ impl TelemetryEvent {
                 "exit_code": exit_code,
                 "terminal_session_id": terminal_session_id,
             })),
-            TelemetryEvent::SSHBootstrapAttempt(remote_shell) => {
-                Some(json!({ "shell": remote_shell.as_str() }))
-            }
             TelemetryEvent::ContextMenuCopy(entity, cardinality) => {
                 Some(json!({ "entity": entity.as_str(), "cardinality": cardinality }))
             }
@@ -3660,8 +3652,7 @@ impl TelemetryEvent {
                 "exchange_id": identifiers.client_exchange_id,
                 "conversation_id": identifiers.server_conversation_id,
             })),
-            TelemetryEvent::BackgroundBlockStarted
-            | TelemetryEvent::SessionCreation
+            TelemetryEvent::SessionCreation
             | TelemetryEvent::Login
             | TelemetryEvent::ContextMenuInsertSelectedText
             | TelemetryEvent::JumpToPreviousCommand
@@ -4293,7 +4284,6 @@ impl TelemetryEvent {
             | TelemetryEvent::AISuggestedAgentModeWorkflowAdded { .. }
             | TelemetryEvent::BlockCompleted { .. }
             | TelemetryEvent::BlockCompletedOnDogfoodOnly { .. }
-            | TelemetryEvent::BackgroundBlockStarted
             | TelemetryEvent::SessionCreation
             | TelemetryEvent::Login
             | TelemetryEvent::AgentModeContinueConversationButtonClicked { .. }
@@ -4332,7 +4322,6 @@ impl TelemetryEvent {
             | TelemetryEvent::AppStartup(_)
             | TelemetryEvent::LoggedOutStartup
             | TelemetryEvent::DownloadSource(_)
-            | TelemetryEvent::SSHBootstrapAttempt(_)
             | TelemetryEvent::SSHControlMasterError { .. }
             | TelemetryEvent::KeybindingChanged { .. }
             | TelemetryEvent::KeybindingResetToDefault { .. }
@@ -4810,7 +4799,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             }
             Self::ToggleSettingsSync { .. } => EnablementState::Always,
             Self::BlockCompleted => EnablementState::Always,
-            Self::BackgroundBlockStarted => EnablementState::Always,
             Self::SessionCreation => EnablementState::Always,
             Self::Login => EnablementState::Always,
             Self::ConfirmSuggestion => EnablementState::Always,
@@ -4847,7 +4835,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AppStartup => EnablementState::Always,
             Self::LoggedOutStartup => EnablementState::Always,
             Self::DownloadSource => EnablementState::Always,
-            Self::SSHBootstrapAttempt => EnablementState::Always,
             Self::SSHControlMasterError => EnablementState::Always,
             Self::KeybindingChanged => EnablementState::Always,
             Self::KeybindingResetToDefault => EnablementState::Always,
@@ -5216,7 +5203,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             // preserve our historical telemetry data.
             Self::BlockCompleted => "Block Creation",
             Self::BlockCompletedOnDogfoodOnly => "Block Completed (dogfood only)",
-            Self::BackgroundBlockStarted => "Background Block Started",
             Self::SessionCreation => "Tab Creation",
             Self::Login => "Logged in to native app",
             Self::AgentModeContinueConversationButtonClicked => {
@@ -5301,7 +5287,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AppStartup => "App Startup",
             Self::LoggedOutStartup => "Logged-out App Startup",
             Self::DownloadSource => "App Download Source",
-            Self::SSHBootstrapAttempt => "SSH Bootstrap Attempt",
             Self::SSHControlMasterError => "SSH ControlMaster Error",
             Self::SetNewWindowsAtCustomSize => "Set New Windows at Custom Size",
             Self::ToggleNewWindowsAtCustomSize => "Toggle New Windows at Custom Size",
@@ -5742,9 +5727,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AnonymousUserHitCloudObjectLimit => {
                 "Anonymous user attempted to create a cloud object past their personal object limit"
             }
-            Self::BackgroundBlockStarted => {
-                "Warp created a background-output Block (whenever a processes has been backgrounded and yields some output)"
-            }
             Self::SessionCreation => "Created a tab",
             Self::MCPServerCollectionPaneOpened { .. } => "MCP Server Collection Pane Opened",
             Self::MCPServerAdded { .. } => "MCP Server Added",
@@ -5828,7 +5810,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::DownloadSource => {
                 "Whether the Warp was installed from the home page or through homebrew"
             }
-            Self::SSHBootstrapAttempt => "Attempted bootstrapping for an SSH session",
             Self::SSHControlMasterError => {
                 "Encountered a ControlMaster error during an SSH session"
             }

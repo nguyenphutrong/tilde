@@ -50,8 +50,6 @@ pub enum Event {
     /// the requested-command finish detector) should keep listening only to
     /// `BlockMetadataReceived` so they preserve their once-per-block contract.
     BlockWorkingDirectoryUpdated(BlockWorkingDirectoryUpdatedEvent),
-    /// Sent after a background block is started and added to the block list.
-    BackgroundBlockStarted,
     ClipboardStore(ClipboardType, String),
     ClipboardLoad(
         ClipboardType,
@@ -400,7 +398,6 @@ impl Debug for Event {
                 event.block_metadata, event.is_done_bootstrapping
             ),
             Event::AfterBlockStarted { .. } => write!(f, "BlockExecutionStarted"),
-            Event::BackgroundBlockStarted => write!(f, "BackgroundBlockStarted"),
             Event::VisibleBootstrapBlock => write!(f, "VisibleBootstrapBlock"),
             Event::Title(title) => write!(f, "Title({title})"),
             Event::ClipboardStore(_, text) => write!(f, "ClipboardStore({text})"),
