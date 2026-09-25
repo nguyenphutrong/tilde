@@ -119,9 +119,6 @@ use super::shared_session::SharedSessionStatus;
 use super::shared_session::presence_manager::PresenceManager;
 use super::shared_session::viewer::history_model::SharedSessionHistoryModel;
 use super::shell::ShellType;
-use super::universal_developer_input::{
-    UniversalDeveloperInputButtonBar, UniversalDeveloperInputButtonBarEvent,
-};
 use super::view::ambient_agent::{
     AmbientAgentViewModel, AmbientAgentViewModelEvent, is_cloud_agent_pre_first_exchange,
 };
@@ -212,6 +209,8 @@ use crate::resource_center::{
 use crate::search::QueryFilter;
 use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
 use crate::search::ai_context_menu::search::is_valid_search_query;
+#[cfg(not(target_family = "wasm"))]
+use crate::search::ai_context_menu::view::AIContextMenu;
 use crate::search::ai_context_menu::view::AIContextMenuAction;
 use crate::search::slash_command_menu::static_commands::commands::{self, COMMAND_REGISTRY};
 use crate::server::cloud_objects::update_manager::UpdateManager;
@@ -275,7 +274,6 @@ use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::session::shell_quote_arg;
 use crate::terminal::package_installers::command_at_cursor_has_common_package_installer_prefix;
 use crate::terminal::prompt_render_helper::should_render_ps1_prompt;
-use crate::terminal::universal_developer_input::AtContextMenuDisabledReason;
 use crate::terminal::view::ambient_agent::{
     AuthSecretFtuxView, AuthSecretFtuxViewEvent, AuthSecretSelector, AuthSecretSelectorEvent,
     HarnessSelector, HarnessSelectorEvent, HostSelector, HostSelectorEvent, NakedHeaderButtonTheme,
@@ -951,15 +949,6 @@ impl HistoryUpMode {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum InputEmptyStateChangeReason {
-    /// The buffer transitioned between empty and non-empty due to a regular edit.
-    Edited,
-    /// The buffer was cleared because a user-executed command completed and we reinitialized the
-    /// buffer for the next command.
-    UserCommandCompleted,
-}
-
 pub enum Event {
     AutosuggestionAccepted,
     ClearSelectedBlock,
@@ -973,11 +962,6 @@ pub enum Event {
     UnhandledModifierKeyOnEditor(Arc<String>),
     ClearSelectionsWhenShellMode,
     InputStateChanged(InputState),
-    /// Emitted when the input text transitions between empty and non-empty states
-    InputEmptyStateChanged {
-        is_empty: bool,
-        reason: InputEmptyStateChangeReason,
-    },
     Escape,
     /// note: Terminal Inputs should only emit the variant
     /// SyncInputType::InputEditorContentsChanged.
@@ -1120,9 +1104,6 @@ pub enum InputAction {
 
     /// Clears the AI context menu search query back to the @ character and resets menu state.
     ClearAndResetAIContextMenuQuery,
-
-    /// Sets the hover state of the Universal Developer Input
-    SetUDIHovered(bool),
 
     /// Persist the completions menu width when the user resizes it.
     UpdateCompletionsMenuWidth(f32),
@@ -1597,8 +1578,6 @@ pub struct Input {
 
     is_processing_attached_images: bool,
 
-    universal_developer_input_button_bar: ViewHandle<UniversalDeveloperInputButtonBar>,
-
     terminal_input_message_bar: ViewHandle<TerminalInputMessageBar>,
 
     agent_input_footer: ViewHandle<AgentInputFooter>,
@@ -1643,13 +1622,6 @@ pub struct Input {
 
     /// Model for managing slash command state.
     slash_command_model: ModelHandle<SlashCommandModel>,
-
-    /// Cached flag indicating whether the editor buffer is empty, used to track changes between
-    /// empty and non-empty states.
-    ///
-    /// If simply looking for if the editor contents empty, check the editor view directly instead
-    /// of using this flag.
-    is_editor_empty_on_last_edit: bool,
 
     /// Weak handle to this input view for drop target data
     weak_view_handle: WeakViewHandle<Input>,
@@ -2565,21 +2537,6 @@ impl Input {
         let input_render_state_model_handle: ModelHandle<InputRenderStateModel> =
             ctx.add_model(|_| InputRenderStateModel::new(false, size_info));
 
-        let universal_developer_input_button_bar = ctx.add_typed_action_view(|ctx| {
-            UniversalDeveloperInputButtonBar::new(
-                terminal_view_id,
-                ai_input_model.clone(),
-                cli_subagent_controller.clone(),
-                model.clone(),
-                ctx,
-            )
-        });
-        ctx.subscribe_to_view(
-            &universal_developer_input_button_bar,
-            |me, _, event, ctx| {
-                me.handle_universal_developer_input_button_bar_event(event, ctx);
-            },
-        );
         let agent_input_footer = ctx.add_typed_action_view(|ctx| {
             AgentInputFooter::new(
                 menu_positioning_provider.clone(),
@@ -2743,7 +2700,6 @@ impl Input {
                 me.update_voice_transcription_options(ctx);
                 me.update_image_context_options(ctx);
                 me.update_ai_context_menu(ctx);
-                me.check_slash_menu_disabled_state(ctx);
             });
 
             let ai_input_model_clone = ai_input_model.clone();
@@ -3609,7 +3565,6 @@ impl Input {
         let completions_menu_width = *input_settings.completions_menu_width.value();
         let completions_menu_height = *input_settings.completions_menu_height.value();
 
-        let is_editor_empty = editor.as_ref(ctx).is_empty(ctx);
         let mut input = Self {
             input_suggestions,
             suggestions_mode_model,
@@ -3637,7 +3592,6 @@ impl Input {
             autosuggestions_abort_handle: None,
             completions_abort_handle: None,
             menu_positioning_provider,
-            universal_developer_input_button_bar,
             terminal_input_message_bar,
             prompt_render_helper,
             prompt_type: current_prompt,
@@ -3676,7 +3630,6 @@ impl Input {
             cloud_mode_v2_history_menu_view,
             inline_terminal_menu_positioner,
             cached_agent_mode_hint_text: None,
-            is_editor_empty_on_last_edit: is_editor_empty,
             weak_view_handle: ctx.handle(),
             agent_status_view,
             queued_prompts_panel,
@@ -3747,7 +3700,6 @@ impl Input {
     fn update_ai_context_menu(&mut self, ctx: &mut ViewContext<Self>) {
         let ai_input_model = self.ai_input_model.as_ref(ctx);
         let is_ai_input = ai_input_model.input_type().is_ai();
-        self.check_and_update_ai_context_menu_disabled_state(ctx);
         self.editor.update(ctx, move |editor, ctx| {
             editor.set_is_ai_input(is_ai_input, ctx);
             ctx.notify();
@@ -4124,30 +4076,6 @@ impl Input {
         }
 
         request_attachments
-    }
-
-    /// Update the at button's disabled state based on whether AI context menu should render
-    pub fn check_and_update_ai_context_menu_disabled_state(&mut self, ctx: &mut ViewContext<Self>) {
-        let disable_reason = AtContextMenuDisabledReason::get_disable_reason(
-            self.active_block_metadata.as_ref(),
-            self.sessions.as_ref(ctx),
-            &self.ai_input_model.as_ref(ctx).input_config(),
-            ctx,
-        );
-
-        self.universal_developer_input_button_bar
-            .update(ctx, |button_bar, ctx| {
-                button_bar.set_at_button_disabled(disable_reason, ctx);
-            });
-    }
-
-    fn check_slash_menu_disabled_state(&mut self, ctx: &mut ViewContext<Self>) {
-        let should_disable =
-            !self.editor().as_ref(ctx).is_empty(ctx) || self.is_locked_in_shell_mode(ctx);
-        self.universal_developer_input_button_bar
-            .update(ctx, |button_bar, ctx| {
-                button_bar.set_slash_button_disabled(should_disable, ctx);
-            });
     }
 
     fn handle_ai_context_menu_search(&mut self, is_navigation: bool, ctx: &mut ViewContext<Self>) {
@@ -5629,14 +5557,6 @@ impl Input {
                 });
 
             me.set_zero_state_hint_text(ctx);
-
-            // Update the universal developer input button bar blurred state when focus changes
-            if me.should_show_universal_developer_input(ctx) {
-                me.universal_developer_input_button_bar
-                    .update(ctx, |button_bar, ctx| {
-                        button_bar.set_is_in_active_terminal(is_focused, ctx);
-                    });
-            }
         });
     }
 
@@ -5820,7 +5740,6 @@ impl Input {
                 ctx.notify();
             }
             InputSettingsChangedEvent::AtContextMenuInTerminalMode { .. } => {
-                self.check_and_update_ai_context_menu_disabled_state(ctx);
                 ctx.notify();
             }
             InputSettingsChangedEvent::EnableAiCommandSearchHashTrigger { .. } => {
@@ -5902,73 +5821,6 @@ impl Input {
                 UserWorkspaces::handle(ctx).update(ctx, |user_workspaces, ctx| {
                     user_workspaces.generate_stripe_billing_portal_link(*team_uid, ctx);
                 });
-            }
-        }
-    }
-
-    fn handle_universal_developer_input_button_bar_event(
-        &mut self,
-        event: &UniversalDeveloperInputButtonBarEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            #[cfg(feature = "voice_input")]
-            UniversalDeveloperInputButtonBarEvent::ToggleVoiceInput(from) => {
-                self.toggle_voice_input(from, ctx);
-            }
-            UniversalDeveloperInputButtonBarEvent::InputTypeSelected(input_type) => {
-                if self.is_input_mode_toggle_disabled() {
-                    return;
-                }
-
-                self.focus_input_box(ctx);
-
-                let is_input_buffer_empty = self.editor.as_ref(ctx).buffer_text(ctx).is_empty();
-
-                self.ai_input_model.update(ctx, |model, ctx| {
-                    model.set_input_config(
-                        InputConfig {
-                            input_type: *input_type,
-                            is_locked: true,
-                        },
-                        is_input_buffer_empty,
-                        Some(InputTypeAutoDetectionSource::ManualToggle),
-                        ctx,
-                    );
-                });
-
-                if *input_type == InputType::AI {
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::AgentModeClickedEntrypoint {
-                            entrypoint: AgentModeEntrypoint::UDITerminalInputSwitcher,
-                        },
-                        ctx
-                    );
-                }
-            }
-            UniversalDeveloperInputButtonBarEvent::SelectFile => {
-                self.select_image(ctx);
-            }
-            UniversalDeveloperInputButtonBarEvent::SetAIContextMenuOpen(open) => {
-                self.focus_input_box(ctx);
-                self.set_ai_context_menu_open(*open, ctx);
-            }
-            UniversalDeveloperInputButtonBarEvent::PromptAlert(prompt_alert_event) => {
-                self.handle_prompt_alert(prompt_alert_event, ctx);
-            }
-            UniversalDeveloperInputButtonBarEvent::OpenSettings(section) => {
-                ctx.emit(Event::OpenSettings(*section));
-            }
-            UniversalDeveloperInputButtonBarEvent::OpenSlashCommandMenu => {
-                self.focus_input_box(ctx);
-                if !FeatureFlag::AgentView.is_enabled() {
-                    self.ensure_agent_mode_for_ai_features(
-                        false,
-                        Some(InputTypeAutoDetectionSource::SlashCommand),
-                        ctx,
-                    );
-                }
-                self.toggle_legacy_slash_commands_menu(ctx);
             }
         }
     }
@@ -9017,8 +8869,6 @@ impl Input {
             self.close_ai_context_menu(ctx);
         }
 
-        self.check_slash_menu_disabled_state(ctx);
-
         match event {
             EditorEvent::Edited(edit_origin) => {
                 // We should ideally be handling all `Edited` events, not just those that are
@@ -9047,15 +8897,6 @@ impl Input {
                         },
                     );
                     ctx.notify();
-                }
-
-                let is_editor_empty = self.editor.as_ref(ctx).is_empty(ctx);
-                if is_editor_empty != self.is_editor_empty_on_last_edit {
-                    self.is_editor_empty_on_last_edit = is_editor_empty;
-                    ctx.emit(Event::InputEmptyStateChanged {
-                        is_empty: is_editor_empty,
-                        reason: InputEmptyStateChangeReason::Edited,
-                    });
                 }
 
                 let is_ai_input_enabled = self.ai_input_model.as_ref(ctx).is_ai_input_enabled();
@@ -9839,10 +9680,6 @@ impl Input {
                 is_listening,
                 is_transcribing,
             } => {
-                self.universal_developer_input_button_bar
-                    .update(ctx, |button_bar, ctx| {
-                        button_bar.set_voice_is_listening(*is_listening, ctx);
-                    });
                 self.agent_input_footer.update(ctx, |footer, ctx| {
                     footer.set_voice_is_active(*is_listening || *is_transcribing, ctx);
                 });
@@ -10753,16 +10590,49 @@ impl Input {
             return false;
         }
 
-        let is_disabled = AtContextMenuDisabledReason::get_disable_reason(
-            self.active_block_metadata.as_ref(),
-            self.sessions.as_ref(app),
-            &self.ai_input_model.as_ref(app).input_config(),
-            app,
-        )
-        .is_some();
-
-        if is_disabled {
+        if cfg!(target_family = "wasm") {
             return false;
+        }
+
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let input_config = self.ai_input_model.as_ref(app).input_config();
+            let unsupported_session = self
+                .active_block_metadata
+                .as_ref()
+                .and_then(|metadata| metadata.session_id())
+                .and_then(|session_id| self.sessions.as_ref(app).get(session_id))
+                .is_some_and(|session| {
+                    let session_type = session.session_type();
+                    // SSH wrapper metadata survives an upgrade to a connected remote server.
+                    let has_connected_remote_server = matches!(
+                        session_type,
+                        SessionType::WarpifiedRemote { host_id: Some(_) }
+                    );
+                    session.subshell_info().is_some()
+                        || (!has_connected_remote_server
+                            && (session.is_ssh_wrapper_session()
+                                || matches!(
+                                    session_type,
+                                    SessionType::WarpifiedRemote { host_id: None }
+                                )))
+                });
+            if unsupported_session
+                || (input_config.input_type == InputType::Shell
+                    && !*InputSettings::as_ref(app)
+                        .at_context_menu_in_terminal_mode
+                        .value())
+                || AIContextMenu::get_categories_for_mode(
+                    input_config.input_type.is_ai() || !input_config.is_locked,
+                    false,
+                    false,
+                    false,
+                    app,
+                )
+                .is_empty()
+            {
+                return false;
+            }
         }
 
         // Don't trigger in shell mode for common package installer prefixes, where '@' is valid input.
@@ -13567,19 +13437,6 @@ impl Input {
                                 }
                             }
                         });
-                        self.is_editor_empty_on_last_edit = false;
-                    } else {
-                        // This is the one place where buffer contents can change without an `Edit`
-                        // -- this is because the buffer semantically isn't being edited, a new one is
-                        // being constructed. We can guarantee in this case that the buffer was previously
-                        // non-empty and should emit this event, because this code path is executed upon block
-                        // completion in response to an executed command, though this guarantee is not explicitly
-                        // enforced by the code.
-                        self.is_editor_empty_on_last_edit = true;
-                        ctx.emit(Event::InputEmptyStateChanged {
-                            is_empty: true,
-                            reason: InputEmptyStateChangeReason::UserCommandCompleted,
-                        });
                     }
                 }
             } else {
@@ -13606,12 +13463,6 @@ impl Input {
                     shared_session_input_state.pending_command_execution_request = None;
                 };
             }
-
-            // Update the segmented control disabled state based on the new state.
-            self.universal_developer_input_button_bar
-                .update(ctx, |button_bar, ctx| {
-                    button_bar.update_segmented_control_disabled_state(ctx);
-                });
 
             // Generate autosuggestion if the input is not empty (user had type-ahead).
             self.maybe_generate_autosuggestion(ctx);
@@ -14289,13 +14140,6 @@ impl Input {
         format!("status_free_input_{}", self.view_id)
     }
 
-    /// Returns a reference to the universal developer input button bar, if it exists
-    pub fn universal_developer_input_button_bar(
-        &self,
-    ) -> &ViewHandle<UniversalDeveloperInputButtonBar> {
-        &self.universal_developer_input_button_bar
-    }
-
     pub fn should_show_universal_developer_input(&self, app: &AppContext) -> bool {
         InputSettings::as_ref(app).is_universal_developer_input_enabled(app)
     }
@@ -14376,12 +14220,6 @@ impl TypedActionView for Input {
             }
             InputAction::ClearAndResetAIContextMenuQuery => {
                 self.clear_and_reset_ai_context_menu_query(ctx);
-            }
-            InputAction::SetUDIHovered(is_hovered) => {
-                self.universal_developer_input_button_bar
-                    .update(ctx, |button_bar, ctx| {
-                        button_bar.set_udi_hovered(*is_hovered, ctx);
-                    });
             }
             InputAction::UpdateCompletionsMenuWidth(width) => {
                 InputSettings::handle(ctx).update(ctx, |settings, ctx| {

@@ -222,6 +222,11 @@ remains. Inline selectors and the explicit OpenModelSelector action remain for l
 Prompt-restoration integration scenarios retain that action; only the retired chip-toggle-close
 scenario is removed.
 
+The obsolete developer-input button bar and its empty-buffer/hover event plumbing are removed.
+The surviving context-menu predicate retains SSH/subshell restrictions, the shell-mode setting and
+category availability checks. Middle-click paste, file drop, shell-widget replacement and the local
+prompt/editor remain; voice, attachment and context-menu tests exercise their handlers directly.
+
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions,
 and associated bootstrap/settings/UI contracts remain. Remove leaf consumers first, then their
 owning contracts; do not replace removed

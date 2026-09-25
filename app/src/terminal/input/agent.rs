@@ -196,9 +196,6 @@ impl Input {
 
         let input = Container::new(
             Hoverable::new(self.hoverable_handle.clone(), |_| drop_target)
-                .on_hover(|is_hovered, ctx, _app, _position| {
-                    ctx.dispatch_typed_action(InputAction::SetUDIHovered(is_hovered));
-                })
                 .on_middle_click(|ctx, _app, _position| {
                     ctx.dispatch_typed_action(TerminalAction::MiddleClickOnInput)
                 })
@@ -434,9 +431,6 @@ impl Input {
         .finish();
 
         let input = Hoverable::new(self.hoverable_handle.clone(), |_| drop_target)
-            .on_hover(|is_hovered, ctx, _app, _position| {
-                ctx.dispatch_typed_action(InputAction::SetUDIHovered(is_hovered));
-            })
             .on_middle_click(|ctx, _app, _position| {
                 ctx.dispatch_typed_action(TerminalAction::MiddleClickOnInput)
             })
@@ -643,9 +637,6 @@ impl Input {
             SavePosition::new(stack.finish(), &self.status_free_input_save_position_id()).finish();
 
         let input = Hoverable::new(self.hoverable_handle.clone(), |_| save_position)
-            .on_hover(|is_hovered, ctx, _app, _position| {
-                ctx.dispatch_typed_action(InputAction::SetUDIHovered(is_hovered));
-            })
             .on_middle_click(|ctx, _app, _position| {
                 ctx.dispatch_typed_action(TerminalAction::MiddleClickOnInput);
             })
