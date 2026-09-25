@@ -195,7 +195,6 @@ use crate::ai::agent::UserQueryMode;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
 use crate::ai::agent::redaction::redact_secrets;
-use crate::ai::agent::todos::popup::{AgentTodosPopupEvent, AgentTodosPopupView};
 use crate::ai::agent::{
     AIAgentActionId, AIAgentCitation, AIAgentContext, AIAgentExchangeId, AIAgentInput,
     AIAgentPtyWriteMode, AgentReviewCommentBatch, CancellationReason, RenderableAIError,
@@ -2688,10 +2687,6 @@ pub struct TerminalView {
 
     model_events_handle: ModelHandle<ModelEventDispatcher>,
 
-    is_todo_popup_visible: bool,
-
-    agent_todos_popup: ViewHandle<AgentTodosPopupView>,
-
     /// Per-repo git status model for the current repository, if any.
     git_repo_status: Option<ModelHandle<GitRepoStatusModel>>,
 
@@ -4039,8 +4034,6 @@ impl TerminalView {
             }
         });
 
-        let agent_todos_popup = Self::build_agent_todos_popup(ai_context_model.clone(), ctx);
-
         let warpify_footer = ctx.add_typed_action_view(|ctx| {
             WarpifyFooterView::new(model.clone(), &model_events_handle, ctx)
         });
@@ -4211,8 +4204,6 @@ impl TerminalView {
             active_session,
             pty_spawn_failed: false,
             model_events_handle,
-            is_todo_popup_visible: false,
-            agent_todos_popup,
             git_repo_status: None,
             github_repo_model: None,
             deferred_code_review_open: None,
@@ -5108,22 +5099,6 @@ impl TerminalView {
         self.drain_queued_prompts(conversation_id, FinishReason::Complete, ctx);
     }
 
-    fn build_agent_todos_popup(
-        ai_context_model: ModelHandle<BlocklistAIContextModel>,
-        ctx: &mut ViewContext<Self>,
-    ) -> ViewHandle<AgentTodosPopupView> {
-        let terminal_view_id = ctx.view_id();
-        let agent_todos_popup = ctx.add_typed_action_view(move |ctx| {
-            AgentTodosPopupView::new(terminal_view_id, ai_context_model, ctx)
-        });
-
-        ctx.subscribe_to_view(&agent_todos_popup, |me, _, event, ctx| {
-            me.handle_agent_todos_popup_event(event, ctx);
-        });
-
-        agent_todos_popup
-    }
-
     pub fn attach_path_as_context(&mut self, path: &Path, ctx: &mut ViewContext<Self>) {
         let content = path.to_string_lossy().to_string();
 
@@ -5187,20 +5162,6 @@ impl TerminalView {
             .selected_conversation_id(ctx)
             .map(|id| id == *conversation_id)
             .unwrap_or(false)
-    }
-
-    fn handle_agent_todos_popup_event(
-        &mut self,
-        event: &AgentTodosPopupEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            AgentTodosPopupEvent::Close => {
-                self.is_todo_popup_visible = false;
-                ctx.focus_self();
-                ctx.notify();
-            }
-        }
     }
 
     fn handle_ai_context_model_event(
@@ -18210,13 +18171,6 @@ impl TerminalView {
                 if is_restored {
                     return;
                 }
-                // With MAA, it's possible for an exchange to contain many tasks.
-                // This means an AI block may "finish" before the entire AI response is complete.
-                if self.active_ai_block(ctx).is_none() {
-                    if self.is_todo_popup_visible {
-                        self.is_todo_popup_visible = false;
-                    }
-                }
                 self.redetermine_terminal_focus(ctx);
                 ctx.notify();
             }
@@ -24283,8 +24237,6 @@ impl TypedActionView for TerminalView {
             | WriteCodebaseIndex
             | ToggleAutoexecuteMode
             | ToggleQueueNextPrompt
-            | ToggleTodoPopup
-            | CloseTodoPopup
             | ToggleCodeReviewPane { .. }
             | OpenProjectRulesPane
             | InitProject
@@ -25092,18 +25044,6 @@ impl TypedActionView for TerminalView {
                         }
                     }
                 }
-            }
-            ToggleTodoPopup => {
-                self.is_todo_popup_visible = !self.is_todo_popup_visible;
-                // Focus the todos popup for esc key handling
-                if self.is_todo_popup_visible {
-                    ctx.focus(&self.agent_todos_popup);
-                }
-                ctx.notify();
-            }
-            CloseTodoPopup => {
-                self.is_todo_popup_visible = false;
-                ctx.notify();
             }
             ToggleCodeReviewPane { entrypoint } => {
                 ctx.emit(Event::ToggleCodeReviewPane(CodeReviewPanelArg {

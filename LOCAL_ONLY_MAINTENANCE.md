@@ -314,3 +314,6 @@ Shell prompt construction no longer receives AI input/context/controller handles
 AI history. Plan/todo chip rendering is removed; its saved enum remains decodable without a runtime
 generator. Same-line layout uses PS1 and saved prompt settings directly. Local chips are preserved;
 other context-chip AI actions and terminal AI constructors remain removal debt.
+
+The unrendered agent todo popup, its terminal state, and toggle/close actions are removed.
+Todo data models and history-readable stored data remain intact.
