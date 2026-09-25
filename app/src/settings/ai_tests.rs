@@ -31,6 +31,7 @@ fn retired_input_predictions_are_not_registered_settings() {
                                 | "show_model_selectors_in_prompt"
                         )
                     || entry.storage_key == "LastSelectedHarnessModel"
+                    || entry.storage_key == "should_render_use_agent_toolbar_for_user_commands"
             })
     );
 }

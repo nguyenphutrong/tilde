@@ -282,11 +282,11 @@ impl TerminalView {
                 RichContentMetadata::AgentViewEntry(_) | RichContentMetadata::InlineAgentViewHeader
             )
         );
-        let is_use_agent_footer = handle.id() == self.use_agent_footer.id();
+        let is_warpify_footer = handle.id() == self.warpify_footer.id();
 
         let (agent_view_conversation_id, should_hide) = if is_agent_view_scoped_terminal_content {
             (None, self.agent_view_controller.as_ref(ctx).is_active())
-        } else if is_use_agent_footer {
+        } else if is_warpify_footer {
             (
                 self.agent_view_controller
                     .as_ref(ctx)

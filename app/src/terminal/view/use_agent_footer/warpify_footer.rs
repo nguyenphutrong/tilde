@@ -5,28 +5,33 @@ use warpui::elements::{
     ChildView, Container, CrossAxisAlignment, Expanded, Flex, MainAxisSize, ParentElement,
 };
 use warpui::prelude::Empty;
-use warpui::{AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle};
+use warpui::{
+    AppContext, Element, Entity, ModelHandle, TypedActionView, View, ViewContext, ViewHandle,
+};
 
-use super::{AgentFooterButtonTheme, USE_AGENT_KEYSTROKE};
+use super::AgentFooterButtonTheme;
+use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::terminal::view::{PADDING_LEFT, TerminalModel};
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{
     ActionButton, ButtonSize, KeystrokeSource, TooltipAlignment,
 };
 
-/// Footer view rendered for detected subshell commands, offering both
-/// "Warpify" and "Use agent" buttons in a horizontal row.
-pub(super) struct WarpifyFooterView {
+/// Shell-integration controls for detected subshell commands.
+pub(in crate::terminal::view) struct WarpifyFooterView {
     terminal_model: Arc<FairMutex<TerminalModel>>,
     warpify_button: ViewHandle<ActionButton>,
-    use_agent_button: ViewHandle<ActionButton>,
     dismiss_button: ViewHandle<ActionButton>,
     /// Whether the footer is currently offering subshell warpification.
     is_active: bool,
 }
 
 impl WarpifyFooterView {
-    pub fn new(terminal_model: Arc<FairMutex<TerminalModel>>, ctx: &mut ViewContext<Self>) -> Self {
+    pub fn new(
+        terminal_model: Arc<FairMutex<TerminalModel>>,
+        model_events: &ModelHandle<ModelEventDispatcher>,
+        ctx: &mut ViewContext<Self>,
+    ) -> Self {
         let button_size = ButtonSize::XSmall;
 
         let warpify_button = ctx.add_typed_action_view(|_ctx| {
@@ -43,18 +48,6 @@ impl WarpifyFooterView {
             })
         });
 
-        let use_agent_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new("Use agent", AgentFooterButtonTheme::new(None))
-                .with_icon(Icon::Agent)
-                .with_keybinding(KeystrokeSource::Fixed(USE_AGENT_KEYSTROKE.clone()), ctx)
-                .with_size(button_size)
-                .with_tooltip("Ask the Tilde agent to assist")
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(WarpifyFooterViewAction::UseAgent);
-                })
-        });
-
         let dismiss_button = ctx.add_typed_action_view(|_ctx| {
             ActionButton::new("Dismiss", AgentFooterButtonTheme::new(None))
                 .with_size(button_size)
@@ -63,10 +56,15 @@ impl WarpifyFooterView {
                 })
         });
 
+        ctx.subscribe_to_model(model_events, |me, _, event, ctx| {
+            if let ModelEvent::TerminalModeSwapped(..) = event {
+                me.notify_and_notify_children(ctx);
+            }
+        });
+
         Self {
             terminal_model,
             warpify_button,
-            use_agent_button,
             dismiss_button,
             is_active: false,
         }
@@ -97,18 +95,22 @@ impl WarpifyFooterView {
         });
         ctx.notify();
     }
+
+    pub fn notify_and_notify_children(&mut self, ctx: &mut ViewContext<Self>) {
+        self.warpify_button.update(ctx, |_, ctx| ctx.notify());
+        self.dismiss_button.update(ctx, |_, ctx| ctx.notify());
+        ctx.notify();
+    }
 }
 
 #[derive(Debug, Clone)]
 pub enum WarpifyFooterViewAction {
     Warpify,
-    UseAgent,
     Dismiss,
 }
 
 pub enum WarpifyFooterViewEvent {
     Warpify,
-    UseAgent,
     Dismiss,
 }
 
@@ -122,6 +124,9 @@ impl View for WarpifyFooterView {
     }
 
     fn render(&self, _app: &AppContext) -> Box<dyn Element> {
+        if !self.is_active {
+            return Empty::new().finish();
+        }
         let terminal_model = self.terminal_model.lock();
 
         let button_row = Flex::row()
@@ -129,7 +134,6 @@ impl View for WarpifyFooterView {
             .with_main_axis_size(MainAxisSize::Max)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(ChildView::new(&self.warpify_button).finish())
-            .with_child(ChildView::new(&self.use_agent_button).finish())
             .with_child(Expanded::new(1., Empty::new().finish()).finish())
             .with_child(ChildView::new(&self.dismiss_button).finish());
 
@@ -157,10 +161,6 @@ impl TypedActionView for WarpifyFooterView {
                     self.clear(ctx);
                     ctx.emit(WarpifyFooterViewEvent::Warpify);
                 }
-            }
-            WarpifyFooterViewAction::UseAgent => {
-                self.clear(ctx);
-                ctx.emit(WarpifyFooterViewEvent::UseAgent);
             }
             WarpifyFooterViewAction::Dismiss => {
                 self.clear(ctx);

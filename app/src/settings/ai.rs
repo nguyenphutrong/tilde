@@ -1755,19 +1755,7 @@ define_settings_group!(AISettings, settings: [
         description: "Whether Tilde credits can be used as a fallback for user-provided models.",
     }
 
-    should_render_use_agent_footer_for_user_commands: ShouldRenderUseAgentToolbarForUserCommands {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        surface: settings::SettingSurfaces::GUI,
-        private: false,
-        toml_path: "agents.warp_agent.other.should_render_use_agent_toolbar_for_user_commands",
-        description: "Whether to show the \"Use Agent\" footer for terminal commands.",
-    }
-
     // Whether to render the CLI agent footer for commands like Claude, Codex, Gemini, etc.
-    // This is independent of the "Use Agent" footer setting.
     should_render_cli_agent_footer: ShouldRenderCLIAgentToolbar {
         type: bool,
         default: true,
