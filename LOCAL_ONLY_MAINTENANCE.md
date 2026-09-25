@@ -367,3 +367,8 @@ The unused AI context-menu implementation and its cloud conversation, rules, ski
 workflow, code-symbol, and attachment adapters are removed. Shared file-search wildcard and
 path-proximity coverage lives in the file-search module; file-row truncation uses UTF-8-safe standard
 library boundaries. Local file search and completion remain unchanged.
+
+Inline-menu positioning depends on terminal input mode and available space, without holding an agent
+controller. Standard message-bar and border overhead always count toward the frame height. A
+bootstrapped-terminal regression checks pinned-top and pinned-bottom placement. Rendered GUI
+verification remains blocked by the earlier startup failure; shared menu views still retain AI debt.
