@@ -13,8 +13,7 @@ use warp_core::command::ExitCode;
 use warpui::{App, SingletonEntity};
 use warpui_extras::user_preferences;
 
-use super::{ActiveChipSurfaces, ChipUpdateStatus, CurrentPrompt, PromptContext};
-use crate::CLIAgentSessionsModel;
+use super::{ChipUpdateStatus, CurrentPrompt, PromptContext};
 use crate::ai::blocklist::agent_view::toolbar_item::AgentToolbarItemKind;
 use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::AuthManager;
@@ -36,19 +35,16 @@ use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings::WarpPromptSeparator;
 #[cfg(windows)]
 use crate::system::SystemInfo;
-use crate::terminal::cli_agent_sessions::{
-    CLIAgentInputState, CLIAgentSession, CLIAgentSessionContext, CLIAgentSessionStatus,
-};
+use crate::terminal::History;
 use crate::terminal::model::block::BlockMetadata;
 use crate::terminal::model::session::{
     CommandExecutor, ExecuteCommandOptions, SessionId, SessionInfo, Sessions,
 };
 use crate::terminal::session_settings::{
-    AgentToolbarChipSelection, CLIAgentToolbarChipSelection, SessionSettings, ToolbarChipSelection,
+    AgentToolbarChipSelection, CLIAgentToolbarChipSelection, SessionSettings,
 };
 use crate::terminal::shell::Shell;
 use crate::terminal::view::PromptPosition;
-use crate::terminal::{CLIAgent, History};
 #[cfg(feature = "local_fs")]
 use crate::util::git::PrInfo;
 
@@ -279,7 +275,6 @@ fn test_shell_chip_is_disabled_when_required_executable_is_missing() {
                 SessionInfo::new_for_test().with_id(session_id),
                 "test command".to_string(),
                 vec![],
-                None,
                 ctx,
             );
             sessions
@@ -432,7 +427,6 @@ fn test_disabling_chips() {
                 SessionInfo::new_for_test().with_id(session_id),
                 "test command".to_string(),
                 vec![],
-                None,
                 ctx,
             );
             sessions
@@ -505,7 +499,7 @@ fn test_disabling_chips() {
 }
 
 #[test]
-fn test_chips_to_run_only_includes_active_surface_configurations() {
+fn test_chips_to_run_ignores_legacy_footer_configurations() {
     App::test((), |mut app| async move {
         app.add_singleton_model(|_| {
             Prompt::mock_with(
@@ -557,133 +551,31 @@ fn test_chips_to_run_only_includes_active_surface_configurations() {
         let sessions = app.add_model(|_| Sessions::new_for_test());
         let current_prompt = app.add_model(move |ctx| CurrentPrompt::new(sessions, ctx));
 
-        app.read(|ctx| {
-            let current_prompt = current_prompt.as_ref(ctx);
-            let chips_for = |surfaces| current_prompt.chips_to_run_for_surfaces(surfaces, ctx);
-
-            assert!(chips_for(ActiveChipSurfaces::default()).is_empty());
-            assert_eq!(
-                chips_for(ActiveChipSurfaces {
-                    prompt: true,
-                    ..Default::default()
-                }),
-                vec![ContextChipKind::Username]
-            );
-            assert_eq!(
-                chips_for(ActiveChipSurfaces {
-                    agent_footer: true,
-                    ..Default::default()
-                }),
-                vec![ContextChipKind::WorkingDirectory]
-            );
-            assert_eq!(
-                chips_for(ActiveChipSurfaces {
-                    cli_agent_footer: true,
-                    ..Default::default()
-                }),
-                vec![ContextChipKind::ShellGitBranch]
-            );
-            assert_eq!(
-                chips_for(ActiveChipSurfaces {
-                    prompt: true,
-                    agent_footer: true,
-                    cli_agent_footer: true,
-                }),
-                vec![
-                    ContextChipKind::Username,
-                    ContextChipKind::WorkingDirectory,
-                    ContextChipKind::ShellGitBranch,
-                ]
-            );
-        });
-    });
-}
-
-#[test]
-fn test_cli_agent_footer_chips_require_a_visible_supported_footer() {
-    App::test((), |mut app| async move {
-        app.add_singleton_model(|_| Prompt::mock());
-        app.add_singleton_model(SessionSettings::new_with_defaults);
-        app.add_singleton_model(|_| History::new(vec![]));
-        app.add_singleton_model(|_ctx| {
-            settings::PublicPreferences::new(
-                Box::<user_preferences::in_memory::InMemoryPreferences>::default(),
-            )
-        });
-        app.add_singleton_model(|_| {
-            settings::PrivatePreferences::new(
-                Box::<user_preferences::in_memory::InMemoryPreferences>::default(),
-            )
-        });
-        app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
-        app.add_singleton_model(AuthManager::new_for_test);
         app.add_singleton_model(|_| crate::settings::manager::SettingsManager::default());
         crate::settings::InputSettings::register(&mut app);
-        app.update(crate::settings::AISettings::register_and_subscribe_to_events);
-        app.add_singleton_model(crate::workspaces::user_workspaces::UserWorkspaces::default_mock);
-        app.add_singleton_model(|_| CLIAgentSessionsModel::new());
         #[cfg(windows)]
         app.add_singleton_model(SystemInfo::new);
 
-        let sessions = app.add_model(|_| Sessions::new_for_test());
-        let current_prompt = app.add_model(move |ctx| CurrentPrompt::new(sessions, ctx));
-        let terminal_view_id = current_prompt.id();
-        current_prompt.update(&mut app, |current_prompt, _| {
-            current_prompt.terminal_view_id = Some(terminal_view_id);
-        });
-
-        let cli_footer_chips =
-            |app: &App| app.read(|ctx| current_prompt.as_ref(ctx).chips_to_run(ctx));
-        assert!(cli_footer_chips(&app).is_empty());
-
-        let session_for = |agent| CLIAgentSession {
-            agent,
-            status: CLIAgentSessionStatus::InProgress,
-            session_context: CLIAgentSessionContext::default(),
-            input_state: CLIAgentInputState::Closed,
-            should_auto_toggle_input: false,
-            listener: None,
-            plugin_version: None,
-            remote_host: None,
-            draft_text: None,
-            custom_command_prefix: None,
-            received_rich_notification: false,
-        };
-
-        CLIAgentSessionsModel::handle(&app).update(&mut app, |sessions, ctx| {
-            sessions.set_session(terminal_view_id, session_for(CLIAgent::Claude), ctx);
-        });
-        assert_eq!(
-            cli_footer_chips(&app),
+        for honor_ps1 in [false, true, false] {
+            SessionSettings::handle(&app).update(&mut app, |settings, ctx| {
+                settings.honor_ps1.set_value(honor_ps1, ctx).unwrap();
+            });
             app.read(|ctx| {
-                SessionSettings::as_ref(ctx)
-                    .cli_agent_footer_chip_selection
-                    .all_chips()
-            })
-        );
-
-        CLIAgentSessionsModel::handle(&app).update(&mut app, |sessions, ctx| {
-            sessions.set_session(terminal_view_id, session_for(CLIAgent::WarpTui), ctx);
-        });
-        assert!(cli_footer_chips(&app).is_empty());
-
-        CLIAgentSessionsModel::handle(&app).update(&mut app, |sessions, ctx| {
-            sessions.set_session(terminal_view_id, session_for(CLIAgent::Claude), ctx);
-        });
-        crate::settings::AISettings::handle(&app).update(&mut app, |settings, ctx| {
-            settings
-                .should_render_cli_agent_footer
-                .set_value(false, ctx)
-                .unwrap();
-        });
-        assert!(cli_footer_chips(&app).is_empty());
+                assert_eq!(
+                    current_prompt.as_ref(ctx).chips_to_run(ctx),
+                    if honor_ps1 {
+                        vec![]
+                    } else {
+                        vec![ContextChipKind::Username]
+                    }
+                );
+            });
+        }
     });
 }
 
 #[test]
-fn test_ps1_without_active_agent_surface_runs_no_footer_generators() {
+fn test_ps1_runs_no_chip_generators_without_ai_models() {
     let _flag_guard = FeatureFlag::AgentView.override_enabled(true);
     App::test((), |mut app| async move {
         let session_id = SessionId::from(321);
@@ -705,27 +597,29 @@ fn test_ps1_without_active_agent_surface_runs_no_footer_generators() {
                 settings.honor_ps1.set_value(true, ctx).unwrap();
             });
         });
-        app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
-        app.add_singleton_model(AuthManager::new_for_test);
         app.add_singleton_model(|_| crate::settings::manager::SettingsManager::default());
         crate::settings::InputSettings::register(&mut app);
-        app.update(crate::settings::AISettings::register_and_subscribe_to_events);
-        app.add_singleton_model(crate::workspaces::user_workspaces::UserWorkspaces::default_mock);
         #[cfg(windows)]
         app.add_singleton_model(SystemInfo::new);
 
         let executor = Arc::new(RecordingCommandExecutor::default());
         let sessions = app.add_model(|ctx| {
             let mut sessions = Sessions::new_for_test().with_command_executor(executor.clone());
+            let session_info = SessionInfo::new_for_test().with_id(session_id);
+            assert!(!sessions.has_pending_or_bootstrapped_session());
+            sessions.register_pending_session(&session_info, ctx);
+            assert!(sessions.has_pending_or_bootstrapped_session());
+            assert!(sessions.tracks_session(session_id));
+            assert!(!sessions.tracks_session(SessionId::from(322)));
+            assert!(sessions.is_empty());
             sessions.initialize_bootstrapped_session(
-                SessionInfo::new_for_test().with_id(session_id),
+                session_info,
                 "test command".to_string(),
                 vec![],
-                None,
                 ctx,
             );
+            assert!(sessions.tracks_session(session_id));
+            assert!(!sessions.is_empty());
             sessions
         });
         let current_prompt = app.add_model(move |ctx| CurrentPrompt::new(sessions, ctx));

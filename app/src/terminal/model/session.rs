@@ -15,7 +15,6 @@ use async_channel::Sender;
 pub use command_executor::*;
 use futures::FutureExt;
 use futures::future::{BoxFuture, Shared};
-use instant::Instant;
 use once_cell::sync::OnceCell;
 use parking_lot::{Mutex, RwLock};
 use smol_str::SmolStr;
@@ -34,7 +33,6 @@ use warpui::{Entity, ModelContext, SingletonEntity};
 
 use super::ansi::{BootstrappedValue, InitShellValue, SSHValue};
 use super::terminal_model::{HistoryEntry, SubshellInitializationInfo};
-use crate::server::telemetry::{BootstrappingInfo, TelemetryEvent};
 use crate::terminal::event::ExecutedExecutorCommandEvent;
 use crate::terminal::shell::{Shell, ShellType};
 use crate::terminal::warpify::SubshellSource;
@@ -105,9 +103,7 @@ pub use warp_terminal::model::session::{SessionId, get_local_hostname};
 /// session (whether it's a true subshell or an SSH session).
 #[derive(Debug)]
 pub struct Sessions {
-    /// The start time for pending sessions, keyed by the session's
-    /// unique ID.
-    pending_session_start_times: HashMap<SessionId, Instant>,
+    pending_sessions: HashSet<SessionId>,
 
     /// The set of known sessions, keyed by the session's unique ID.
     sessions: HashMap<SessionId, Arc<Session>>,
@@ -157,7 +153,7 @@ impl Entity for Sessions {
 impl Sessions {
     pub fn new(executor_command_tx: Sender<ExecutorCommandEvent>) -> Self {
         Self {
-            pending_session_start_times: Default::default(),
+            pending_sessions: Default::default(),
             sessions: Default::default(),
             executor_command_tx,
             in_band_command_output_tx_map: Default::default(),
@@ -181,7 +177,7 @@ impl Sessions {
     pub fn new_for_test() -> Self {
         let (executor_command_tx, _executor_command_rx) = async_channel::unbounded();
         Self {
-            pending_session_start_times: Default::default(),
+            pending_sessions: Default::default(),
             sessions: Default::default(),
             executor_command_tx,
             in_band_command_output_tx_map: Default::default(),
@@ -230,8 +226,7 @@ impl Sessions {
         session_info: &SessionInfo,
         ctx: &mut ModelContext<Self>,
     ) {
-        self.pending_session_start_times
-            .insert(session_info.session_id, Instant::now());
+        self.pending_sessions.insert(session_info.session_id);
         ctx.emit(SessionsEvent::SessionInitialized {
             session_id: session_info.session_id,
         })
@@ -242,13 +237,10 @@ impl Sessions {
         session_info: SessionInfo,
         spawning_command: String,
         restored_block_commands: Vec<HistoryEntry>,
-        rcfiles_duration_seconds: Option<f64>,
         ctx: &mut ModelContext<Self>,
     ) {
         // Remove the session from the list of pending sessions.
-        let pending_session_start_time = self
-            .pending_session_start_times
-            .remove(&session_info.session_id);
+        self.pending_sessions.remove(&session_info.session_id);
 
         let session_id = session_info.session_id;
 
@@ -287,36 +279,6 @@ impl Sessions {
 
         let session = Arc::new(session);
         self.sessions.insert(session.id(), session.clone());
-
-        let bootstrap_duration_seconds =
-            pending_session_start_time.map(|start| start.elapsed().as_secs_f64());
-        let warp_attributed_bootstrap_duration_seconds =
-            match (bootstrap_duration_seconds, rcfiles_duration_seconds) {
-                (Some(total), Some(rcfiles)) => Some(total - rcfiles),
-                _ => None,
-            };
-        let was_triggered_by_rc_file = session
-            .subshell_info()
-            .clone()
-            .map(|info| info.was_triggered_by_rc_file_snippet)
-            .unwrap_or(false);
-
-        crate::send_telemetry_from_ctx!(
-            TelemetryEvent::BootstrappingSucceeded(BootstrappingInfo {
-                shell: session.shell().shell_type().name(),
-                shell_version: session.shell().version().clone(),
-                is_ssh: session.is_ssh_wrapper_session(),
-                was_triggered_by_rc_file,
-                is_subshell: session.subshell_info().is_some(),
-                is_wsl: session.is_wsl(),
-                bootstrap_duration_seconds,
-                rcfiles_duration_seconds,
-                warp_attributed_bootstrap_duration_seconds,
-                is_msys2: session.is_msys2(),
-                terminal_session_id: Some(session.id()),
-            }),
-            ctx
-        );
 
         History::handle(ctx).update(ctx, |history, ctx| {
             let session_id = session.id();
@@ -360,15 +322,14 @@ impl Sessions {
     /// Returns whether we're aware of the existence of any sessions, whether
     /// they are pending or fully bootstrapped.
     pub fn has_pending_or_bootstrapped_session(&self) -> bool {
-        !self.pending_session_start_times.is_empty() || !self.sessions.is_empty()
+        !self.pending_sessions.is_empty() || !self.sessions.is_empty()
     }
 
     /// Returns whether the given `session_id` is tracked by this [`Sessions`]
     /// model, either as a pending session (registered via [`Self::register_pending_session`])
     /// or a fully bootstrapped one.
     pub fn tracks_session(&self, session_id: SessionId) -> bool {
-        self.sessions.contains_key(&session_id)
-            || self.pending_session_start_times.contains_key(&session_id)
+        self.sessions.contains_key(&session_id) || self.pending_sessions.contains(&session_id)
     }
 
     /// Returns a map of the spawning commands for all subshell sessions, keyed the session's `SessionId`.

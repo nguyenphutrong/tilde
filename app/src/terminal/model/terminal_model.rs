@@ -3031,11 +3031,6 @@ impl ansi::Handler for TerminalModel {
             }
         };
 
-        let rcfiles_duration_seconds = match (value.rcfiles_start_time, value.rcfiles_end_time) {
-            (Some(start_time), Some(end_time)) => Some((end_time - start_time).into()),
-            _ => None,
-        };
-
         let fully_populated_session_info =
             pending_session_info.merge_from_bootstrapped_value(value);
 
@@ -3053,7 +3048,6 @@ impl ansi::Handler for TerminalModel {
             spawning_command,
             session_info: Box::new(fully_populated_session_info),
             restored_block_commands: self.restored_block_commands(),
-            rcfiles_duration_seconds,
         }));
     }
 
