@@ -6,10 +6,10 @@ use ai::agent::orchestration_config::{OrchestrationConfig, OrchestrationExecutio
 use warp_cli::agent::Harness;
 
 use super::providers::ORCHESTRATION_WARP_WORKER_HOST;
-use super::validation::should_show_auth_secret_picker;
+use super::validation::uses_managed_auth_secret;
 use crate::ai::local_harness_setup::local_harness_product_disabled_message;
 
-/// The user's current selection in the auth secret picker.
+/// Legacy credential selection retained for request decoding and execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AuthSecretSelection {
     /// No choice yet; re-seeded from persisted settings. Blocks Accept.
@@ -43,20 +43,14 @@ pub struct OrchestrationConfigState {
     /// Per-call value hidden from the orchestration editors. Kept outside
     /// `execution_mode` so a temporary switch to Local does not discard it.
     remote_computer_use_enabled: bool,
-    /// Drives the picker display and Accept gate. Persisted as
-    /// `Named(_)` only via `CloudAgentSettings.last_selected_auth_secret`.
+    /// Legacy credential choice used by the Accept gate and request payload.
     pub auth_secret_selection: AuthSecretSelection,
 }
 
 impl OrchestrationConfigState {
-    /// Returns the on-wire secret name; `None` for `Inherit`, `Unset`, or
-    /// when the current mode/harness doesn't support managed auth secrets
-    /// (Local, Oz, or harnesses without managed-secret types). Gating on
-    /// visibility here prevents a stale `Named(_)` left over from a prior
-    /// Cloud/non-Oz config from leaking into the on-wire payload after the
-    /// user toggles to Local or switches to a harness without auth.
+    /// Returns a legacy credential name only for supported cloud harnesses.
     pub fn auth_secret_name(&self) -> Option<&str> {
-        if !should_show_auth_secret_picker(self) {
+        if !uses_managed_auth_secret(self) {
             return None;
         }
         match &self.auth_secret_selection {

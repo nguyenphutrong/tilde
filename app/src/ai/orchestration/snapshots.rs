@@ -1,5 +1,5 @@
 //! Plain-data option lists for the orchestration configuration fields:
-//! location, harness, model, API key, host, and environment. One builder
+//! location, harness, model, host, and environment. One builder
 //! per field turns the live catalogs into an [`OptionSnapshot`] — rows,
 //! ordering, badges, disabled reasons, load state, and selection — and
 //! both frontends render their pickers/pages from that snapshot, so the
@@ -9,7 +9,7 @@ use ai::agent::action::RunAgentsExecutionMode;
 use warp_cli::agent::Harness;
 use warpui::{AppContext, SingletonEntity};
 
-use super::config_state::{AuthSecretSelection, OrchestrationConfigState};
+use super::config_state::OrchestrationConfigState;
 use super::providers::{
     ORCHESTRATION_ENV_NONE_LABEL, ORCHESTRATION_RUNNER_NONE_LABEL, ORCHESTRATION_WARP_WORKER_HOST,
     get_base_model_choices, resolve_default_host_slug, resolve_recent_host_slug,
@@ -17,7 +17,7 @@ use super::providers::{
 use crate::LLMPreferences;
 use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::connected_self_hosted_workers::ConnectedSelfHostedWorkersModel;
-use crate::ai::harness_availability::{AuthSecretFetchState, HarnessAvailabilityModel};
+use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::harness_display;
 use crate::ai::local_harness_setup::{
     LocalHarnessSetupState, local_harness_is_product_enabled, local_harness_setup_state,
@@ -26,11 +26,7 @@ use crate::cloud_object::CloudObjectLookup as _;
 use crate::workspaces::user_workspaces::TeamScope;
 
 const DEFAULT_MODEL_LABEL: &str = "Default model";
-/// Label shown in the auth secret picker when no secret is selected
-/// (the child agent will inherit credentials from its environment).
-pub(crate) const AUTH_SECRET_INHERIT_LABEL: &str = "Skip (advanced)";
 const CUSTOM_HOST_LABEL: &str = "Custom host…";
-const AUTH_SECRETS_LOAD_FAILED_MESSAGE: &str = "Unable to load secrets";
 
 /// Row id for the Cloud location option.
 #[cfg_attr(not(feature = "tui"), allow(dead_code))]
@@ -400,68 +396,6 @@ fn build_non_oz_model_snapshot(
         Some(String::new())
     };
     OptionSnapshot::ready(rows, selected_id)
-}
-
-// ── API key ─────────────────────────────────────────────────────────
-
-/// Fetch state reduced to plain data for the pure API-key builder.
-enum AuthSecretNamesInput {
-    NotLoaded,
-    Loaded(Vec<String>),
-    Failed,
-}
-
-/// Builds the API-key options: "Skip (advanced)" (inherit) plus loaded
-/// managed-secret names. Secret values are never included — names only.
-pub fn api_key_snapshot(state: &OrchestrationConfigState, ctx: &AppContext) -> OptionSnapshot {
-    let Some(harness) = Harness::parse_orchestration_harness(&state.harness_type) else {
-        return OptionSnapshot::ready(Vec::new(), None);
-    };
-    if harness == Harness::Oz {
-        return OptionSnapshot::ready(Vec::new(), None);
-    }
-    let names = match HarnessAvailabilityModel::as_ref(ctx).auth_secrets_for(harness) {
-        AuthSecretFetchState::Loaded(secrets) => AuthSecretNamesInput::Loaded(secrets.clone()),
-        AuthSecretFetchState::NotFetched | AuthSecretFetchState::Loading => {
-            AuthSecretNamesInput::NotLoaded
-        }
-        AuthSecretFetchState::Failed(_) => AuthSecretNamesInput::Failed,
-    };
-    build_api_key_snapshot(names, &state.auth_secret_selection)
-}
-
-/// Pure core of [`api_key_snapshot`].
-fn build_api_key_snapshot(
-    names: AuthSecretNamesInput,
-    selection: &AuthSecretSelection,
-) -> OptionSnapshot {
-    let mut rows = vec![OptionRow::new(String::new(), AUTH_SECRET_INHERIT_LABEL)];
-    let status = match names {
-        AuthSecretNamesInput::Loaded(names) => {
-            for name in names {
-                rows.push(OptionRow::new(name.clone(), name));
-            }
-            OptionSourceStatus::Ready
-        }
-        AuthSecretNamesInput::NotLoaded => OptionSourceStatus::Loading,
-        AuthSecretNamesInput::Failed => OptionSourceStatus::Failed {
-            message: AUTH_SECRETS_LOAD_FAILED_MESSAGE.to_string(),
-        },
-    };
-    // The selection derives directly from the edit state. `Named` is kept
-    // even while the catalog is loading so a transient refresh never
-    // clears it; `Unset` has no selected row.
-    let selected_id = match selection {
-        AuthSecretSelection::Named(name) => Some(name.clone()),
-        AuthSecretSelection::Inherit => Some(String::new()),
-        AuthSecretSelection::Unset => None,
-    };
-    OptionSnapshot {
-        rows,
-        selected_id,
-        status,
-        footer: None,
-    }
 }
 
 // ── Host ────────────────────────────────────────────────────────────

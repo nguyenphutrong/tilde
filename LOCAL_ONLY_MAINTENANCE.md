@@ -304,3 +304,8 @@ create/delete transport, and cloud orchestration remain removal debt.
 Harness credential mutation APIs, credential-form metadata, and mutation events are removed.
 The remaining catalog holds names only; Claude/Codex eligibility and persisted choices are preserved.
 Existing-key catalog fetching/pickers and cloud execution remain removal debt. Stored rows are untouched.
+
+Credential pickers, catalog fetching/cache/retries, and their GraphQL client operation are removed.
+Model-catalog revalidation preserves explicit legacy names and inheritance; only unset credentials
+are restored from persisted settings. Legacy request/settings fields and execution consumers remain
+removal debt. No stored rows or tables are deleted.

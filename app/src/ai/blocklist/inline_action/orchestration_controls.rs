@@ -33,17 +33,16 @@ use crate::ai::execution_profiles::model_menu_items::{
 };
 use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::harness_display;
-use crate::ai::orchestration::{
-    AUTH_SECRET_INHERIT_LABEL, OptionBadge, OptionRow, OptionSnapshot, OptionSourceStatus,
-    api_key_snapshot, build_runner_snapshot, environment_snapshot, harness_snapshot, host_snapshot,
-    model_snapshot,
-};
 pub use crate::ai::orchestration::{
     AuthSecretSelection, ORCHESTRATION_WARP_WORKER_HOST, OrchestrationConfigState,
     OrchestrationEditState, accept_disabled_reason_with_auth, empty_env_recommendation_message,
     persist_environment_selection, persist_host_selection,
     resolve_auth_secret_selection_for_harness, resolve_default_environment_id,
-    resolve_default_host_slug, should_show_auth_secret_picker,
+    resolve_default_host_slug,
+};
+use crate::ai::orchestration::{
+    OptionBadge, OptionRow, OptionSnapshot, build_runner_snapshot, environment_snapshot,
+    harness_snapshot, host_snapshot, model_snapshot,
 };
 use crate::appearance::Appearance;
 use crate::menu::{MenuItem, MenuItemFields};
@@ -65,9 +64,6 @@ pub const ORCHESTRATION_PICKER_MAX_WIDTH: f32 = 205.;
 
 const ORCHESTRATION_SEGMENTED_CONTROL_PADDING: f32 = 4.;
 const ORCHESTRATION_SEGMENT_VERTICAL_PADDING: f32 = 4.;
-
-/// Label for the auth secret column.
-pub const AUTH_SECRET_COLUMN_LABEL: &str = "API key";
 
 /// Returns whether the client should expose the remote runner controls.
 ///
@@ -93,8 +89,6 @@ pub trait OrchestrationControlAction: DropdownItemAction + Clone {
     /// Runner UID selected in the Runner dropdown; empty clears the
     /// override ("Use environment default").
     fn runner_changed(runner_id: String) -> Self;
-    /// `None` means Inherit; `Some(name)` means a named managed secret.
-    fn auth_secret_changed(name: Option<String>) -> Self;
 }
 
 // ── Picker handles ──────────────────────────────────────────────────
@@ -111,11 +105,6 @@ pub struct OrchestrationPickerHandles<A: OrchestrationControlAction> {
     /// `None` until built; runners are fetched via `FactoryClient::get_runners`.
     pub runner_picker: Option<ViewHandle<FilterableDropdown<A>>>,
     pub host_picker: Option<ViewHandle<HostPicker>>,
-    /// Picker for the managed auth secret used by non-Oz cloud children.
-    /// `None` when the picker hasn't been built yet (e.g. harness is Oz or
-    /// execution mode is Local), or when the harness has no supported
-    /// auth-secret types.
-    pub auth_secret_picker: Option<ViewHandle<Dropdown<A>>>,
     pub local_toggle: MouseStateHandle,
     pub cloud_toggle: MouseStateHandle,
 }
@@ -128,7 +117,6 @@ impl<A: OrchestrationControlAction> Default for OrchestrationPickerHandles<A> {
             environment_picker: None,
             runner_picker: None,
             host_picker: None,
-            auth_secret_picker: None,
             local_toggle: MouseStateHandle::default(),
             cloud_toggle: MouseStateHandle::default(),
         }
@@ -535,69 +523,6 @@ pub fn populate_host_picker<V: View>(
     });
 }
 
-// ── Auth secret helpers ──────────────────────────────────
-
-fn auth_secret_trigger_label(selection: &AuthSecretSelection) -> String {
-    match selection {
-        AuthSecretSelection::Named(name) => name.clone(),
-        AuthSecretSelection::Inherit => AUTH_SECRET_INHERIT_LABEL.to_string(),
-        AuthSecretSelection::Unset => "Select API key".to_string(),
-    }
-}
-
-/// Populates existing credential names, fetching them lazily.
-pub fn populate_auth_secret_picker_for_harness<A: OrchestrationControlAction, V: View>(
-    dropdown: &ViewHandle<Dropdown<A>>,
-    selection: &AuthSecretSelection,
-    harness_type: &str,
-    ctx: &mut ViewContext<V>,
-) {
-    let Some(harness) = Harness::parse_orchestration_harness(harness_type) else {
-        return;
-    };
-    if harness == Harness::Oz {
-        return;
-    }
-    // Trigger lazy fetch so the next paint shows real entries.
-    HarnessAvailabilityModel::handle(ctx).update(ctx, |model, ctx| {
-        model.ensure_auth_secrets_fetched(harness, ctx);
-    });
-
-    let mut state = OrchestrationConfigState::from_run_agents_fields(
-        None,
-        Some(harness_type),
-        &RunAgentsExecutionMode::Local,
-    );
-    state.auth_secret_selection = selection.clone();
-    dropdown.update(ctx, |dropdown, ctx_dropdown| {
-        let snapshot = api_key_snapshot(&state, ctx_dropdown);
-        let mut items: Vec<MenuItem<DropdownAction>> = snapshot
-            .rows
-            .into_iter()
-            .map(|row| {
-                // An empty row id is the Inherit entry; others are named
-                // managed secrets.
-                let name = (!row.id.is_empty()).then_some(row.id);
-                MenuItem::Item(MenuItemFields::new(&row.label).with_on_select_action(
-                    DropdownAction::select_action_and_close(A::auth_secret_changed(name)),
-                ))
-            })
-            .collect();
-        match snapshot.status {
-            OptionSourceStatus::Loading => items.push(MenuItem::Item(
-                MenuItemFields::new("Loading…").with_disabled(true),
-            )),
-            OptionSourceStatus::Failed { message } => items.push(MenuItem::Item(
-                MenuItemFields::new(&message).with_disabled(true),
-            )),
-            OptionSourceStatus::Ready | OptionSourceStatus::Empty { .. } => {}
-        }
-        let final_selection = auth_secret_trigger_label(&state.auth_secret_selection);
-        dropdown.set_rich_items(items, ctx_dropdown);
-        dropdown.set_selected_by_name(&final_selection, ctx_dropdown);
-    });
-}
-
 // ── Shared action helpers ───────────────────────────────────
 
 /// Worker host to display for the current execution mode (Local always
@@ -637,14 +562,6 @@ pub fn apply_harness_change<A: OrchestrationControlAction, V: View>(
             &state.model_id,
             &state.harness_type,
             is_local,
-            ctx,
-        );
-    }
-    if let Some(handle) = &handles.auth_secret_picker {
-        populate_auth_secret_picker_for_harness(
-            handle,
-            &state.auth_secret_selection,
-            new_harness_type,
             ctx,
         );
     }
@@ -706,14 +623,7 @@ pub fn repopulate_all_pickers<A: OrchestrationControlAction, V: View>(
             ctx,
         );
     }
-    if let Some(handle) = &handles.auth_secret_picker {
-        populate_auth_secret_picker_for_harness(
-            handle,
-            &state.auth_secret_selection,
-            &state.harness_type,
-            ctx,
-        );
-    }
+
     if let Some(handle) = &handles.host_picker {
         populate_host_picker(handle, current_worker_host(state), ctx);
     }
@@ -757,12 +667,6 @@ pub fn sync_picker_selections<A: OrchestrationControlAction, V: View>(
         let worker_host = current_worker_host(state).to_string();
         host_picker.update(ctx, |picker, picker_ctx| {
             picker.set_selected(&worker_host, picker_ctx);
-        });
-    }
-    if let Some(auth_secret_picker) = handles.auth_secret_picker.clone() {
-        let label = auth_secret_trigger_label(&state.auth_secret_selection);
-        auth_secret_picker.update(ctx, |dropdown, ctx_dropdown| {
-            dropdown.set_selected_by_name(&label, ctx_dropdown);
         });
     }
 }
@@ -1038,7 +942,6 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
     show_runner_controls: bool,
 ) -> Box<dyn Element> {
     let is_remote = state.execution_mode.is_remote();
-    let show_auth_picker = should_show_auth_secret_picker(state);
 
     if vertical {
         let mut column = Flex::column()
@@ -1049,10 +952,6 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
             col.add_child(render_picker_column(label, picker, appearance));
         };
 
-        // Plan-card ordering groups harness-scoped pickers (harness + API
-        // key) before host/environment/model so the API key sits directly
-        // under the harness selector and does not split the model picker
-        // from the "Primary model…" subtext that follows the picker row.
         add(
             &mut column,
             "Agent harness",
@@ -1061,16 +960,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
                 .as_ref()
                 .map(|p| ChildView::new(p).finish()),
         );
-        if show_auth_picker {
-            add(
-                &mut column,
-                AUTH_SECRET_COLUMN_LABEL,
-                handles
-                    .auth_secret_picker
-                    .as_ref()
-                    .map(|p| ChildView::new(p).finish()),
-            );
-        }
+
         if is_remote {
             add(
                 &mut column,
@@ -1164,16 +1054,6 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
                 .as_ref()
                 .map(|p| ChildView::new(p).finish()),
         );
-        if show_auth_picker {
-            add_picker(
-                &mut row,
-                AUTH_SECRET_COLUMN_LABEL,
-                handles
-                    .auth_secret_picker
-                    .as_ref()
-                    .map(|p| ChildView::new(p).finish()),
-            );
-        }
 
         Container::new(row.finish()).with_margin_top(12.).finish()
     }

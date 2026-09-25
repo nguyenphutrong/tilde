@@ -37,10 +37,7 @@ pub fn harness_is_selectable(harness: Harness, is_local: bool) -> bool {
     local_harness_setup_is_ready(harness, is_local)
 }
 
-/// Returns `true` when the auth secret picker should be visible: Cloud +
-/// non-Oz + a harness with at least one supported auth-secret type. Local
-/// non-Oz children inherit auth from the user's shell environment.
-pub fn should_show_auth_secret_picker(state: &OrchestrationConfigState) -> bool {
+pub(super) fn uses_managed_auth_secret(state: &OrchestrationConfigState) -> bool {
     if !state.execution_mode.is_remote() {
         return false;
     }
@@ -50,12 +47,9 @@ pub fn should_show_auth_secret_picker(state: &OrchestrationConfigState) -> bool 
     matches!(harness, Harness::Claude | Harness::Codex)
 }
 
-/// `true` when the user must pick an API key (or Inherit) before Accept is
-/// allowed. Fires on `Unset` for any non-Oz cloud harness with managed-secret
-/// types, regardless of fetch state — dispatching with an unintended
-/// `Inherit` while secrets are still loading would fail downstream.
+/// Whether legacy cloud execution lacks an explicit credential choice.
 pub fn auth_secret_selection_required(state: &OrchestrationConfigState) -> bool {
-    should_show_auth_secret_picker(state)
+    uses_managed_auth_secret(state)
         && matches!(state.auth_secret_selection, AuthSecretSelection::Unset)
 }
 

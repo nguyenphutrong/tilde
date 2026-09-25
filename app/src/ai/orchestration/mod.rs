@@ -33,18 +33,14 @@ pub use remote_child::{
     PreparedRemoteChildLaunch, RemoteChildLaunchConfig, classify_cloud_agent_startup_error,
     oz_run_url, prepare_remote_child_launch,
 };
-pub(crate) use snapshots::AUTH_SECRET_INHERIT_LABEL;
 #[cfg_attr(not(feature = "tui"), allow(unused_imports))]
 pub use snapshots::location_snapshot;
 #[cfg_attr(not(feature = "tui"), allow(unused_imports))]
 pub use snapshots::oz_model_snapshot;
 pub use snapshots::{
-    OptionBadge, OptionRow, OptionSnapshot, OptionSourceStatus, api_key_snapshot,
-    build_runner_snapshot, environment_snapshot, harness_snapshot, host_snapshot, model_snapshot,
+    OptionBadge, OptionRow, OptionSnapshot, build_runner_snapshot, environment_snapshot,
+    harness_snapshot, host_snapshot, model_snapshot,
 };
-pub use validation::{
-    accept_disabled_reason_with_auth, empty_env_recommendation_message,
-    should_show_auth_secret_picker,
-};
+pub use validation::{accept_disabled_reason_with_auth, empty_env_recommendation_message};
 #[cfg_attr(not(feature = "tui"), allow(unused_imports))]
 pub use validation::{auth_secret_selection_required, harness_is_selectable};
