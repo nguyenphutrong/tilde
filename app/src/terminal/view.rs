@@ -24013,7 +24013,6 @@ impl TypedActionView for TerminalView {
             | ToggleConversationDetailsPanel
             | CancelAmbientAgentTask
             | OpenInlineHistoryMenu
-            | OpenModelSelector
             | AwsBedrockLoginBanner(_)
             | AwsCliNotInstalledBanner(_)
             | ExecuteRewindFromInlineMenu { .. }
@@ -25002,11 +25001,6 @@ impl TypedActionView for TerminalView {
             OpenInlineHistoryMenu => {
                 self.input.update(ctx, |input, ctx| {
                     input.handle_action(&InputAction::OpenInlineHistoryMenu, ctx);
-                });
-            }
-            OpenModelSelector => {
-                self.input.update(ctx, |input, ctx| {
-                    input.handle_action(&InputAction::OpenModelSelector, ctx);
                 });
             }
             AwsBedrockLoginBanner(action) => {

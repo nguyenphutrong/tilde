@@ -4,7 +4,7 @@ use warp::features::FeatureFlag;
 use warp::integration_testing::clipboard::write_to_clipboard;
 use warp::integration_testing::input::{
     AutosuggestionState, assert_autosuggestion_state, input_contains_string, input_is_empty,
-    latest_buffer_operations_are_empty, open_inline_model_selector, tab_completions_menu_is_open,
+    latest_buffer_operations_are_empty, tab_completions_menu_is_open,
 };
 use warp::integration_testing::step::new_step_with_default_assertions;
 use warp::integration_testing::terminal::util::{
@@ -82,72 +82,6 @@ pub fn test_autosuggestions_are_hidden_when_opening_tab_completions() -> Builder
                         0,
                         AutosuggestionState::ActiveWithText(String::from(".")),
                     ),
-                ),
-        )
-}
-
-pub fn test_inline_model_selector_restores_prompt_on_dismissal() -> Builder {
-    FeatureFlag::RestorePromptOnInlineModelSelectorSearch.set_enabled(true);
-
-    let original_prompt = "explain this tricky rust lifetime";
-    new_builder()
-        .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(
-            new_step_with_default_assertions("Type prompt before opening model selector")
-                .with_typed_characters(&[original_prompt])
-                .add_named_assertion(
-                    "Prompt is present before opening selector",
-                    input_contains_string(0, original_prompt.to_owned()),
-                ),
-        )
-        .with_step(open_inline_model_selector())
-        .with_step(
-            new_step_with_default_assertions("Type model search")
-                .with_typed_characters(&["claude"])
-                .add_named_assertion(
-                    "Model search text is in the input",
-                    input_contains_string(0, "claude".to_owned()),
-                ),
-        )
-        .with_step(
-            new_step_with_default_assertions("Dismiss model selector")
-                .with_keystrokes(&["escape"])
-                .add_named_assertion(
-                    "Original prompt is restored after dismissal",
-                    input_contains_string(0, original_prompt.to_owned()),
-                ),
-        )
-}
-
-pub fn test_inline_model_selector_restores_prompt_on_model_selection() -> Builder {
-    FeatureFlag::RestorePromptOnInlineModelSelectorSearch.set_enabled(true);
-
-    let original_prompt = "summarize this output without losing details";
-    new_builder()
-        .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(
-            new_step_with_default_assertions("Type prompt before opening model selector")
-                .with_typed_characters(&[original_prompt])
-                .add_named_assertion(
-                    "Prompt is present before opening selector",
-                    input_contains_string(0, original_prompt.to_owned()),
-                ),
-        )
-        .with_step(open_inline_model_selector())
-        .with_step(
-            new_step_with_default_assertions("Type model search")
-                .with_typed_characters(&["auto"])
-                .add_named_assertion(
-                    "Model search text is in the input",
-                    input_contains_string(0, "auto".to_owned()),
-                ),
-        )
-        .with_step(
-            new_step_with_default_assertions("Select highlighted model")
-                .with_keystrokes(&["enter"])
-                .add_named_assertion(
-                    "Original prompt is restored after model selection",
-                    input_contains_string(0, original_prompt.to_owned()),
                 ),
         )
 }

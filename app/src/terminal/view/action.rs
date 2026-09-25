@@ -375,7 +375,6 @@ pub enum TerminalAction {
     /// Cancel the ambient agent task while it's loading
     CancelAmbientAgentTask,
     OpenInlineHistoryMenu,
-    OpenModelSelector,
     AwsBedrockLoginBanner(AwsBedrockLoginBannerAction),
     AwsCliNotInstalledBanner(AwsCliNotInstalledBannerAction),
     /// Toggle the usage footer on the last AI block in the active conversation.
@@ -687,7 +686,6 @@ impl fmt::Debug for TerminalAction {
             ToggleConversationDetailsPanel => write!(f, "ToggleConversationDetailsPanel"),
             CancelAmbientAgentTask => write!(f, "CancelAmbientAgentTask"),
             OpenInlineHistoryMenu => write!(f, "OpenInlineHistoryMenu"),
-            OpenModelSelector => write!(f, "OpenModelSelector"),
             AwsBedrockLoginBanner(action) => write!(f, "AwsBedrockLoginBanner({action:?})"),
             AwsCliNotInstalledBanner(action) => write!(f, "AwsCliNotInstalledBanner({action:?})"),
             ToggleUsageFooter => write!(f, "ToggleUsageFooter"),

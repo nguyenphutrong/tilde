@@ -256,11 +256,6 @@ impl Input {
 
         let mut column = Flex::column();
         let is_slash_commands = self.suggestions_mode_model.as_ref(app).is_slash_commands();
-        let is_model_selector = self
-            .suggestions_mode_model
-            .as_ref(app)
-            .is_inline_model_selector();
-        let is_prompts_menu = self.suggestions_mode_model.as_ref(app).is_prompts_menu();
         let is_skill_menu = self.suggestions_mode_model.as_ref(app).is_skill_menu();
         let is_inline_history_menu = FeatureFlag::InlineHistoryMenu.is_enabled()
             && self
@@ -274,12 +269,8 @@ impl Input {
             InputMode::PinnedToBottom => {
                 column.add_children(
                     [
-                        if is_model_selector {
-                            Some(ChildView::new(&self.inline_model_selector_view).finish())
-                        } else if is_slash_commands {
+                        if is_slash_commands {
                             Some(ChildView::new(&self.inline_slash_commands_view).finish())
-                        } else if is_prompts_menu {
-                            Some(ChildView::new(&self.inline_prompts_menu_view).finish())
                         } else if FeatureFlag::ListSkills.is_enabled() && is_skill_menu {
                             Some(ChildView::new(&self.inline_skill_selector_view).finish())
                         } else if is_inline_history_menu {
@@ -301,12 +292,8 @@ impl Input {
                     [
                         Some(input),
                         Some(ChildView::new(&self.agent_status_view).finish()),
-                        if is_model_selector {
-                            Some(ChildView::new(&self.inline_model_selector_view).finish())
-                        } else if is_slash_commands {
+                        if is_slash_commands {
                             Some(ChildView::new(&self.inline_slash_commands_view).finish())
-                        } else if is_prompts_menu {
-                            Some(ChildView::new(&self.inline_prompts_menu_view).finish())
                         } else if FeatureFlag::ListSkills.is_enabled() && is_skill_menu {
                             Some(ChildView::new(&self.inline_skill_selector_view).finish())
                         } else if is_inline_history_menu {
@@ -329,8 +316,6 @@ impl Input {
 
                 if is_slash_commands && !should_render_below {
                     column.add_child(ChildView::new(&self.inline_slash_commands_view).finish());
-                } else if is_prompts_menu && !should_render_below {
-                    column.add_child(ChildView::new(&self.inline_prompts_menu_view).finish());
                 } else if FeatureFlag::ListSkills.is_enabled()
                     && is_skill_menu
                     && !should_render_below
@@ -344,12 +329,8 @@ impl Input {
 
                 column.add_children([ChildView::new(&self.agent_status_view).finish(), input]);
 
-                if is_model_selector && should_render_below {
-                    column.add_child(ChildView::new(&self.inline_model_selector_view).finish());
-                } else if is_slash_commands && should_render_below {
+                if is_slash_commands && should_render_below {
                     column.add_child(ChildView::new(&self.inline_slash_commands_view).finish());
-                } else if is_prompts_menu && should_render_below {
-                    column.add_child(ChildView::new(&self.inline_prompts_menu_view).finish());
                 } else if FeatureFlag::ListSkills.is_enabled()
                     && is_skill_menu
                     && should_render_below

@@ -37,11 +37,13 @@ use super::{InputSuggestionsMode, UserQueryMenuAction};
 )]
 pub enum InlineMenuType {
     SlashCommands,
+    /// Retained for decoding saved menu heights.
     ModelSelector,
     /// Retained for decoding saved menu heights.
     ConversationMenu,
     /// Retained for decoding saved menu heights.
     ProfileSelector,
+    /// Retained for decoding saved menu heights.
     PromptsMenu,
     SkillMenu,
     UserQueryMenu,
@@ -71,8 +73,6 @@ impl InlineMenuType {
     pub(crate) fn from_suggestions_mode(mode: &InputSuggestionsMode) -> Option<Self> {
         match mode {
             InputSuggestionsMode::SlashCommands => Some(InlineMenuType::SlashCommands),
-            InputSuggestionsMode::ModelSelector => Some(InlineMenuType::ModelSelector),
-            InputSuggestionsMode::PromptsMenu => Some(InlineMenuType::PromptsMenu),
             InputSuggestionsMode::SkillMenu => Some(InlineMenuType::SkillMenu),
             InputSuggestionsMode::UserQueryMenu {
                 action: UserQueryMenuAction::ForkFrom,
