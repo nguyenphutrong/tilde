@@ -42,7 +42,6 @@ pub(crate) use self::environment_selector::{
     EnvironmentSelector, EnvironmentSelectorEvent, EnvironmentSelectorTarget,
 };
 use crate::ai::AIRequestUsageModel;
-use crate::ai::blocklist::BlocklistAIInputModel;
 use crate::ai::blocklist::agent_view::is_in_cloud_context;
 use crate::ai::blocklist::history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::blocklist::prompt::prompt_alert::{PromptAlertEvent, PromptAlertView};
@@ -72,8 +71,6 @@ use crate::terminal::cli_agent_sessions::{
     CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
 };
 use crate::terminal::input::MenuPositioningProvider;
-use crate::terminal::input::models::InlineModelSelectorTab;
-use crate::terminal::profile_model_selector::{ProfileModelSelector, ProfileModelSelectorEvent};
 use crate::terminal::session_settings::{
     SessionSettings, SessionSettingsChangedEvent, ToolbarChipSelection,
 };
@@ -141,7 +138,6 @@ pub struct AgentInputFooter {
     /// [`AIQueryRouting`].
     live_session_indicator: ViewHandle<ActionButton>,
     new_cloud_vm_indicator: ViewHandle<ActionButton>,
-    model_selector: ViewHandle<ProfileModelSelector>,
     environment_selector: Option<ViewHandle<EnvironmentSelector>>,
     prompt_alert: ViewHandle<PromptAlertView>,
     ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
@@ -203,14 +199,6 @@ impl AgentInputFooter {
         self.ambient_agent_view_model = Some(ambient_agent_view_model.clone());
         self.display_chip_config.ambient_agent_view_model = Some(ambient_agent_view_model.clone());
 
-        // Push the model into the model/harness selector chip too. It captured `None` at
-        // construction on this link-join path, so without this it shows the local default model
-        // instead of the viewed cloud run's harness/model.
-        let selector_model = ambient_agent_view_model.clone();
-        self.model_selector.update(ctx, |selector, ctx| {
-            selector.set_ambient_agent_view_model(selector_model, ctx);
-        });
-
         // Build the environment selector now that the model exists (mirrors `new`).
         let environment_selector = ctx.add_typed_action_view(|ctx| {
             EnvironmentSelector::new(
@@ -250,11 +238,9 @@ impl AgentInputFooter {
         ctx.notify();
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
         terminal_view_id: EntityId,
-        ai_input_model: ModelHandle<BlocklistAIInputModel>,
         terminal_model: Arc<FairMutex<TerminalModel>>,
         ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
         prompt: ModelHandle<PromptType>,
@@ -454,26 +440,6 @@ impl AgentInputFooter {
                 .with_tooltip_alignment(TooltipAlignment::Left)
         });
 
-        let profile_model_selector_full = ctx.add_typed_action_view(|ctx| {
-            // Built without the ambient model; the footer's ambient setter attaches it (for both
-            // construction and the lazy viewer path) via `ProfileModelSelector::set_ambient_agent_view_model`.
-            let mut selector = ProfileModelSelector::new(
-                menu_positioning_provider.clone(),
-                terminal_view_id,
-                ai_input_model,
-                None,
-                terminal_model.clone(),
-                None,
-                ctx,
-            );
-            selector.set_render_compact(false, ctx);
-            selector
-        });
-
-        ctx.subscribe_to_view(&profile_model_selector_full, |me, _, event, ctx| {
-            me.handle_profile_model_selector_event(event, ctx);
-        });
-
         // Built by the ambient setter (construction + lazy viewer path share that single point).
         let environment_selector: Option<ViewHandle<EnvironmentSelector>> = None;
 
@@ -524,9 +490,6 @@ impl AgentInputFooter {
         ctx.subscribe_to_model(
             &SessionSettings::handle(ctx),
             move |me, _, event, ctx| match event {
-                SessionSettingsChangedEvent::ShowModelSelectorsInPrompt { .. } => {
-                    ctx.notify();
-                }
                 SessionSettingsChangedEvent::AgentToolbarChipSelectionSetting { .. }
                 | SessionSettingsChangedEvent::CLIAgentToolbarChipSelectionSetting { .. }
                 | SessionSettingsChangedEvent::GithubPrChipDefaultValidation { .. } => {
@@ -560,7 +523,6 @@ impl AgentInputFooter {
                     | BlocklistAIHistoryEvent::UpdatedAutoexecuteOverride { .. } => {
                         me.sync_fast_forward_button(ctx);
                         me.update_context_window_button(ctx);
-                        me.model_selector.update(ctx, |_, ctx| ctx.notify());
                         ctx.notify();
                     }
                     BlocklistAIHistoryEvent::UpdatedTodoList { .. }
@@ -568,7 +530,6 @@ impl AgentInputFooter {
                     | BlocklistAIHistoryEvent::AppendedExchange { .. }
                     | BlocklistAIHistoryEvent::UpdatedStreamingExchange { .. } => {
                         me.update_context_window_button(ctx);
-                        me.model_selector.update(ctx, |_, ctx| ctx.notify());
                         ctx.notify();
                     }
                     _ => (),
@@ -617,7 +578,6 @@ impl AgentInputFooter {
             context_window_button,
             live_session_indicator,
             new_cloud_vm_indicator,
-            model_selector: profile_model_selector_full,
             environment_selector,
             prompt_alert,
             terminal_model,
@@ -1026,41 +986,6 @@ impl AgentInputFooter {
             .is_some_and(|selector| selector.as_ref(app).is_menu_open());
 
         has_open_display_chip || has_open_env_selector
-    }
-
-    pub fn is_model_selector_open(&self, app: &AppContext) -> bool {
-        self.model_selector.as_ref(app).is_open()
-    }
-
-    fn handle_profile_model_selector_event(
-        &mut self,
-        event: &ProfileModelSelectorEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            ProfileModelSelectorEvent::MenuVisibilityChanged { open } => {
-                if *open {
-                    ctx.emit(AgentInputFooterEvent::ModelSelectorOpened);
-                } else {
-                    ctx.emit(AgentInputFooterEvent::ModelSelectorClosed);
-                }
-            }
-            ProfileModelSelectorEvent::ToggleInlineModelSelector => {
-                let initial_tab = if self
-                    .terminal_model
-                    .lock()
-                    .block_list()
-                    .active_block()
-                    .is_agent_in_control_or_tagged_in()
-                {
-                    InlineModelSelectorTab::FullTerminalUse
-                } else {
-                    InlineModelSelectorTab::BaseAgent
-                };
-
-                ctx.emit(AgentInputFooterEvent::ToggleInlineModelSelector { initial_tab });
-            }
-        }
     }
 
     pub fn set_voice_is_active(&mut self, is_active: bool, ctx: &mut ViewContext<Self>) {
@@ -1485,12 +1410,7 @@ impl AgentInputFooter {
                     .filter(|chip| chip.as_ref(app).should_render(app))
                     .map(|chip| ChildView::new(chip).finish())
             }
-            AgentToolbarItemKind::ModelSelector => {
-                let show = FeatureFlag::ProfilesDesignRevamp.is_enabled()
-                    || *SessionSettings::as_ref(app).show_model_selectors_in_prompt;
-                show.then(|| ChildView::new(&self.model_selector).finish())
-            }
-            AgentToolbarItemKind::NLDToggle => None,
+            AgentToolbarItemKind::ModelSelector | AgentToolbarItemKind::NLDToggle => None,
             AgentToolbarItemKind::VoiceInput => {
                 #[cfg(feature = "voice_input")]
                 {
@@ -1853,9 +1773,6 @@ pub enum AgentInputFooterEvent {
     ModelSelectorOpened,
     ModelSelectorClosed,
     EnvironmentSelectorClosed,
-    ToggleInlineModelSelector {
-        initial_tab: InlineModelSelectorTab,
-    },
     OpenCodeReview,
     OpenAIDocument {
         document_id: AIDocumentId,
