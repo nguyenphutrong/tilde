@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::boxed::Box;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::Arc;
 
 use pathfinder_color::ColorU;
 #[cfg(not(target_family = "wasm"))]
@@ -24,7 +23,7 @@ use warpui::ui_components::segmented_control::{
 };
 use warpui::{
     AppContext, Element, Entity, EntityId, ModelHandle, SingletonEntity as _, TypedActionView,
-    View, ViewAsRef, ViewContext, ViewHandle,
+    View, ViewContext, ViewHandle,
 };
 
 use crate::BlocklistAIHistoryModel;
@@ -42,15 +41,12 @@ use crate::settings::AISettings;
 #[cfg(not(target_family = "wasm"))]
 use crate::settings::InputSettings;
 use crate::settings_view::SettingsSection;
-use crate::terminal::input::MenuPositioningProvider;
 use crate::terminal::keys::TerminalKeybindings;
 use crate::terminal::model::block::BlockMetadata;
 #[cfg(not(target_family = "wasm"))]
 use crate::terminal::model::session::SessionType;
 use crate::terminal::model::session::Sessions;
-use crate::terminal::profile_model_selector::{ProfileModelSelector, ProfileModelSelectorEvent};
 use crate::terminal::shared_session::permissions_manager::SessionPermissionsManager;
-use crate::terminal::view::ambient_agent::AmbientAgentViewModel;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{
     ActionButton, ActionButtonTheme, ButtonSize, NakedTheme, TooltipAlignment,
@@ -238,8 +234,6 @@ pub struct UniversalDeveloperInputButtonBar {
     at_button: ViewHandle<ActionButton>,
     file_button: ViewHandle<ActionButton>,
     slash_command_button: ViewHandle<ActionButton>,
-    profile_model_selector_full: ViewHandle<ProfileModelSelector>,
-    profile_model_selector_compact: ViewHandle<ProfileModelSelector>,
     segmented_control: ViewHandle<SegmentedControl<InputToggleMode>>,
     prompt_alert: ViewHandle<PromptAlertView>,
 
@@ -263,19 +257,15 @@ pub enum UniversalDeveloperInputButtonBarEvent {
     SelectFile,
     SetAIContextMenuOpen(bool),
     PromptAlert(PromptAlertEvent),
-    ModelSelectorOpened,
-    ModelSelectorClosed,
     OpenSettings(SettingsSection),
     OpenSlashCommandMenu,
 }
 
 impl UniversalDeveloperInputButtonBar {
     pub fn new(
-        menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
         terminal_view_id: EntityId,
         input_model: ModelHandle<BlocklistAIInputModel>,
         cli_subagent_controller: ModelHandle<CLISubagentController>,
-        ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
         terminal_model: std::sync::Arc<parking_lot::FairMutex<crate::terminal::TerminalModel>>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
@@ -337,42 +327,6 @@ impl UniversalDeveloperInputButtonBar {
                         UniversalDeveloperInputButtonBarAction::OpenSlashCommandMenu,
                     );
                 })
-        });
-
-        let profile_model_selector_full = ctx.add_typed_action_view(|ctx| {
-            let mut selector = ProfileModelSelector::new(
-                menu_positioning_provider.clone(),
-                terminal_view_id,
-                input_model.clone(),
-                ambient_agent_view_model.clone(),
-                terminal_model.clone(),
-                None,
-                ctx,
-            );
-            selector.set_render_compact(false, ctx);
-            selector
-        });
-
-        let profile_model_selector_compact = ctx.add_typed_action_view(|ctx| {
-            let mut selector = ProfileModelSelector::new(
-                menu_positioning_provider.clone(),
-                terminal_view_id,
-                input_model.clone(),
-                ambient_agent_view_model.clone(),
-                terminal_model.clone(),
-                None,
-                ctx,
-            );
-            selector.set_render_compact(true, ctx);
-            selector
-        });
-
-        ctx.subscribe_to_view(&profile_model_selector_full, |me, _, event, ctx| {
-            me.handle_profile_model_selector_event(event, ctx);
-        });
-
-        ctx.subscribe_to_view(&profile_model_selector_compact, |me, _, event, ctx| {
-            me.handle_profile_model_selector_event(event, ctx);
         });
 
         let options = vec![InputToggleMode::Terminal];
@@ -494,8 +448,6 @@ impl UniversalDeveloperInputButtonBar {
             at_button: at_button_view,
             file_button: file_button_view,
             slash_command_button: slash_command_menu_view,
-            profile_model_selector_full,
-            profile_model_selector_compact,
             segmented_control: segmented_control_view,
             prompt_alert,
             cached_ui_state,
@@ -525,26 +477,6 @@ impl UniversalDeveloperInputButtonBar {
         }
         self.cached_ui_state.borrow_mut().is_input_empty = is_empty;
         self.notify_and_notify_children(ctx);
-    }
-
-    fn handle_profile_model_selector_event(
-        &mut self,
-        event: &ProfileModelSelectorEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            ProfileModelSelectorEvent::MenuVisibilityChanged { open } => {
-                if *open {
-                    // When model selector menu opens, close other overlays
-                    ctx.emit(UniversalDeveloperInputButtonBarEvent::ModelSelectorOpened);
-                } else {
-                    ctx.emit(UniversalDeveloperInputButtonBarEvent::ModelSelectorClosed);
-                }
-            }
-            ProfileModelSelectorEvent::ToggleInlineModelSelector => {
-                // UDI button bar doesn't need to handle this; it's only relevant in AgentInputFooter.
-            }
-        }
     }
 
     fn notify_and_notify_children(&self, ctx: &mut ViewContext<Self>) {
@@ -632,12 +564,6 @@ impl UniversalDeveloperInputButtonBar {
 
     fn update_button_bar_styles(&self, ctx: &mut ViewContext<Self>) {
         self.update_icon_button_themes(ctx);
-
-        let is_blurred = self.cached_ui_state.borrow().is_button_bar_blurred();
-        self.profile_model_selector_compact
-            .update(ctx, |selector, ctx| selector.set_blurred(is_blurred, ctx));
-        self.profile_model_selector_full
-            .update(ctx, |selector, ctx| selector.set_blurred(is_blurred, ctx));
     }
 
     /// Update the themes of the icon buttons to reflect the blurred state
@@ -660,11 +586,6 @@ impl UniversalDeveloperInputButtonBar {
         self.file_button.update(ctx, |button, ctx| {
             button.set_theme(theme.clone(), ctx);
         });
-    }
-
-    pub fn is_profile_model_selector_open(&self, ctx: &impl ViewAsRef) -> bool {
-        self.profile_model_selector_full.as_ref(ctx).is_open()
-            || self.profile_model_selector_compact.as_ref(ctx).is_open()
     }
 }
 

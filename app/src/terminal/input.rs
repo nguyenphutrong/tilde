@@ -2567,11 +2567,9 @@ impl Input {
 
         let universal_developer_input_button_bar = ctx.add_typed_action_view(|ctx| {
             UniversalDeveloperInputButtonBar::new(
-                menu_positioning_provider.clone(),
                 terminal_view_id,
                 ai_input_model.clone(),
                 cli_subagent_controller.clone(),
-                ambient_agent_view_model.clone(),
                 model.clone(),
                 ctx,
             )
@@ -2586,7 +2584,6 @@ impl Input {
             AgentInputFooter::new(
                 menu_positioning_provider.clone(),
                 terminal_view_id,
-                ai_input_model.clone(),
                 model.clone(),
                 // Wired post-construction via `attach_ambient_agent_view_model`.
                 None,
@@ -2641,9 +2638,6 @@ impl Input {
                 AgentInputFooterEvent::ModelSelectorClosed
                 | AgentInputFooterEvent::EnvironmentSelectorClosed => {
                     me.focus_input_box(ctx);
-                }
-                AgentInputFooterEvent::ToggleInlineModelSelector { initial_tab } => {
-                    me.toggle_inline_model_selector_from_chip(*initial_tab, ctx);
                 }
                 AgentInputFooterEvent::OpenCodeReview => {
                     ctx.emit(Event::OpenCodeReviewPane);
@@ -4669,42 +4663,9 @@ impl Input {
         }
     }
 
-    fn toggle_inline_model_selector_from_chip(
-        &mut self,
-        initial_tab: InlineModelSelectorTab,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if self
-            .suggestions_mode_model
-            .as_ref(ctx)
-            .is_inline_model_selector()
-        {
-            // Toggling closed via the chip: restore the parked prompt if we
-            // cleared it for search, otherwise just close.
-            if self
-                .inline_model_selector_view
-                .as_ref(ctx)
-                .prompt_parked_for_search()
-            {
-                self.suggestions_mode_model.update(ctx, |model, ctx| {
-                    model.close_and_restore_buffer(ctx);
-                });
-            } else {
-                self.suggestions_mode_model.update(ctx, |model, ctx| {
-                    model.set_mode(InputSuggestionsMode::Closed, ctx);
-                });
-            }
-            ctx.notify();
-            return;
-        }
-
-        self.open_model_selector_and_snapshot_prompt(initial_tab, ctx);
-    }
-
     /// Opens the inline model selector, parking any pre-existing prompt so the
     /// input can be used to search models. The parked prompt is restored when the
-    /// selector closes (on model selection or dismissal). Shared by the model
-    /// chip, the `/model` keybinding, and the OpenModelSelector action.
+    /// selector closes (on model selection or dismissal).
     fn open_model_selector_and_snapshot_prompt(
         &mut self,
         initial_tab: InlineModelSelectorTab,
@@ -5199,11 +5160,9 @@ impl Input {
             return;
         }
 
-        // Don't open inline history menu if a chip menu or model selector is already open
+        // Don't open inline history menu if a chip menu is already open
         let agent_footer = self.agent_input_footer.as_ref(ctx);
-        if self.prompt_render_helper.has_open_chip_menu(ctx)
-            || agent_footer.has_open_chip_menu(ctx)
-            || agent_footer.is_model_selector_open(ctx)
+        if self.prompt_render_helper.has_open_chip_menu(ctx) || agent_footer.has_open_chip_menu(ctx)
         {
             return;
         }
@@ -6000,13 +5959,6 @@ impl Input {
             }
             UniversalDeveloperInputButtonBarEvent::PromptAlert(prompt_alert_event) => {
                 self.handle_prompt_alert(prompt_alert_event, ctx);
-            }
-            UniversalDeveloperInputButtonBarEvent::ModelSelectorOpened => {
-                self.close_overlays(false, ctx);
-            }
-            UniversalDeveloperInputButtonBarEvent::ModelSelectorClosed => {
-                // When the model selector menu closes (model was selected), focus the input field
-                self.focus_input_box(ctx);
             }
             UniversalDeveloperInputButtonBarEvent::OpenSettings(section) => {
                 ctx.emit(Event::OpenSettings(*section));
@@ -14589,15 +14541,6 @@ impl View for Input {
             ctx.set.insert("WorkflowInfoBox");
         }
 
-        let is_profile_model_selector_open = self.should_show_universal_developer_input(app)
-            && self
-                .universal_developer_input_button_bar
-                .as_ref(app)
-                .is_profile_model_selector_open(app);
-        let is_agent_footer_model_selector_open = self
-            .agent_input_footer
-            .as_ref(app)
-            .is_model_selector_open(app);
         let is_v2_model_selector_open = self
             .agent_input_footer
             .as_ref(app)
@@ -14612,9 +14555,7 @@ impl View for Input {
             .agent_input_footer
             .as_ref(app)
             .is_v2_environment_selector_open(app);
-        if is_profile_model_selector_open
-            || is_agent_footer_model_selector_open
-            || is_v2_model_selector_open
+        if is_v2_model_selector_open
             || is_v2_host_selector_open
             || is_v2_harness_selector_open
             || is_v2_environment_selector_open

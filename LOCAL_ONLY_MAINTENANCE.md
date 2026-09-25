@@ -213,9 +213,12 @@ AI-front-end benchmark harness. Benchmark discovery, production TUI/PTY code and
 This removes stale build targets, not a performance measurement.
 
 The terminal AI welcome block, autodetection footer control, classifier command denylist and
-history-matching feature flag are removed. Legacy toolbar arrays still decode retired NLD items
-without exposing them or discarding other saved items. Historical settings and database rows are
-untouched; OSC52 clipboard controls remain registered.
+history-matching feature flag are removed. The three eager profile/model-selector controls and their
+visibility setting are removed. Legacy toolbar arrays still decode retired model-selector and NLD
+items without exposing them or discarding other saved items. Historical settings and database rows
+are untouched; OSC52 clipboard controls remain registered. Inline and cloud-V2 selectors remain for
+later removal. Prompt-restoration integration scenarios retain the explicit OpenModelSelector action;
+only the retired chip-toggle-close scenario is removed.
 
 AI, Drive/cloud objects, authentication/server, GraphQL, MCP, shared sessions,
 and associated bootstrap/settings/UI contracts remain. Remove leaf consumers first, then their
