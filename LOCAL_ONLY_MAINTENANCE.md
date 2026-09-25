@@ -381,3 +381,8 @@ even with its old flag enabled. Execution-profile backend and other AI construct
 The five unused AI context-menu/profile-selector feature flags and their Cargo/runtime bridges are
 removed, with no replacement switches. Literal `@` input and absent-command regressions remain.
 Menu preferences with live consumers are deferred to their owning removal increments.
+
+Typed `#` stays literal shell-comment input instead of opening AI command search. The retired `@`
+menu and hash-trigger preferences and workspace context flags are removed, without database writes
+or migrations. The Agent Mode placeholder and explicit AI command-search action remain for their
+separate removal increments; literal `@` and `#` regressions cover the default input behavior.

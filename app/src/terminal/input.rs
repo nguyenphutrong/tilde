@@ -342,7 +342,6 @@ pub const COMPLETIONS_MENU_WIDTH: f32 = 330.;
 pub const OPEN_COMPLETIONS_KEYBINDING_NAME: &str = "input:open_completion_suggestions";
 pub const INPUT_A11Y_LABEL: &str = "Command Input.";
 pub const INPUT_A11Y_HELPER: &str = "Input your shell command, press enter to execute. Press cmd-up to navigate to output of previously executed commands. Press cmd-l to re-focus command input.";
-pub const AI_COMMAND_SEARCH_HINT_TEXT: &str = "Type '#' for AI command suggestions";
 
 const TERMINAL_INPUT_HINT_TEXT: &str = "Run commands";
 
@@ -4757,13 +4756,6 @@ impl Input {
                 self.set_zero_state_hint_text(ctx);
                 ctx.notify();
             }
-            InputSettingsChangedEvent::AtContextMenuInTerminalMode { .. } => {
-                ctx.notify();
-            }
-            InputSettingsChangedEvent::EnableAiCommandSearchHashTrigger { .. } => {
-                self.set_zero_state_hint_text(ctx);
-                ctx.notify();
-            }
             InputSettingsChangedEvent::CompletionsMenuWidth { .. } => {
                 let new_value = *input_settings.as_ref(ctx).completions_menu_width.value();
                 if let Ok(mut guard) = self.completions_menu_resizable_width.lock() {
@@ -4937,25 +4929,14 @@ impl Input {
         }
 
         // Now handle the default (empty prefix) placeholder
-        if toggled_on && AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
-            if FeatureFlag::AgentMode.is_enabled() {
-                // agent_mode_hint_text now handles caching internally
-                let hint_text = self.agent_mode_hint_text(ctx);
-                self.editor.update(ctx, |editor, ctx| {
-                    editor.set_placeholder_text(hint_text, ctx);
-                });
-            } else if *InputSettings::as_ref(ctx).enable_ai_command_search_hash_trigger {
-                self.editor.update(ctx, |editor, ctx| {
-                    editor.set_placeholder_text(AI_COMMAND_SEARCH_HINT_TEXT, ctx);
-                });
-            } else {
-                // Don't advertise the '#' shorthand when the user has disabled it;
-                // AI Command Search remains reachable via its keybinding.
-                self.editor.update(ctx, |editor, ctx| {
-                    editor.clear_placeholder_text(ctx);
-                    ctx.notify();
-                });
-            }
+        if toggled_on
+            && AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
+            && FeatureFlag::AgentMode.is_enabled()
+        {
+            let hint_text = self.agent_mode_hint_text(ctx);
+            self.editor.update(ctx, |editor, ctx| {
+                editor.set_placeholder_text(hint_text, ctx);
+            });
         } else {
             self.editor.update(ctx, |editor, ctx| {
                 // Clear only the default placeholder, keep slash command placeholders
@@ -7702,21 +7683,6 @@ impl Input {
                     } else {
                         let _ = self.debounce_input_background_tx.try_send(());
                     }
-                }
-
-                if AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
-                    && *InputSettings::as_ref(ctx).enable_ai_command_search_hash_trigger
-                    && self.editor_starts_with_command_search_trigger(ctx)
-                    && *edit_origin == EditOrigin::UserTyped
-                    && !self.ai_input_model.as_ref(ctx).is_ai_input_enabled()
-                {
-                    // If last buffer didn't start with '#' and current buffer does,
-                    // then show command search.
-                    let last_buffer_text = self.editor.as_ref(ctx).last_buffer_text(ctx);
-                    if !last_buffer_text.starts_with(AI_COMMAND_SEARCH_TRIGGER) {
-                        self.show_ai_command_search(ctx);
-                    }
-                    ctx.notify();
                 }
 
                 let is_input_mode_locked = self.ai_input_model.as_ref(ctx).is_input_type_locked();
