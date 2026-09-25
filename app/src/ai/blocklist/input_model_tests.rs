@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use parking_lot::FairMutex;
 use warpui::r#async::executor::Background;
-use warpui::{App, AppContext, EntityId, ModelHandle};
+use warpui::{App, AppContext, ModelHandle};
 
 use super::*;
 use crate::ai::agent::conversation::AIConversationId;
@@ -18,7 +18,6 @@ use crate::ai::blocklist::conversation_selection::{
     MockConversationSelection,
 };
 use crate::ai::blocklist::input_mode_policy::{InputModePolicy, PolicyConfigUpdate};
-use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::color::{self, Colors};
 use crate::terminal::event_listener::ChannelEventListener;
 use crate::terminal::model::TerminalModel;
@@ -95,7 +94,6 @@ fn build_input_model(
     ConversationSelectionHandle,
 ) {
     initialize_history_persistence_for_tests(app);
-    app.add_singleton_model(|_| CLIAgentSessionsModel::new());
 
     let terminal_model = Arc::new(FairMutex::new(TerminalModel::new_for_test(
         block_size(),
@@ -108,7 +106,6 @@ fn build_input_model(
         false, /* is_inverted */
         None,  /* session_startup_path */
     )));
-    let terminal_surface_id = EntityId::new();
     let conversation_selection =
         app.add_model(|_| Box::new(MockConversationSelection) as Box<dyn ConversationSelection>);
     let input_model = app.add_model(|ctx| {
@@ -116,7 +113,6 @@ fn build_input_model(
             terminal_model,
             conversation_selection.clone(),
             Rc::new(policy),
-            terminal_surface_id,
             ctx,
         )
     });

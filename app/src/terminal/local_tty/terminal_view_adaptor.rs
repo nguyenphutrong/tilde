@@ -1354,23 +1354,6 @@ impl TerminalManager<TerminalView> {
                     }
                 }
 
-                // If a third-party CLI harness (e.g. Claude Code) is running, write
-                // the follow-up prompt directly to the PTY. The CLI handles it as
-                // interactive input. 
-                let terminal_view_id = terminal_view.id();
-                let has_active_cli_agent = CLIAgentSessionsModel::as_ref(ctx)
-                    .session(terminal_view_id)
-                    .is_some();
-                if has_active_cli_agent {
-                    // Reuse the rich input submit pipeline so agent-specific
-                    // strategies are applied. Bypasses the rich-input-UI side effects 
-  					// (telemetry, draft clear, editor buffer clear, pending-image consumption).
-                    terminal_view.update(ctx, |view, ctx| {
-                        view.submit_text_to_cli_agent_pty(request.prompt.clone(), ctx);
-                    });
-                    return;
-                }
-
                 // Execute the agent prompt in the Oz-harness case
                 terminal_view.update(ctx, |view, ctx| {
                     // Restore the sharer's frozen visual state. The buffer is cleared by
