@@ -298,9 +298,7 @@ pub(super) fn add_input_suggestions_overlays(
                 ),
             );
         }
-        InputSuggestionsMode::AIContextMenu { .. } => {
-            input.render_ai_context_menu(stack, &menu_positioning, app);
-        }
+
         // SlashCommandsMenu is rendered separately via inline_slash_commands_menu_view
         InputSuggestionsMode::SlashCommands => {}
         // Model selector is rendered separately via inline_model_selector_view

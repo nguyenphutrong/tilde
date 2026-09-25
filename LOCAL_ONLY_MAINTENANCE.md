@@ -357,3 +357,8 @@ Typing `@` no longer automatically opens the AI context menu; its package-instal
 removed. Alias expansion, highlighting, and shell completions remain. The literal-input regression
 enables the old menu flags/preferences explicitly. Explicit menu construction/dispatch remains for
 the next removal increment.
+
+The explicit AI context menu is detached from editor/input construction, events, navigation,
+rendering, and telemetry. Its diff-attachment loader and ambient/shared/CLI menu updates are removed.
+Editor input-mode bookkeeping remains for existing keymap behavior, without constructing a menu.
+The unused search adapters are the next deletion target; local completions and history remain.
