@@ -76,43 +76,6 @@ use crate::workspace::TabMovement;
 use crate::workspace::tab_settings::{TabCloseButtonPosition, WorkspaceDecorationVisibility};
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct BootstrappingInfo {
-    pub shell: &'static str,
-    pub is_ssh: bool,
-    pub is_subshell: bool,
-    pub is_wsl: bool,
-    pub is_msys2: bool,
-    /// `true` if the bootstrapping process was triggered by an RC file snippet.
-    ///
-    /// This should only be true if `is_subshell` is true.
-    pub was_triggered_by_rc_file: bool,
-    /// The total time it took to bootstrap the shell, in seconds.
-    pub bootstrap_duration_seconds: Option<f64>,
-    /// The time it took to source the user's rcfiles, in seconds.  May be None
-    /// if we weren't able to get that information from the shell.
-    pub rcfiles_duration_seconds: Option<f64>,
-    /// The difference between the total bootstrap time and the rcfile sourcing
-    /// time, which roughly equals the time cost of running our bootstrap
-    /// script.  Will be None if `bootstrap_duration_seconds` or
-    /// `rcfiles_duration_seconds` is None.
-    pub warp_attributed_bootstrap_duration_seconds: Option<f64>,
-    pub shell_version: Option<String>,
-    pub terminal_session_id: Option<SessionId>,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct SlowBootstrapInfo {
-    pub shell: &'static str,
-    pub is_ssh: bool,
-    pub is_subshell: bool,
-    pub is_wsl: bool,
-    pub is_msys2: bool,
-    /// Contents of the bootstrap block when the slow bootstrap was detected.
-    /// This includes both command and output content from the block.
-    pub bootstrap_block_contents: String,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
 pub struct AppStartupInfo {
     pub is_session_restoration_on: bool,
     /// Whether or not a screen reader is enabled at the time the app is
@@ -1232,8 +1195,6 @@ pub enum TelemetryEvent {
         redact_secrets: bool,
     },
     BlockSelection(BlockSelectionDetails),
-    BootstrappingSlow(BootstrappingInfo),
-    BootstrappingSlowContents(SlowBootstrapInfo),
     /// Logged when a pending session is abandoned before it hits Bootstrapped.
     SessionAbandonedBeforeBootstrap {
         pending_shell: Option<ShellType>,
@@ -1241,7 +1202,6 @@ pub enum TelemetryEvent {
         was_ever_visible: bool,
         duration_since_start: Duration,
     },
-    BootstrappingSucceeded(BootstrappingInfo),
     CopyInviteLink,
     OpenThemeChooser,
     ThemeSelection {
@@ -2749,8 +2709,6 @@ impl TelemetryEvent {
             TelemetryEvent::AgentModeRewindExecuted {
                 num_blocks_reverted,
             } => Some(json!({"num_blocks_reverted": num_blocks_reverted})),
-            TelemetryEvent::BootstrappingSlow(info) => Some(json!(info)),
-            TelemetryEvent::BootstrappingSlowContents(info) => Some(json!(info)),
             TelemetryEvent::ToggleSettingsSync {
                 is_settings_sync_enabled,
             } => Some(json!({ "is_settings_sync_enabled": is_settings_sync_enabled })),
@@ -2808,7 +2766,6 @@ impl TelemetryEvent {
                 "exit_code": exit_code,
                 "terminal_session_id": terminal_session_id,
             })),
-            TelemetryEvent::BootstrappingSucceeded(info) => Some(json!(info)),
             TelemetryEvent::SSHBootstrapAttempt(remote_shell) => {
                 Some(json!({ "shell": remote_shell.as_str() }))
             }
@@ -4343,7 +4300,6 @@ impl TelemetryEvent {
     pub fn contains_ugc(&self) -> bool {
         match self {
             TelemetryEvent::GrepToolFailed { .. } => true,
-            TelemetryEvent::BootstrappingSlowContents { .. } => true,
             TelemetryEvent::AIInputNotSent { .. } => true,
             TelemetryEvent::AgentExitedShellProcess { .. } => true,
             TelemetryEvent::CreateProjectPromptSubmitted { .. } => false,
@@ -4375,9 +4331,7 @@ impl TelemetryEvent {
             | TelemetryEvent::CopyBlockSharingLink(_)
             | TelemetryEvent::GenerateBlockSharingLink { .. }
             | TelemetryEvent::BlockSelection(_)
-            | TelemetryEvent::BootstrappingSlow(_)
             | TelemetryEvent::SessionAbandonedBeforeBootstrap { .. }
-            | TelemetryEvent::BootstrappingSucceeded(_)
             | TelemetryEvent::CopyInviteLink
             | TelemetryEvent::OpenThemeChooser
             | TelemetryEvent::ThemeSelection { .. }
@@ -4892,10 +4846,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CopyBlockSharingLink => EnablementState::Always,
             Self::GenerateBlockSharingLink => EnablementState::Always,
             Self::BlockSelection => EnablementState::Always,
-            Self::BootstrappingSlow => EnablementState::Always,
-            Self::BootstrappingSlowContents => EnablementState::Always,
             Self::SessionAbandonedBeforeBootstrap => EnablementState::Always,
-            Self::BootstrappingSucceeded => EnablementState::Always,
             Self::CopyInviteLink => EnablementState::Always,
             Self::OpenThemeChooser => EnablementState::Always,
             Self::ThemeSelection => EnablementState::Always,
@@ -5305,8 +5256,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CopyBlockSharingLink => "Copy Block Sharing Link",
             Self::GenerateBlockSharingLink => "Generate Block Sharing Link",
             Self::BlockSelection => "Block Selection",
-            Self::BootstrappingSlow => "Bootstrapping Slow",
-            Self::BootstrappingSlowContents => "Bootstrap Slow Contents",
             Self::ObjectLinkCopied => "Object Link Copied",
             Self::FileTreeToggled => "File Tree Toggled",
             Self::FileTreeItemAttachedAsContext => "FileTree.AttachedAsContext",
@@ -5347,7 +5296,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AISuggestedRuleEdited { .. } => "AI Suggested Rule Edited",
             Self::AISuggestedRuleContentChanged { .. } => "AI Suggested Rule Content Changed",
             Self::AnonymousUserHitCloudObjectLimit => "Anonymous User Hit Cloud Object Limit",
-            Self::BootstrappingSucceeded => "Bootstrapping Succeeded",
             Self::SessionAbandonedBeforeBootstrap => "Session Abandoned Before Bootstrap",
             Self::ConfirmSuggestion => "Confirm Suggestion",
             Self::ContextMenuInsertSelectedText => "Context Menu Insert Selected Text into Input",
@@ -5866,14 +5814,9 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CopyBlockSharingLink => "Clicked \"Share block...\" in context menu",
             Self::GenerateBlockSharingLink => "Generated Block sharing link",
             Self::BlockSelection => "Selected Block",
-            Self::BootstrappingSlow => "Slow bootstrap on session startup",
-            Self::BootstrappingSlowContents => {
-                "Contents of the bootstrap block if bootstrapping is slow"
-            }
             Self::SessionAbandonedBeforeBootstrap => {
                 "Abandoned session before the bootstrapping completes"
             }
-            Self::BootstrappingSucceeded => "Successful bootstrap for session",
             Self::CopyInviteLink => "Clicked \"Copy Link\" on Referral Modal",
             Self::OpenThemeChooser => {
                 "Opened theme chooser (list of different themes and visualizations of those themes)"

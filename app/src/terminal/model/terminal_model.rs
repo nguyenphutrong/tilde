@@ -1610,20 +1610,6 @@ impl TerminalModel {
             .map(|session_info| session_info.session_id)
     }
 
-    pub fn is_pending_wsl(&self) -> bool {
-        matches!(
-            &self.pending_shell_launch_data,
-            Some(ShellLaunchData::WSL { .. })
-        )
-    }
-
-    pub fn is_pending_msys2(&self) -> bool {
-        matches!(
-            &self.pending_shell_launch_data,
-            Some(ShellLaunchData::MSYS2 { .. })
-        )
-    }
-
     pub fn shell_launch_state(&self) -> &ShellLaunchState {
         &self.shell_launch_state
     }
