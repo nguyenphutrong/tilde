@@ -92,6 +92,7 @@ jobs:
           cargo test --locked -p warp --lib test_shell_input_
           cargo test --locked -p warp --lib submitting_shell_input_does_not_resume_autodetection
           cargo test --locked -p warp --lib natural_language_detection_command_is_not_registered
+          cargo test --locked -p warp --lib test_histignorespace_support_in_zsh
 
       - name: Test terminal CLI
         run: cargo test --locked -p warp_cli --lib
