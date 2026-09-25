@@ -2,7 +2,6 @@ use ai::skills::SkillReference;
 use warpui::elements::ChildView;
 use warpui::{AppContext, Element, Entity, ModelHandle, View, ViewContext, ViewHandle};
 
-use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::search::slash_command_menu::SlashCommandId;
 use crate::server::ids::SyncId;
 use crate::terminal::input::buffer_model::InputBufferModel;
@@ -73,7 +72,6 @@ impl InlineSlashCommandView {
         positioner: &ModelHandle<InlineMenuPositioner>,
         slash_commands_source: ModelHandle<GuiSlashCommandDataSource>,
         suggestions_mode_model: ModelHandle<InputSuggestionsModeModel>,
-        agent_view_controller: ModelHandle<AgentViewController>,
         input_buffer_model: ModelHandle<InputBufferModel>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
@@ -98,7 +96,6 @@ impl InlineSlashCommandView {
                 mixer.clone(),
                 positioner.clone(),
                 &suggestions_mode_model,
-                agent_view_controller,
                 ctx,
             )
         });
