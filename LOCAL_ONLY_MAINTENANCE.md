@@ -362,3 +362,8 @@ The explicit AI context menu is detached from editor/input construction, events,
 rendering, and telemetry. Its diff-attachment loader and ambient/shared/CLI menu updates are removed.
 Editor input-mode bookkeeping remains for existing keymap behavior, without constructing a menu.
 The unused search adapters are the next deletion target; local completions and history remain.
+
+The unused AI context-menu implementation and its cloud conversation, rules, skills, notebook,
+workflow, code-symbol, and attachment adapters are removed. Shared file-search wildcard and
+path-proximity coverage lives in the file-search module; file-row truncation uses UTF-8-safe standard
+library boundaries. Local file search and completion remain unchanged.
