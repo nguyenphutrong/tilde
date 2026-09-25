@@ -377,3 +377,7 @@ The execution-profile selector, its eager Input construction, navigation, teleme
 `/profile` registry/dispatch are removed. Old `ProfileSelector` height-map keys still deserialize and
 round-trip without affecting local history heights. Both GUI and TUI registries reject `/profile`
 even with its old flag enabled. Execution-profile backend and other AI constructors remain.
+
+The five unused AI context-menu/profile-selector feature flags and their Cargo/runtime bridges are
+removed, with no replacement switches. Literal `@` input and absent-command regressions remain.
+Menu preferences with live consumers are deferred to their owning removal increments.

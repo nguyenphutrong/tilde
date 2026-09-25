@@ -180,10 +180,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::CrossRepoContext,
         #[cfg(feature = "codebase_index_persistence")]
         FeatureFlag::CodebaseIndexPersistence,
-        #[cfg(feature = "ai_context_menu")]
-        FeatureFlag::AIContextMenuEnabled,
-        #[cfg(feature = "at_menu_outside_of_ai_mode")]
-        FeatureFlag::AtMenuOutsideOfAIMode,
         #[cfg(feature = "ai_resume_button")]
         FeatureFlag::AIResumeButton,
         #[cfg(feature = "figma_detection")]
@@ -200,10 +196,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::CodeFindReplace,
         #[cfg(feature = "command_palette_file_search")]
         FeatureFlag::CommandPaletteFileSearch,
-        #[cfg(feature = "ai_context_menu_commands")]
-        FeatureFlag::AIContextMenuCommands,
-        #[cfg(feature = "ai_context_menu_code")]
-        FeatureFlag::AIContextMenuCode,
         #[cfg(feature = "expand_edit_to_pane")]
         FeatureFlag::ExpandEditToPane,
         #[cfg(feature = "fallback_model_load_output_messaging")]
@@ -382,8 +374,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::AskUserQuestion,
         #[cfg(feature = "lsp_as_a_tool")]
         FeatureFlag::LSPAsATool,
-        #[cfg(feature = "inline_profile_selector")]
-        FeatureFlag::InlineProfileSelector,
         #[cfg(feature = "oz_platform_skills")]
         FeatureFlag::OzPlatformSkills,
         #[cfg(feature = "oz_identity_federation")]
