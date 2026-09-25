@@ -300,3 +300,7 @@ removed. Orchestration cards no longer create or auto-adopt credentials; they re
 catalog reads and explicit named/inherit/unset choices. An unset required cloud credential still
 blocks acceptance. Stored settings rows and credential tables remain untouched. Credential catalog,
 create/delete transport, and cloud orchestration remain removal debt.
+
+Harness credential mutation APIs, credential-form metadata, and mutation events are removed.
+The remaining catalog holds names only; Claude/Codex eligibility and persisted choices are preserved.
+Existing-key catalog fetching/pickers and cloud execution remain removal debt. Stored rows are untouched.

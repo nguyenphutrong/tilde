@@ -8,7 +8,6 @@ use warp_errors::report_if_error;
 use warpui::{AppContext, SingletonEntity};
 
 use crate::LLMPreferences;
-use crate::ai::auth_secret_types::auth_secret_types_for_harness;
 use crate::ai::cloud_agent_settings::CloudAgentSettings;
 use crate::ai::cloud_environments::CloudEnvironmentCatalog;
 use crate::ai::connected_self_hosted_workers::WARP_WORKER_HOST;
@@ -189,7 +188,7 @@ pub fn resolve_default_auth_secret_for_harness(
     match availability.auth_secrets_for(harness) {
         AuthSecretFetchState::Loaded(secrets) => {
             // Drop the persisted name if the secret was deleted server-side.
-            persisted.filter(|name| secrets.iter().any(|s| s.name == *name))
+            persisted.filter(|name| secrets.contains(name))
         }
         // Pre-fetch: optimistically show the persisted name; the
         // `AuthSecretsLoaded` subscription will re-resolve.
@@ -282,7 +281,7 @@ fn requires_default_auth_secret_for_execution(request: &RunAgentsRequest) -> boo
     let Some(harness) = Harness::parse_orchestration_harness(&request.harness_type) else {
         return false;
     };
-    harness != Harness::Oz && !auth_secret_types_for_harness(harness).is_empty()
+    matches!(harness, Harness::Claude | Harness::Codex)
 }
 
 /// Whether the request can execute as-is: either it doesn't need a

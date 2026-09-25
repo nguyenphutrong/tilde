@@ -213,12 +213,8 @@ impl OrchestrationConfigBlockView {
             |me, _, event, ctx| match event {
                 HarnessAvailabilityEvent::Changed
                 | HarnessAvailabilityEvent::AuthSecretsLoaded
-                | HarnessAvailabilityEvent::AuthSecretsFetchFailed
-                | HarnessAvailabilityEvent::AuthSecretDeleted { .. } => {
+                | HarnessAvailabilityEvent::AuthSecretsFetchFailed => {
                     // Repopulate even on fetch failure to replace "Loading…".
-                    // The Deleted event also triggers a refresh so any
-                    // already-mounted picker drops the deleted entry from
-                    // its menu.
                     if me.pickers_initialized {
                         oc::repopulate_all_pickers(
                             &mut me.orchestration_edit_state.orchestration_config_state,
@@ -229,9 +225,6 @@ impl OrchestrationConfigBlockView {
 
                     ctx.notify();
                 }
-                HarnessAvailabilityEvent::AuthSecretCreationFailed { .. }
-                | HarnessAvailabilityEvent::AuthSecretCreated { .. }
-                | HarnessAvailabilityEvent::AuthSecretDeletionFailed { .. } => {}
             },
         );
 
@@ -758,7 +751,6 @@ impl View for OrchestrationConfigBlockView {
                 // Validation
                 if let Some(reason) = oc::accept_disabled_reason_with_auth(
                     &self.orchestration_edit_state.orchestration_config_state,
-                    app,
                 ) {
                     column.add_child(oc::render_validation_error(
                         reason,

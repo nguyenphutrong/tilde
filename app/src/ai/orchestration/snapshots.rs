@@ -421,9 +421,7 @@ pub fn api_key_snapshot(state: &OrchestrationConfigState, ctx: &AppContext) -> O
         return OptionSnapshot::ready(Vec::new(), None);
     }
     let names = match HarnessAvailabilityModel::as_ref(ctx).auth_secrets_for(harness) {
-        AuthSecretFetchState::Loaded(secrets) => {
-            AuthSecretNamesInput::Loaded(secrets.iter().map(|s| s.name.clone()).collect())
-        }
+        AuthSecretFetchState::Loaded(secrets) => AuthSecretNamesInput::Loaded(secrets.clone()),
         AuthSecretFetchState::NotFetched | AuthSecretFetchState::Loading => {
             AuthSecretNamesInput::NotLoaded
         }

@@ -458,11 +458,8 @@ impl RunAgentsCardView {
             |me, _, event, ctx| match event {
                 HarnessAvailabilityEvent::Changed
                 | HarnessAvailabilityEvent::AuthSecretsLoaded
-                | HarnessAvailabilityEvent::AuthSecretsFetchFailed
-                | HarnessAvailabilityEvent::AuthSecretDeleted { .. } => {
+                | HarnessAvailabilityEvent::AuthSecretsFetchFailed => {
                     // Repopulate even on fetch failure to replace "Loading…".
-                    // Deleted events also force a repopulate so this card
-                    // stops surfacing the deleted secret as an option.
                     oc::repopulate_all_pickers(
                         &mut me.orchestration_edit_state.orchestration_config_state,
                         &me.handles.pickers,
@@ -472,9 +469,6 @@ impl RunAgentsCardView {
 
                     ctx.notify();
                 }
-                HarnessAvailabilityEvent::AuthSecretCreationFailed { .. }
-                | HarnessAvailabilityEvent::AuthSecretCreated { .. }
-                | HarnessAvailabilityEvent::AuthSecretDeletionFailed { .. } => {}
             },
         );
 
@@ -654,7 +648,6 @@ impl RunAgentsCardView {
         }
         if let Some(reason) = oc::accept_disabled_reason_with_auth(
             &self.orchestration_edit_state.orchestration_config_state,
-            ctx,
         ) {
             log::warn!("RunAgentsCardView: refusing Accept because action is disabled: {reason}");
             return;
@@ -717,7 +710,6 @@ impl RunAgentsCardView {
     fn refresh_accept_button_state(&mut self, ctx: &mut ViewContext<Self>) {
         let reason = oc::accept_disabled_reason_with_auth(
             &self.orchestration_edit_state.orchestration_config_state,
-            ctx,
         );
         let Some(mut accept) = self.handles.accept_button.clone() else {
             return;
@@ -1597,7 +1589,7 @@ fn render_editor(
         oc::runner_controls_enabled(app),
     ));
 
-    if let Some(reason) = oc::accept_disabled_reason_with_auth(orchestration_config_state, app) {
+    if let Some(reason) = oc::accept_disabled_reason_with_auth(orchestration_config_state) {
         column.add_child(oc::render_validation_error(
             reason,
             theme.ui_error_color(),
