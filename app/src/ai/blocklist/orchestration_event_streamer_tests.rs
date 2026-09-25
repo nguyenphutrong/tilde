@@ -48,8 +48,7 @@ fn sse_backoff_escalates_then_caps() {
 #[test]
 fn restored_observer_registration_hydrates_local_cursor() {
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let parent_task_id = make_parent_task_id_for_test(0xc8);
         let mut parent = AIConversation::new(true, false);
         parent.set_task_id(parent_task_id);
@@ -97,8 +96,7 @@ fn observer_placeholder_completion_creates_one_named_history_mapping() {
         resources.model_event_sender = Some(sender);
         app.add_singleton_model(|_| GlobalResourceHandlesProvider::new(resources));
 
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let parent_task_id = make_parent_task_id_for_test(0xd1);
         let child_task_id = make_parent_task_id_for_test(0xd2);
         let parent = {
@@ -408,8 +406,7 @@ fn dormant_local_claude_child_skips_generic_sse_but_allows_wake_listener() {
     use crate::server::server_api::ai::MockAIClient;
 
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let parent_id = AIConversation::new(false, false).id();
         let mut conversation = AIConversation::new(false, false);
@@ -478,8 +475,7 @@ fn persist_event_cursor_keeps_the_max_sequence_and_updates_history_model() {
         global_resource_handles.model_event_sender = Some(sender);
         app.add_singleton_model(|_| GlobalResourceHandlesProvider::new(global_resource_handles));
 
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let run_id = "550e8400-e29b-41d4-a716-446655440201".to_string();
         let mut conversation = AIConversation::new(false, false);
@@ -540,8 +536,7 @@ fn wake_ready_does_not_advance_cursor_before_wake_preparation() {
     use crate::server::server_api::ai::{AIClient, MockAIClient};
 
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let mut conversation = AIConversation::new(false, false);
         conversation.set_last_event_sequence(17);
@@ -604,8 +599,7 @@ fn dormant_local_claude_child_uses_task_harness_when_server_metadata_missing() {
     use crate::server::server_api::ai::MockAIClient;
 
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let parent_id = AIConversation::new(false, false).id();
         let mut conversation = AIConversation::new(false, false);
@@ -733,8 +727,7 @@ fn restored_conversations_initialize_v2_streaming_state() {
     use crate::server::server_api::ai::MockAIClient;
 
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id("550e8400-e29b-41d4-a716-446655440500".to_string());
@@ -820,8 +813,7 @@ fn finish_restore_fetch_uses_server_cursor_when_sqlite_is_absent() {
     use crate::server::server_api::ai::MockAIClient;
 
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         // Restore a conversation with no SQLite cursor (`last_event_sequence:
         // None`). After the server fetch completes with `Some(42)` we expect
@@ -892,8 +884,7 @@ fn handle_event_batch_persists_max_seq_to_history_model() {
         global_resource_handles.model_event_sender = Some(sender);
         app.add_singleton_model(|_| GlobalResourceHandlesProvider::new(global_resource_handles));
 
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id("550e8400-e29b-41d4-a716-446655440200".to_string());
@@ -975,8 +966,7 @@ fn handle_event_batch_drops_events_for_killed_run_ids_after_persisting_cursor() 
         global_resource_handles.model_event_sender = Some(sender);
         app.add_singleton_model(|_| GlobalResourceHandlesProvider::new(global_resource_handles));
 
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let event_service = app.add_singleton_model(|_| OrchestrationEventService::default());
 
         let parent_run_id = "550e8400-e29b-41d4-a716-446655440700".to_string();
@@ -1074,7 +1064,7 @@ fn handle_event_batch_drops_events_for_killed_run_ids_after_persisting_cursor() 
 #[test]
 fn killed_run_ids_are_bounded() {
     App::test((), |mut app| async move {
-        app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let mock = MockAIClient::new();
         let ai_client: Arc<dyn AIClient> = Arc::new(mock);
         let server_api = ServerApiProvider::new_for_test().get();
@@ -1115,8 +1105,7 @@ fn finish_restore_fetch_no_ops_when_conversation_deleted_mid_flight() {
     use crate::server::server_api::ai::MockAIClient;
 
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id("550e8400-e29b-41d4-a716-446655440300".to_string());
@@ -1185,8 +1174,7 @@ fn finish_restore_fetch_err_does_not_resurrect_deleted_conversation() {
     use crate::server::server_api::ai::MockAIClient;
 
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id("550e8400-e29b-41d4-a716-446655440500".to_string());
@@ -1251,8 +1239,7 @@ fn on_conversation_removed_prunes_stale_child_run_id_from_parent() {
     use crate::server::server_api::ai::MockAIClient;
 
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let parent_id = AIConversation::new(false, false).id();
         let mut child_conversation = AIConversation::new(false, false);
@@ -1311,7 +1298,7 @@ fn on_conversation_removed_prunes_killed_child_run_id_from_parent_but_keeps_tomb
     use crate::server::server_api::ai::MockAIClient;
 
     App::test((), |mut app| async move {
-        app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let parent_id = AIConversation::new(false, false).id();
         let child_id = AIConversation::new(false, false).id();
@@ -1476,7 +1463,7 @@ fn make_parent_task_id_for_test(byte: u8) -> AmbientAgentTaskId {
 #[test]
 fn is_known_child_dedupes_per_parent_after_first_observation() {
     App::test((), |mut app| async move {
-        app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let mock = MockAIClient::new();
         let ai_client: Arc<dyn AIClient> = Arc::new(mock);
@@ -1535,7 +1522,7 @@ fn is_known_child_dedupes_per_parent_after_first_observation() {
 #[test]
 fn is_known_child_isolated_per_parent() {
     App::test((), |mut app| async move {
-        app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let mock = MockAIClient::new();
         let ai_client: Arc<dyn AIClient> = Arc::new(mock);
@@ -1578,7 +1565,7 @@ fn is_known_child_isolated_per_parent() {
 #[test]
 fn viewer_mode_consumer_refcount_handles_multiple_panes_and_double_unregister() {
     App::test((), |mut app| async move {
-        app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let mock = MockAIClient::new();
         let ai_client: Arc<dyn AIClient> = Arc::new(mock);
@@ -1658,8 +1645,7 @@ fn is_remote_run_view_excludes_shared_session_viewer() {
     use crate::ai::agent::conversation::AIConversation;
 
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         // Build a shared-session viewer conversation by passing
         // `is_viewing_shared_session = true` to `AIConversation::new`.
@@ -1692,8 +1678,7 @@ fn is_remote_run_view_excludes_remote_child() {
     use crate::ai::agent::conversation::AIConversation;
 
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let mut conversation = AIConversation::new(false, false);
         conversation.mark_as_remote_child();
@@ -1723,8 +1708,7 @@ fn is_remote_run_view_excludes_remote_child() {
 #[test]
 fn reevaluate_eligibility_does_not_reconnect_when_watched_run_ids_unchanged() {
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let own_run_id = "550e8400-e29b-41d4-a716-446655440401";
         let child_run_id = "550e8400-e29b-41d4-a716-446655440402";
@@ -1815,8 +1799,7 @@ fn finish_restore_fetch_reconnects_sse_when_children_added_to_open_connection() 
     use crate::server::server_api::ai::MockAIClient;
 
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let own_run_id = "550e8400-e29b-41d4-a716-446655440400";
         let mut conversation = AIConversation::new(false, false);
@@ -1941,7 +1924,7 @@ fn finish_ancestor_seed_fetch_emits_child_spawned_for_each_seeded_child() {
     // the pill bar stayed empty until a new lifecycle event arrived for
     // a child the SSE had not yet replayed.
     App::test((), |mut app| async move {
-        app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let mock = MockAIClient::new();
         let ai_client: Arc<dyn AIClient> = Arc::new(mock);
@@ -2032,7 +2015,7 @@ fn register_viewer_mode_consumer_replays_known_children_for_later_panes() {
     // construction time). Without a replay, the new consumer never observes
     // `ChildSpawned` for known children and the pill bar stays empty.
     App::test((), |mut app| async move {
-        app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let mock = MockAIClient::new();
         let ai_client: Arc<dyn AIClient> = Arc::new(mock);
@@ -2113,8 +2096,7 @@ fn parent_with_many_children_opens_one_ancestor_include_self_stream() {
     // A parent always opens a single parent-family ancestor stream regardless
     // of the number of watched children.
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let own_run_id = "550e8400-e29b-41d4-a716-446655440500";
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id(own_run_id.to_string());
@@ -2168,8 +2150,7 @@ fn registering_additional_child_does_not_reconnect_parent_family_stream() {
     // Once a parent-family ancestor stream is connected, registering more
     // children must not reconnect: the filter shape is unchanged.
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let own_run_id = "550e8400-e29b-41d4-a716-446655440501";
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id(own_run_id.to_string());
@@ -2230,8 +2211,7 @@ fn child_only_conversation_opens_self_run_id_filter() {
     // A child-only conversation keeps the explicit run-id stream watching
     // only its own run_id (it is not a parent, so the ancestor filter doesn't apply).
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let own_run_id = "550e8400-e29b-41d4-a716-446655440502";
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id(own_run_id.to_string());
@@ -2276,8 +2256,7 @@ fn restored_parent_with_children_opens_ancestor_include_self_stream() {
     // A restored parent whose children come back from the server fetch opens
     // a parent-family ancestor stream using the merged cursor.
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let own_run_id = "550e8400-e29b-41d4-a716-446655440504";
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id(own_run_id.to_string());
@@ -2346,8 +2325,7 @@ fn restored_child_without_children_opens_self_run_id_stream() {
     // A restored child conversation with no children of its own stays on the
     // explicit self run-id stream (it is not a parent, so the ancestor filter doesn't apply).
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let own_run_id = "550e8400-e29b-41d4-a716-446655440505";
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id(own_run_id.to_string());
@@ -2421,8 +2399,7 @@ fn wait_registration_root_with_children_opens_ancestor_include_self_stream() {
     // children, advances the cursor, and opens the parent-family ancestor
     // stream, completing the not-parent -> parent transition.
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let own_run_id = "550e8400-e29b-41d4-a716-446655440520";
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id(own_run_id.to_string());
@@ -2483,8 +2460,7 @@ fn wait_registration_root_without_children_does_not_register() {
     // An empty children list means the conversation is not an orchestrator:
     // no parent role is taken and no stream opens.
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let own_run_id = "550e8400-e29b-41d4-a716-446655440521";
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id(own_run_id.to_string());
@@ -2539,8 +2515,7 @@ fn wait_registration_fetch_error_does_not_register() {
     // A failed fetch is a graceful no-op: no parent role, no stream. The next
     // wait re-checks.
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let own_run_id = "550e8400-e29b-41d4-a716-446655440522";
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id(own_run_id.to_string());
@@ -2588,8 +2563,7 @@ fn wait_registration_fetch_error_does_not_register() {
 fn register_parent_on_wait_flag_off_is_noop() {
     // With the gating flag off, `register_parent_on_wait` does not fetch.
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let own_run_id = "550e8400-e29b-41d4-a716-446655440523";
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id(own_run_id.to_string());
@@ -2705,8 +2679,7 @@ fn drain_family_events_primary_routes_mixed_batch_and_delivers_inbox() {
         global_resource_handles.model_event_sender = Some(sender);
         app.add_singleton_model(|_| GlobalResourceHandlesProvider::new(global_resource_handles));
 
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let event_service = app.add_singleton_model(|_| OrchestrationEventService::default());
 
         let parent_task_id = make_parent_task_id_for_test(0xf1);
@@ -2809,8 +2782,7 @@ fn drain_family_events_observer_advances_cursor_without_server_push() {
         global_resource_handles.model_event_sender = Some(sender);
         app.add_singleton_model(|_| GlobalResourceHandlesProvider::new(global_resource_handles));
 
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         let parent_task_id = make_parent_task_id_for_test(0xf4);
         let parent_run_id = parent_task_id.to_string();
@@ -2874,8 +2846,7 @@ fn wait_registration_eligibility_child_conversation_is_eligible() {
     App::test((), |mut app| async move {
         let _flag_guard = FeatureFlag::WaitForEventsParentRegistration.override_enabled(true);
 
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id("550e8400-e29b-41d4-a716-446655440526".to_string());
         conversation.set_parent_agent_id("550e8400-e29b-41d4-a716-4466554405fe".to_string());
@@ -2897,8 +2868,7 @@ fn wait_registration_eligibility_requires_the_flag() {
     App::test((), |mut app| async move {
         let _flag_guard = FeatureFlag::WaitForEventsParentRegistration.override_enabled(false);
 
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id("550e8400-e29b-41d4-a716-446655440527".to_string());
         let conversation_id = conversation.id();
@@ -2924,8 +2894,7 @@ fn wait_registration_eligibility_excludes_remote_run_views() {
         // `mark_conversation_as_remote_child` persists the conversation,
         // which needs the settings + persistence singletons wired up.
         crate::test_util::settings::initialize_history_persistence_for_tests(&mut app);
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id("550e8400-e29b-41d4-a716-446655440528".to_string());
         let conversation_id = conversation.id();
@@ -2949,8 +2918,7 @@ fn wait_registration_eligibility_excludes_established_parents() {
     App::test((), |mut app| async move {
         let _flag_guard = FeatureFlag::WaitForEventsParentRegistration.override_enabled(true);
 
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let own_run_id = "550e8400-e29b-41d4-a716-446655440529";
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id(own_run_id.to_string());
@@ -2979,8 +2947,7 @@ fn wait_registration_mid_tree_child_with_children_registers_as_parent() {
     // parent role and open the parent-family ancestor stream just like a
     // root orchestrator.
     App::test((), |mut app| async move {
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let own_run_id = "550e8400-e29b-41d4-a716-446655440524";
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id(own_run_id.to_string());
@@ -3046,8 +3013,7 @@ fn register_parent_on_wait_already_parent_is_idempotent() {
     App::test((), |mut app| async move {
         let _flag_guard = FeatureFlag::WaitForEventsParentRegistration.override_enabled(true);
 
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let own_run_id = "550e8400-e29b-41d4-a716-446655440525";
         let mut conversation = AIConversation::new(false, false);
         conversation.set_run_id(own_run_id.to_string());
@@ -3096,8 +3062,7 @@ fn register_parent_on_wait_without_self_run_id_is_noop() {
     App::test((), |mut app| async move {
         let _flag_guard = FeatureFlag::WaitForEventsParentRegistration.override_enabled(true);
 
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         // Intentionally leave run_id unset.
         let conversation = AIConversation::new(false, false);
         let conversation_id = conversation.id();

@@ -21210,7 +21210,7 @@ impl TerminalView {
             Some(block) => block,
         };
 
-        let mut prompt = if block.honor_ps1() {
+        if block.honor_ps1() {
             block.prompt_contents_to_string(false)
         } else if block.prompt_snapshot().is_some() {
             // Note that we're checking not only for the flag being enabled but also ensuring the
@@ -21249,15 +21249,7 @@ impl TerminalView {
                     .git_branch()
                     .map_or_else(String::new, |b| format!(" git:({b})")),
             )
-        };
-
-        // On Local and Dev channels, append an indicator when NLD was overridden.
-        // Skip the honor_ps1 case since there's no good place to display the extra text.
-        if !block.honor_ps1() && block.nld_overridden() && ChannelState::enable_debug_features() {
-            prompt.push_str(" (nld overridden)");
         }
-
-        prompt
     }
 
     /// Returns the duration as an std::time::Duration struct

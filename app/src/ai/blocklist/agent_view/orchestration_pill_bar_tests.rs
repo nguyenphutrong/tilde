@@ -255,8 +255,8 @@ fn pill_bar_data_layer_finds_restored_children_before_pane_creation() {
             },
         ];
 
-        let history_model = app
-            .add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &conversations));
+        let history_model =
+            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &conversations));
 
         history_model.read(&app, |model, _| {
             // pill_specs walks `descendant_conversation_ids_in_spawn_order`
@@ -594,8 +594,8 @@ fn breadcrumbs_resolve_token_only_parent_linkage_after_restore() {
             },
         ];
 
-        let history_model = app
-            .add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &conversations));
+        let history_model =
+            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &conversations));
 
         // Token-linked children index under the parent at restore.
         history_model.read(&app, |history, _| {

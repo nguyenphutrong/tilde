@@ -91,8 +91,7 @@ fn execute_invokes_parent_registration_for_child_conversations() {
         let _flag_guard = FeatureFlag::WaitForEventsParentRegistration.override_enabled(true);
 
         let terminal_view_id = EntityId::new();
-        let history_model =
-            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
 
         // The registration fetch must be issued for the child (the old code
         // short-circuited children entirely, i.e. zero fetches). At least

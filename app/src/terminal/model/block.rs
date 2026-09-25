@@ -426,12 +426,6 @@ pub struct Block {
     /// This is only used if `FeatureFlag::AgentView` is enabled.
     agent_view_visibility: AgentViewVisibility,
 
-    /// Whether natural language detection (NLD) was overridden (i.e., the user had manually locked
-    /// the input type) at the time this block's command was submitted.
-    ///
-    /// This is used for debugging UI shown in the block header on dogfood builds.
-    nld_overridden: bool,
-
     visible_bootstrap_block_event_sent: bool,
 }
 
@@ -1016,7 +1010,6 @@ impl Block {
                 Some(id) => AgentViewVisibility::new_from_conversation(id),
                 None => AgentViewVisibility::new_from_terminal(),
             },
-            nld_overridden: false,
             is_oz_environment_startup_command: false,
             visible_bootstrap_block_event_sent: false,
         }
@@ -1086,19 +1079,6 @@ impl Block {
 
     pub fn agent_view_visibility(&self) -> &AgentViewVisibility {
         &self.agent_view_visibility
-    }
-
-    /// Returns whether NLD was overridden (input type was manually locked) when this block's
-    /// command was submitted.
-    ///
-    /// This is used for debugging UI shown in the block header on dogfood builds.
-    pub fn nld_overridden(&self) -> bool {
-        self.nld_overridden
-    }
-
-    /// Sets whether NLD was overridden at command submission time.
-    pub fn set_nld_overridden(&mut self, nld_overridden: bool) {
-        self.nld_overridden = nld_overridden;
     }
 
     pub fn set_trim_trailing_blank_rows(&mut self, trim: bool) {

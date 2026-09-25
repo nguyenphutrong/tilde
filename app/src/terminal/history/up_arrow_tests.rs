@@ -56,7 +56,7 @@ fn build_history_model(prompts: Vec<String>) -> BlocklistAIHistoryModel {
             coding_model_id: LLMId::from("test-model"),
         })
         .collect();
-    BlocklistAIHistoryModel::new(persisted_queries, vec![], &[])
+    BlocklistAIHistoryModel::new(persisted_queries, &[])
 }
 
 fn command_entry(

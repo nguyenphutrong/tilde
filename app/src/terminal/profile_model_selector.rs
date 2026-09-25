@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use ai::api_keys::{ApiKeyManager, ApiKeyManagerEvent};
 use indexmap::IndexMap;
-use instant::{Duration, Instant};
+use instant::Duration;
 use parking_lot::FairMutex;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
@@ -176,7 +176,6 @@ pub struct ProfileModelSelector {
     menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
     is_blurred: bool,
     new_model_popup: ViewHandle<FeaturePopup>,
-    input_model: ModelHandle<BlocklistAIInputModel>,
     ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
     render_compact: bool,
     hovered_llm_info: Option<LLMInfo>,
@@ -542,7 +541,6 @@ impl ProfileModelSelector {
             menu_positioning_provider,
             is_blurred: false,
             new_model_popup,
-            input_model,
             ambient_agent_view_model: None,
             render_compact: false,
             hovered_llm_info: None,
@@ -2333,22 +2331,10 @@ impl View for ProfileModelSelector {
             }
         }
 
-        let is_udi_enabled =
-            crate::settings::InputSettings::as_ref(app).is_universal_developer_input_enabled(app);
-
         // The popup overflows the viewport on wasm mobile.
         let is_wasm_mobile = warpui::platform::is_mobile_device();
 
-        if !is_wasm_mobile
-            && (is_udi_enabled
-                || self
-                    .input_model
-                    .as_ref(app)
-                    .last_ai_autodetection_ts()
-                    .is_none_or(|ts| {
-                        Instant::now().duration_since(ts) > NEW_MODEL_CHOICES_POPUP_DELAY
-                    }))
-        {
+        if !is_wasm_mobile {
             let llm_preferences = LLMPreferences::as_ref(app);
             match (
                 llm_preferences.should_show_new_choices_popup(self.terminal_view_id),
