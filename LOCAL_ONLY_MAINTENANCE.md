@@ -405,3 +405,7 @@ initializes. Persisted history is untouched; inline AI history and shared GraphQ
 The cloud composer prompt-history overlay and its separate navigation/selection routing are removed.
 Inline history uses the shared menu, retaining select-on-click and buffer restoration. The shared
 menu's agent-controller dependency and AI history results are separate removal checkpoints.
+
+Shared inline menus and their contextual hint bar no longer own or subscribe to an agent controller.
+They always use terminal borders while preserving placement, hint content, and selection behavior.
+Specialized AI menu consumers and inline AI history remain separate debt.

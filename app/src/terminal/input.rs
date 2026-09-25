@@ -2773,7 +2773,6 @@ impl Input {
         let inline_repos_menu_view = ctx.add_view(|ctx| {
             InlineReposMenuView::new(
                 suggestions_mode_model.clone(),
-                agent_view_controller.clone(),
                 &buffer_model,
                 &inline_terminal_menu_positioner,
                 ctx,
@@ -2789,7 +2788,6 @@ impl Input {
                 // Wired post-construction via `attach_ambient_agent_view_model`.
                 None,
                 suggestions_mode_model.clone(),
-                agent_view_controller.clone(),
                 &buffer_model,
                 cli_subagent_controller.clone(),
                 &inline_terminal_menu_positioner,
@@ -2803,7 +2801,6 @@ impl Input {
         let inline_prompts_menu_view = ctx.add_view(|ctx| {
             InlinePromptsMenuView::new(
                 suggestions_mode_model.clone(),
-                agent_view_controller.clone(),
                 &buffer_model,
                 &inline_terminal_menu_positioner,
                 ctx,
@@ -2816,7 +2813,6 @@ impl Input {
         let inline_skill_selector_view = ctx.add_view(|ctx| {
             InlineSkillSelectorView::new(
                 suggestions_mode_model.clone(),
-                agent_view_controller.clone(),
                 &buffer_model,
                 &inline_terminal_menu_positioner,
                 active_session,
@@ -2834,7 +2830,6 @@ impl Input {
             UserQueryMenuView::new(
                 AIConversationId::default(),
                 suggestions_mode_model.clone(),
-                agent_view_controller.clone(),
                 &inline_terminal_menu_positioner,
                 &buffer_model,
                 ctx,
@@ -2850,7 +2845,6 @@ impl Input {
             InlinePlanMenuView::new(
                 AIConversationId::default(),
                 suggestions_mode_model.clone(),
-                agent_view_controller.clone(),
                 &inline_terminal_menu_positioner,
                 &buffer_model,
                 ctx,
@@ -2864,7 +2858,6 @@ impl Input {
             RewindMenuView::new(
                 AIConversationId::default(),
                 suggestions_mode_model.clone(),
-                agent_view_controller.clone(),
                 &inline_terminal_menu_positioner,
                 &buffer_model,
                 ctx,
@@ -2880,7 +2873,6 @@ impl Input {
                 &inline_terminal_menu_positioner,
                 slash_command_data_source.clone(),
                 suggestions_mode_model.clone(),
-                agent_view_controller.clone(),
                 buffer_model.clone(),
                 ctx,
             )
