@@ -151,14 +151,10 @@ fn not_cloud_agent_commands_are_only_active_outside_cloud_mode() {
 
 #[test]
 fn cloud_mode_v2_commands_are_active_only_in_cloud_mode_v2_context() {
-    let cloud_context = BASELINE_AVAILABILITY;
-    assert!(!commands::HARNESS.is_active(cloud_context));
-
     let _cloud_mode_input_v2 = FeatureFlag::CloudModeInputV2.override_enabled(true);
     let cloud_mode_v2_context = BASELINE_AVAILABILITY | Availability::CLOUD_MODE_V2_COMPOSER;
     assert!(commands::PLAN.is_active(cloud_mode_v2_context));
     assert!(commands::MODEL.is_active(cloud_mode_v2_context));
-    assert!(commands::HARNESS.is_active(cloud_mode_v2_context));
 }
 
 #[cfg(all(feature = "local_fs", windows))]

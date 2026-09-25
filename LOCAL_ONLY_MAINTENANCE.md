@@ -293,3 +293,10 @@ Agent/cloud promotional tips, cooldown timers, tip settings/flags, and tip analy
 removed. Stored settings rows remain untouched. Ambient progress, errors, authentication, and the
 status bar's model-fallback explanation remain legacy AI/cloud debt. The reviewed cloud-residue inventory
 shrinks from 237 to 170 entries, with no additions.
+
+Cloud composer host/harness/credential selectors, credential creation/deletion dialogs, their focus
+and pane/workspace event wiring, `/host` and `/harness`, and the TUI credential revision bridge are
+removed. Orchestration cards no longer create or auto-adopt credentials; they retain existing-name
+catalog reads and explicit named/inherit/unset choices. An unset required cloud credential still
+blocks acceptance. Stored settings rows and credential tables remain untouched. Credential catalog,
+create/delete transport, and cloud orchestration remain removal debt.

@@ -890,8 +890,6 @@ pub struct PaneGroup {
 
     /// Pane with an open environment setup mode selector modal (rendered at tab level).
     pane_with_open_environment_setup_mode_selector: Option<PaneId>,
-    /// Pane with an open auth-secret delete confirmation dialog (rendered at tab level).
-    pane_with_open_auth_secret_delete_confirmation_dialog: Option<PaneId>,
 
     /// If the left panel is open for this pane group
     pub left_panel_open: bool,
@@ -3145,7 +3143,6 @@ impl PaneGroup {
             active_file_model,
             terminal_with_open_summarization_dialog: None,
             pane_with_open_environment_setup_mode_selector: None,
-            pane_with_open_auth_secret_delete_confirmation_dialog: None,
             right_panel_open: false,
             left_panel_open: false,
             is_right_panel_maximized: false,
@@ -4803,9 +4800,6 @@ impl PaneGroup {
 
             if self.pane_with_open_environment_setup_mode_selector == Some(pane_id) {
                 self.pane_with_open_environment_setup_mode_selector = None;
-            }
-            if self.pane_with_open_auth_secret_delete_confirmation_dialog == Some(pane_id) {
-                self.pane_with_open_auth_secret_delete_confirmation_dialog = None;
             }
 
             self.focus_next_terminal_pane_and_activate_session(
@@ -8293,18 +8287,6 @@ impl View for PaneGroup {
             if let Some(handle) = selector_handle {
                 stack.add_child(ChildView::new(&handle).finish());
             }
-        }
-
-        // Render auth-secret delete confirmation at tab level when open.
-        if let Some(pane_id) = self.pane_with_open_auth_secret_delete_confirmation_dialog
-            && let Some(dialog) = self
-                .terminal_view_from_pane_id(pane_id, app)
-                .and_then(|tv| {
-                    tv.as_ref(app)
-                        .auth_secret_delete_confirmation_dialog_element(app)
-                })
-        {
-            stack.add_child(dialog);
         }
 
         stack.finish()

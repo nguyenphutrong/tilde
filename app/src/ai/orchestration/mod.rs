@@ -23,8 +23,7 @@ pub use providers::{
     resolve_default_host_slug,
 };
 pub(crate) use providers::{
-    can_execute_with_auth_secret, persist_auth_secret_selection,
-    populate_default_auth_secret_for_execution,
+    can_execute_with_auth_secret, populate_default_auth_secret_for_execution,
 };
 pub(crate) use remote_child::should_disable_snapshot;
 #[cfg_attr(not(feature = "tui"), allow(unused_imports))]
@@ -40,7 +39,7 @@ pub use snapshots::location_snapshot;
 #[cfg_attr(not(feature = "tui"), allow(unused_imports))]
 pub use snapshots::oz_model_snapshot;
 pub use snapshots::{
-    OptionBadge, OptionFooter, OptionRow, OptionSnapshot, OptionSourceStatus, api_key_snapshot,
+    OptionBadge, OptionRow, OptionSnapshot, OptionSourceStatus, api_key_snapshot,
     build_runner_snapshot, environment_snapshot, harness_snapshot, host_snapshot, model_snapshot,
 };
 pub use validation::{

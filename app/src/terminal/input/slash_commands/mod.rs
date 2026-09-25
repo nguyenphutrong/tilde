@@ -838,37 +838,6 @@ impl Input {
                 // Open the skill selector menu for invocation - skill command will be inserted into buffer
                 self.open_invoke_skill_selector(ctx);
             }
-            SlashCommandKind::Host => {
-                if !self.is_cloud_mode_input_v2_composing(ctx) {
-                    return false;
-                }
-                // Only open the host selector when a default host is configured.
-                if self
-                    .host_selector()
-                    .is_none_or(|h| !h.as_ref(ctx).has_default_host())
-                {
-                    return false;
-                }
-                self.suggestions_mode_model.update(ctx, |model, ctx| {
-                    model.set_mode(InputSuggestionsMode::Closed, ctx);
-                });
-                self.clear_buffer_and_reset_undo_stack(ctx);
-                self.open_v2_host_selector(ctx);
-                return true;
-            }
-            SlashCommandKind::Harness => {
-                if !self.is_cloud_mode_input_v2_composing(ctx) {
-                    // Defensive: the command is registered only when the V2 flag is on and its
-                    // availability requires CLOUD_MODE_V2_COMPOSER, so this branch should be unreachable.
-                    return false;
-                }
-                self.suggestions_mode_model.update(ctx, |model, ctx| {
-                    model.set_mode(InputSuggestionsMode::Closed, ctx);
-                });
-                self.clear_buffer_and_reset_undo_stack(ctx);
-                self.open_v2_harness_selector(ctx);
-                return true;
-            }
             SlashCommandKind::Profile => {
                 if !FeatureFlag::InlineProfileSelector.is_enabled() {
                     return false;
