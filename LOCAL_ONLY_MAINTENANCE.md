@@ -401,3 +401,7 @@ Command search no longer registers or renders AI prompt history. The unused natu
 command-generation API, generated-command types/conversions, and GraphQL mutation are deleted.
 A regression enables AI and verifies only the local workflow source registers before shell history
 initializes. Persisted history is untouched; inline AI history and shared GraphQL remain debt.
+
+The cloud composer prompt-history overlay and its separate navigation/selection routing are removed.
+Inline history uses the shared menu, retaining select-on-click and buffer restoration. The shared
+menu's agent-controller dependency and AI history results are separate removal checkpoints.

@@ -326,7 +326,6 @@ pub struct InlineMenuView<A: InlineMenuAction, T: 'static + Send + Sync = ()> {
     resize_handle: DragResizeHandle,
     drag_indicator_mouse_state: MouseStateHandle,
     compact_layout: bool,
-    dismiss_on_row_click: bool,
 }
 
 impl<A: InlineMenuAction> InlineMenuView<A> {
@@ -446,7 +445,6 @@ impl<A: InlineMenuAction, T: 'static + Send + Sync> InlineMenuView<A, T> {
 
                 let results = me.mixer.as_ref(ctx).results();
 
-                let dismiss_on_row_click = me.dismiss_on_row_click;
                 me.result_renderers = results
                     .clone()
                     .into_iter()
@@ -468,9 +466,6 @@ impl<A: InlineMenuAction, T: 'static + Send + Sync> InlineMenuView<A, T> {
                                     }
                                 };
                                 ctx.dispatch_typed_action(action);
-                                if dismiss_on_row_click {
-                                    ctx.dispatch_typed_action(InlineMenuRowAction::<A>::Dismiss);
-                                }
                             },
                             *QUERY_RESULT_RENDERER_STYLES,
                         )
@@ -519,7 +514,6 @@ impl<A: InlineMenuAction, T: 'static + Send + Sync> InlineMenuView<A, T> {
             resize_handle: drag_resize_handle(),
             drag_indicator_mouse_state: MouseStateHandle::default(),
             compact_layout: false,
-            dismiss_on_row_click: false,
         }
     }
 
@@ -530,11 +524,6 @@ impl<A: InlineMenuAction, T: 'static + Send + Sync> InlineMenuView<A, T> {
 
     pub fn with_compact_layout(mut self) -> Self {
         self.compact_layout = true;
-        self
-    }
-
-    pub fn with_dismiss_on_row_click(mut self) -> Self {
-        self.dismiss_on_row_click = true;
         self
     }
 
