@@ -23,7 +23,12 @@ fn retired_input_predictions_are_not_registered_settings() {
                             | "intelligent_autosuggestions_enabled"
                     )
                     || entry.hierarchy == Some("agents.warp_agent.input")
-                        && entry.storage_key == "ai_command_denylist"
+                        && matches!(
+                            entry.storage_key,
+                            "ai_command_denylist"
+                                | "ai_auto_detection_enabled"
+                                | "nld_in_terminal_enabled"
+                        )
             })
     );
 }
@@ -960,53 +965,4 @@ fn test_voice_input_languages_includes_common_languages() {
             "catalog is missing {expected:?}"
         );
     }
-}
-#[test]
-fn ai_autodetection_defaults_to_opt_in() {
-    App::test((), |mut app| async move {
-        initialize_settings_for_tests(&mut app);
-        add_ai_enablement_dependencies_for_test(&mut app);
-
-        AISettings::handle(&app).read(&app, |settings, ctx| {
-            // NLD is opt-in: a fresh user who never touched the setting has it off.
-            // This fails before the default flip (default was `true`) and passes after.
-            assert!(!*settings.ai_autodetection_enabled_internal.value());
-            // AI is enabled by default, so the getter reflects the opt-in setting
-            // rather than a disabled-AI state.
-            assert!(settings.is_any_ai_enabled(ctx));
-            assert!(!settings.is_ai_autodetection_enabled(ctx));
-        });
-    });
-}
-
-#[test]
-fn ai_autodetection_setting_can_be_toggled_on_and_off() {
-    App::test((), |mut app| async move {
-        initialize_settings_for_tests(&mut app);
-        add_ai_enablement_dependencies_for_test(&mut app);
-
-        // Mirrors what `/enable-natural-language-detection` does in the TUI.
-        AISettings::handle(&app).update(&mut app, |settings, ctx| {
-            settings
-                .ai_autodetection_enabled_internal
-                .set_value(true, ctx)
-                .unwrap();
-        });
-        AISettings::handle(&app).read(&app, |settings, ctx| {
-            assert!(*settings.ai_autodetection_enabled_internal.value());
-            assert!(settings.is_ai_autodetection_enabled(ctx));
-        });
-
-        // Mirrors what `/disable-natural-language-detection` does in the TUI.
-        AISettings::handle(&app).update(&mut app, |settings, ctx| {
-            settings
-                .ai_autodetection_enabled_internal
-                .set_value(false, ctx)
-                .unwrap();
-        });
-        AISettings::handle(&app).read(&app, |settings, ctx| {
-            assert!(!*settings.ai_autodetection_enabled_internal.value());
-            assert!(!settings.is_ai_autodetection_enabled(ctx));
-        });
-    });
 }

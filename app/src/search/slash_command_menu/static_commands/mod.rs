@@ -62,7 +62,6 @@ pub enum SlashCommandKind {
     ResetStatusline,
     ViewLogs,
     Voice,
-    NaturalLanguageDetection,
     Theme,
     Exit,
     Logout,

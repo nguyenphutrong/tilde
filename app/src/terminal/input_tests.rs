@@ -253,18 +253,6 @@ fn renders_fixed_prompt_chip_command_without_interpolation() {
 pub fn initialize_app(app: &mut App) {
     initialize_settings_for_tests(app);
 
-    // NLD is now opt-in by default (`ai_autodetection_enabled_internal` defaults to false).
-    // These tests exercise the natural-language-detection-on code paths (buffer-driven slash
-    // command detection, auto-detection input mode), so explicitly re-enable it here to preserve
-    // the pre-opt-in test behavior. The opt-in default itself is covered by
-    // `ai_autodetection_defaults_to_opt_in` in `settings/ai_tests.rs`.
-    crate::settings::AISettings::handle(app).update(app, |settings, ctx| {
-        settings
-            .ai_autodetection_enabled_internal
-            .set_value(true, ctx)
-            .unwrap();
-    });
-
     // Make sure we set up all necessary custom action bindings.
     app.update(init);
 
@@ -4314,7 +4302,7 @@ fn test_completions_while_typing_doesnt_hide_autosuggestion() {
 }
 
 #[test]
-fn test_agent_mode_set_while_typing_slash_command() {
+fn test_agent_mode_is_preserved_while_typing_slash_command() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
@@ -4325,10 +4313,9 @@ fn test_agent_mode_set_while_typing_slash_command() {
         .await;
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
 
-        // Start with natural language detection
         input.update(&mut app, |input, ctx| {
-            input.set_input_mode_natural_language_detection(ctx);
-            assert!(!input.ai_input_model.as_ref(ctx).is_ai_input_enabled());
+            input.set_input_mode_agent(false, ctx);
+            assert!(input.ai_input_model.as_ref(ctx).is_ai_input_enabled());
         });
 
         // Open slash commands menu by typing "/"
@@ -4375,7 +4362,7 @@ fn test_plan_slash_command_argument_with_slash_does_not_disable_slash_command_pa
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
 
         input.update(&mut app, |input, ctx| {
-            input.set_input_mode_natural_language_detection(ctx);
+            input.set_input_mode_agent(false, ctx);
             input.user_insert("/plan investigate app/src/main.rs", ctx);
         });
 
@@ -4406,7 +4393,7 @@ fn test_open_slash_command_triggers_completions_on_space() {
         simulate_directory_for_completion(session_id, &terminal, &mut app, "/tmp");
 
         input.update(&mut app, |input, ctx| {
-            input.set_input_mode_natural_language_detection(ctx);
+            input.set_input_mode_agent(false, ctx);
         });
 
         input.update(&mut app, |input, ctx| {
@@ -4438,6 +4425,7 @@ fn test_open_slash_command_does_not_autofill_single_file_completion() {
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
 
         input.update(&mut app, |input, ctx| {
+            input.set_input_mode_agent(false, ctx);
             input.clear_buffer_and_reset_undo_stack(ctx);
             input.editor.update(ctx, |editor, ctx| {
                 editor.set_buffer_text("/open-file ", ctx)
@@ -4496,6 +4484,7 @@ fn test_open_slash_command_triggers_completions_when_selected() {
         simulate_directory_for_completion(session_id, &terminal, &mut app, "/tmp");
 
         input.update(&mut app, |input, ctx| {
+            input.set_input_mode_agent(false, ctx);
             input.user_insert("/", ctx);
             input.handle_slash_commands_menu_event(
                 &SlashCommandsEvent::SelectedStaticCommand {
@@ -4529,6 +4518,7 @@ fn test_open_slash_command_requires_path() {
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
 
         input.update(&mut app, |input, ctx| {
+            input.set_input_mode_agent(false, ctx);
             input.editor.update(ctx, |editor, ctx| {
                 editor.set_buffer_text("/open-file ", ctx)
             });
@@ -4553,6 +4543,7 @@ fn test_changelog_slash_command_clears_buffer_on_success() {
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
 
         input.update(&mut app, |input, ctx| {
+            input.set_input_mode_agent(false, ctx);
             input.editor.update(ctx, |editor, ctx| {
                 editor.set_buffer_text(commands::CHANGELOG.name, ctx)
             });
@@ -4580,6 +4571,7 @@ fn test_open_slash_command_opens_files_palette_when_entered_from_slash_menu() {
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
 
         input.update(&mut app, |input, ctx| {
+            input.set_input_mode_agent(false, ctx);
             input.user_insert("/", ctx);
             input.user_insert("open-file", ctx);
         });
@@ -4622,6 +4614,7 @@ fn test_open_slash_command_clears_buffer_on_success() {
         );
 
         input.update(&mut app, |input, ctx| {
+            input.set_input_mode_agent(false, ctx);
             input.editor.update(ctx, |editor, ctx| {
                 editor.set_buffer_text("/open-file test_file.txt", ctx)
             });
@@ -4670,6 +4663,7 @@ fn test_open_slash_command_expands_tilde() {
         );
 
         input.update(&mut app, |input, ctx| {
+            input.set_input_mode_agent(false, ctx);
             input.editor.update(ctx, |editor, ctx| {
                 editor.set_buffer_text("/open-file ~/warp_tilde_test_file.txt", ctx)
             });
@@ -5057,7 +5051,7 @@ fn test_create_docker_sandbox_slash_command_executes_and_clears_buffer() {
 }
 
 #[test]
-fn test_agent_mode_set_when_block_attached() {
+fn test_shell_input_preserves_plan_reference_text() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
@@ -5068,30 +5062,33 @@ fn test_agent_mode_set_when_block_attached() {
         .await;
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
 
-        // Start with natural language detection
         input.update(&mut app, |input, ctx| {
-            input.set_input_mode_natural_language_detection(ctx);
+            input.set_input_mode_terminal(false, ctx);
             assert!(!input.ai_input_model.as_ref(ctx).is_ai_input_enabled());
         });
 
-        // Attach a block
         input.update(&mut app, |input, ctx| {
             input.user_insert("<plan:398bf127-b3ca-47ab-b15c-f569dd982651>", ctx);
         });
 
-        // Should be in agent mode now
         input.read(&app, |input, ctx| {
-            assert!(input.ai_input_model.as_ref(ctx).is_ai_input_enabled());
+            assert!(!input.ai_input_model.as_ref(ctx).is_ai_input_enabled());
+            assert_eq!(
+                input.buffer_text(ctx),
+                "<plan:398bf127-b3ca-47ab-b15c-f569dd982651>"
+            );
         });
 
-        // Add a prompt
         input.update(&mut app, |input, ctx| {
             input.user_insert(" implement this plan", ctx);
         });
 
-        // Verify we're still in agent mode
         input.read(&app, |input, ctx| {
-            assert!(input.ai_input_model.as_ref(ctx).is_ai_input_enabled());
+            assert!(!input.ai_input_model.as_ref(ctx).is_ai_input_enabled());
+            assert_eq!(
+                input.buffer_text(ctx),
+                "<plan:398bf127-b3ca-47ab-b15c-f569dd982651> implement this plan"
+            );
         });
     });
 }
@@ -7733,7 +7730,7 @@ fn test_input_type_button_explicit_lock() {
 }
 
 #[test]
-fn test_auto_detection_toggle() {
+fn test_shell_input_stays_locked_after_edits_and_clear() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
@@ -7744,109 +7741,22 @@ fn test_auto_detection_toggle() {
         .await;
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
 
-        // Start in locked AI mode
-        input.update(&mut app, |input, ctx| {
-            input.ai_input_model().update(ctx, |ai_input, ctx| {
-                ai_input.set_input_config(
-                    InputConfig {
-                        input_type: InputType::AI,
-                        is_locked: true,
-                    },
-                    true, /* is_input_buffer_empty */
-                    None,
-                    ctx,
+        for text in ["explain this directory", "echo hello", "/plan inspect"] {
+            input.update(&mut app, |input, ctx| {
+                input.user_insert(text, ctx);
+                assert_eq!(input.buffer_text(ctx), text);
+                assert_eq!(
+                    input.ai_input_model.as_ref(ctx).input_config(),
+                    InputConfig::default()
+                );
+                input.clear_buffer_and_reset_undo_stack(ctx);
+                assert!(input.buffer_text(ctx).is_empty());
+                assert_eq!(
+                    input.ai_input_model.as_ref(ctx).input_config(),
+                    InputConfig::default()
                 );
             });
-        });
-
-        // Verify initial locked state
-        let initial_config = input.read(&app, |input, _| {
-            app.read_model(input.ai_input_model(), |ai_input, _| {
-                ai_input.input_config()
-            })
-        });
-        assert_eq!(initial_config.input_type, InputType::AI);
-        assert!(initial_config.is_locked);
-
-        // Toggle auto-detection (should unlock and switch to Shell mode for empty buffer)
-        input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::EnableAutoDetection,
-                ctx,
-            );
-        });
-
-        // Verify we're now unlocked and switched to Shell mode (empty buffer defaults to Shell)
-        let after_toggle_config = input.read(&app, |input, _| {
-            app.read_model(input.ai_input_model(), |ai_input, _| {
-                ai_input.input_config()
-            })
-        });
-        assert_eq!(after_toggle_config.input_type, InputType::Shell);
-        assert!(
-            !after_toggle_config.is_locked,
-            "Input should be unlocked after toggling auto-detection"
-        );
-
-        // Toggle auto-detection again (should do nothing, since auto-detection is already enabled)
-        input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::EnableAutoDetection,
-                ctx,
-            );
-        });
-
-        // Verify we're still unlocked in Shell mode
-        let second_toggle_config = input.read(&app, |input, _| {
-            app.read_model(input.ai_input_model(), |ai_input, _| {
-                ai_input.input_config()
-            })
-        });
-        assert_eq!(second_toggle_config.input_type, InputType::Shell);
-        assert!(
-            !second_toggle_config.is_locked,
-            "Input should remain unlocked after toggling auto-detection again"
-        );
-
-        // Switch to AI mode manually and test toggle behavior
-        input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::InputTypeSelected(InputType::AI),
-                ctx,
-            );
-        });
-
-        // Verify we're locked in AI mode
-        let locked_ai_config = input.read(&app, |input, _| {
-            app.read_model(input.ai_input_model(), |ai_input, _| {
-                ai_input.input_config()
-            })
-        });
-        assert_eq!(locked_ai_config.input_type, InputType::AI);
-        assert!(
-            locked_ai_config.is_locked,
-            "Input should be locked when manually set to AI"
-        );
-
-        // Toggle auto-detection from locked AI mode
-        input.update(&mut app, |input, ctx| {
-            input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::EnableAutoDetection,
-                ctx,
-            );
-        });
-
-        // Verify we're unlocked and defaults to Shell mode (empty buffer)
-        let final_config = input.read(&app, |input, _| {
-            app.read_model(input.ai_input_model(), |ai_input, _| {
-                ai_input.input_config()
-            })
-        });
-        assert_eq!(final_config.input_type, InputType::Shell);
-        assert!(
-            !final_config.is_locked,
-            "Input should be unlocked after enabling auto-detection"
-        );
+        }
     });
 }
 
@@ -7949,14 +7859,6 @@ fn run_input_mode_prefix_test(udi_enabled: bool, input_type: InputType) {
 
         initialize_app(&mut app);
 
-        // Ensure the AI autodetection is enabled.
-        AISettings::handle(&app).update(&mut app, |ai_settings, ctx| {
-            let _ = ai_settings
-                .ai_autodetection_enabled_internal
-                .set_value(true, ctx);
-            // Make sure the autodetection is actually enabled, in practice.
-            assert!(ai_settings.is_ai_autodetection_enabled(ctx));
-        });
         // Set the input box type based on the test configuration.
         InputSettings::handle(&app).update(&mut app, |input_settings, ctx| {
             let input_box_type = if udi_enabled {
@@ -7973,6 +7875,12 @@ fn run_input_mode_prefix_test(udi_enabled: bool, input_type: InputType) {
         )
         .await;
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
+
+        if input_type == InputType::Shell {
+            input.update(&mut app, |input, ctx| {
+                input.set_input_mode_agent(false, ctx)
+            });
+        }
 
         for c in format!("{input_prefix}some text").chars() {
             input.update(&mut app, |input, ctx| {
@@ -8348,7 +8256,7 @@ fn test_input_config_transitions() {
         .await;
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
 
-        // Test sequence: Shell(locked) -> VoiceInput -> AutoDetection -> AgentMode(locked)
+        // Test sequence: Shell(locked) -> VoiceInput -> Shell(locked) -> AgentMode(locked)
 
         // Start in locked Shell mode
         input.update(&mut app, |input, ctx| {
@@ -8383,10 +8291,10 @@ fn test_input_config_transitions() {
         assert_eq!(config_after_voice.input_type, InputType::AI);
         assert!(config_after_voice.is_locked);
 
-        // Toggle auto-detection (should unlock and switch to Shell mode for empty buffer)
+        // Explicitly switch back to Shell mode.
         input.update(&mut app, |input, ctx| {
             input.handle_universal_developer_input_button_bar_event(
-                &UniversalDeveloperInputButtonBarEvent::EnableAutoDetection,
+                &UniversalDeveloperInputButtonBarEvent::InputTypeSelected(InputType::Shell),
                 ctx,
             );
         });
@@ -8397,7 +8305,7 @@ fn test_input_config_transitions() {
             })
         });
         assert_eq!(config_after_auto.input_type, InputType::Shell);
-        assert!(!config_after_auto.is_locked);
+        assert!(config_after_auto.is_locked);
 
         // Explicitly click AgentMode button (should lock in AI mode)
         input.update(&mut app, |input, ctx| {
@@ -8550,21 +8458,12 @@ fn test_remove_ignored_suggestion_on_ai_query_execution() {
 }
 
 #[test]
-fn test_agent_view_terminal_only_initial_input_config_unlocked_when_autodetection_enabled() {
+fn test_agent_view_terminal_only_initial_input_config_is_locked_shell() {
     App::test((), |mut app| async move {
         let _am_flag = FeatureFlag::AgentMode.override_enabled(true);
         let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
 
         initialize_app(&mut app);
-
-        // Ensure autodetection is enabled in terminal mode.
-        // When AgentView is enabled, terminal-only mode uses nld_in_terminal_enabled_internal.
-        AISettings::handle(&app).update(&mut app, |ai_settings, ctx| {
-            let _ = ai_settings
-                .nld_in_terminal_enabled_internal
-                .set_value(true, ctx);
-            assert!(ai_settings.is_nld_in_terminal_enabled(ctx));
-        });
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
@@ -8576,10 +8475,7 @@ fn test_agent_view_terminal_only_initial_input_config_unlocked_when_autodetectio
         });
 
         assert_eq!(config.input_type, InputType::Shell);
-        assert!(
-            !config.is_locked,
-            "Expected terminal-only AgentView input to start unlocked when autodetection is enabled"
-        );
+        assert!(config.is_locked);
     });
 }
 
@@ -8592,13 +8488,6 @@ fn test_terminal_only_ai_enter_enters_agent_view_and_clears_buffer() {
         let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
 
         initialize_app(&mut app);
-
-        AISettings::handle(&app).update(&mut app, |ai_settings, ctx| {
-            let _ = ai_settings
-                .ai_autodetection_enabled_internal
-                .set_value(true, ctx);
-            assert!(ai_settings.is_ai_autodetection_enabled(ctx));
-        });
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
@@ -8650,14 +8539,6 @@ fn test_terminal_only_escape_locks_shell_mode() {
         let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
 
         initialize_app(&mut app);
-
-        // Autodetection on; we still expect Esc to explicitly lock to shell.
-        AISettings::handle(&app).update(&mut app, |ai_settings, ctx| {
-            let _ = ai_settings
-                .ai_autodetection_enabled_internal
-                .set_value(true, ctx);
-            assert!(ai_settings.is_ai_autodetection_enabled(ctx));
-        });
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());

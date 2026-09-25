@@ -2746,14 +2746,9 @@ impl BlocklistAIController {
     /// * Executing a task automatically -> interactive AI input
     /// * Interactive AI input -> interactive shell input
     fn set_input_mode_for_cancellation(&mut self, ctx: &mut ModelContext<Self>) {
-        // If the request was cancelled, default to shell mode with autodetection
-        // enabled.
         self.input_model.update(ctx, |input_model, ctx| {
             input_model.set_input_config_for_classic_mode(
-                input_model
-                    .input_config()
-                    .with_shell_type()
-                    .unlocked_if_autodetection_enabled(false, ctx),
+                input_model.input_config().with_shell_type().locked(),
                 ctx,
             );
         });

@@ -202,7 +202,9 @@ Natural-language classifier execution, its history-similarity matching, asynchro
 heuristic crates, dictionaries and AI-only Git `difflib` dependency are removed. Explicit input modes
 retain their existing serialization; shell completion parsing, aliases, history and decorations
 remain. The Unicode-decoration fixture declares its builtin instead of depending on host commands.
-Mode policy/settings transitions remain for their own removal increment.
+Input starts in locked Shell mode and edits, clearing, and submission do not resume classification.
+Restored input configurations are locked. Autodetection settings, their one-time migration,
+mode transitions, slash command and dedicated telemetry are removed; manual AI modes remain pending.
 
 The terminal AI welcome block, autodetection footer control, classifier command denylist and
 history-matching feature flag are removed. Legacy toolbar arrays still decode retired NLD items

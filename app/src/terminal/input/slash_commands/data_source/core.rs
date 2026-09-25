@@ -97,7 +97,6 @@ pub(super) fn subscribe_to_shared_dependencies<T>(
             event,
             AISettingsChangedEvent::IsAnyAIEnabled { .. }
                 | AISettingsChangedEvent::ShouldForceDisableCloudHandoff { .. }
-                | AISettingsChangedEvent::AIAutoDetectionEnabled { .. }
         ) {
             recompute_active_commands(me, ctx);
         }

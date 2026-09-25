@@ -64,10 +64,9 @@ use crate::server::server_api::TranscribeError;
 use crate::server::team_scope::RequestTeamScope;
 use crate::server::telemetry::TelemetryEvent;
 #[cfg(feature = "voice_input")]
-use crate::settings::AISettingsChangedEvent;
+use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::settings::{
-    AISettings, CodeSettings, CodeSettingsChangedEvent, PrivacySettings,
-    PrivacySettingsChangedEvent,
+    CodeSettings, CodeSettingsChangedEvent, PrivacySettings, PrivacySettingsChangedEvent,
 };
 use crate::terminal::cli_agent_sessions::{
     CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,

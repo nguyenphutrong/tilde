@@ -19,7 +19,6 @@ use warpui::AppContext;
 
 use super::conversation_selection::ConversationSelectionEvent;
 use super::input_model::{InputConfig, InputTypeAutoDetectionSource};
-use crate::settings::AISettingsChangedEvent;
 
 /// A config write produced by an [`InputModePolicy`] decision.
 pub struct PolicyConfigUpdate {
@@ -48,25 +47,19 @@ impl PolicyConfigUpdate {
 }
 
 /// Per-view policy consulted by [`BlocklistAIInputModel`](super::BlocklistAIInputModel)
-/// for decisions it cannot make view-agnostically: lock gating, the
-/// autodetection setting for the surface's current context, and reactive
-/// config transitions driven by conversation-selection and settings events.
+/// for decisions it cannot make view-agnostically: lock gating and reactive
+/// config transitions driven by conversation-selection events.
 ///
 /// The reactive hooks receive the raw event and decide the config to apply,
 /// so view-specific event payloads (fullscreen vs. inline, entry origins)
 /// stay a concern of the implementing view.
 pub trait InputModePolicy: 'static {
     /// The config the surface starts with.
-    fn initial_config(&self, app: &AppContext) -> InputConfig;
+    fn initial_config(&self) -> InputConfig;
 
     /// Whether the input may currently be locked to AI. When this returns
     /// `false`, `{AI, locked}` config writes are rejected.
     fn allows_locked_ai_input(&self, app: &AppContext) -> bool;
-
-    /// Whether NL autodetection is enabled for the surface's current context.
-    /// This is the raw setting lookup; the model layers its own view-agnostic
-    /// guards (agent-in-control, pending attachments) on top.
-    fn is_autodetection_enabled(&self, app: &AppContext) -> bool;
 
     /// The config to apply in response to a conversation-selection event, or
     /// `None` to leave the config unchanged.
@@ -74,20 +67,6 @@ pub trait InputModePolicy: 'static {
         &self,
         event: &ConversationSelectionEvent,
         current: InputConfig,
-        app: &AppContext,
-    ) -> Option<PolicyConfigUpdate>;
-
-    /// The config to apply when AI settings change, or `None` to leave the
-    /// config unchanged. `is_autodetection_enabled_for_current_context` is the
-    /// model's guarded autodetection state (agent-in-control and attachment
-    /// checks layered over [`Self::is_autodetection_enabled`]). Computing it
-    /// takes the terminal-model lock, so the model only computes it for
-    /// `AIAutoDetectionEnabled` events; for all other events it is `false`.
-    fn config_on_ai_settings_changed(
-        &self,
-        event: &AISettingsChangedEvent,
-        current: InputConfig,
-        is_autodetection_enabled_for_current_context: bool,
         app: &AppContext,
     ) -> Option<PolicyConfigUpdate>;
 }

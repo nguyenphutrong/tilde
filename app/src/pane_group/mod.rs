@@ -2137,7 +2137,7 @@ impl PaneGroup {
                             is_active: visible_leaf_is_active_session,
                             is_read_only: false,
                             shell_launch_data: None,
-                            input_config: Some(InputConfig::new(app)),
+                            input_config: Some(InputConfig::default()),
                             llm_model_override: None,
                             active_profile_id: None,
                             conversation_ids_to_restore: Vec::new(),
