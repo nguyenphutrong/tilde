@@ -2094,11 +2094,6 @@ pub enum TelemetryEvent {
     AISuggestedAgentModeWorkflowAdded {
         logging_id: SuggestedLoggingId,
     },
-    AttachedImagesToAgentModeQuery {
-        num_images: usize,
-        /// Whether or not Universal Developer Input mode is enabled
-        is_udi_enabled: bool,
-    },
     /// An error was encountered fetching available WSL distributions from the Registry.
     /// This typically means the user hasn't installed or enabled WSL.
     #[cfg(windows)]
@@ -3507,13 +3502,6 @@ impl TelemetryEvent {
             TelemetryEvent::AutoexecutedAgentModeRequestedCommand { reason } => Some(json!({
                 "reason": reason,
             })),
-            TelemetryEvent::AttachedImagesToAgentModeQuery {
-                num_images,
-                is_udi_enabled,
-            } => Some(json!({
-                "num_images": num_images,
-                "is_udi_enabled": is_udi_enabled,
-            })),
             TelemetryEvent::AgentModeRatedResponse {
                 server_output_id,
                 conversation_id,
@@ -4574,7 +4562,6 @@ impl TelemetryEvent {
             | TelemetryEvent::AISuggestedRuleAdded { .. }
             | TelemetryEvent::AISuggestedRuleEdited { .. }
             | TelemetryEvent::AISuggestedRuleContentChanged { .. }
-            | TelemetryEvent::AttachedImagesToAgentModeQuery { .. }
             | TelemetryEvent::FileExceededContextLimit { .. }
             | TelemetryEvent::AgentModeError { .. }
             | TelemetryEvent::AgentModeRequestRetrySucceeded { .. }
@@ -5072,9 +5059,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             | Self::ChangedAgentModeCodingPermissions
             | Self::ChangedAgentModeAskUserQuestionPermission
             | Self::AutoexecutedAgentModeRequestedCommand => EnablementState::Always,
-            Self::AttachedImagesToAgentModeQuery => {
-                EnablementState::Flag(FeatureFlag::ImageAsContext)
-            }
             #[cfg(windows)]
             Self::WSLRegistryError
             | Self::AutoupdateUnableToCloseApplications
@@ -5575,7 +5559,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             }
             Self::ToggleCodebaseContext => "Toggle Agent Mode Codebase Context",
             Self::ToggleAutoIndexing => "Toggle Codebase Context Autoindexing",
-            Self::AttachedImagesToAgentModeQuery => "AgentMode.AttachedImages",
             Self::AgentModeRatedResponse => "AgentMode.RatedResponse",
             Self::ExecutedWarpDrivePrompt => "AgentMode.ExecutedWarpDrivePrompt",
             Self::FileExceededContextLimit => "AgentMode.Code.FileExceededContextLimit",
@@ -6272,7 +6255,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AutoexecutedAgentModeRequestedCommand => {
                 "Autoexecuted an Agent Mode requested command"
             }
-            Self::AttachedImagesToAgentModeQuery => "Attached images to an Agent Mode query",
             #[cfg(windows)]
             Self::WSLRegistryError => {
                 "Encountered an error while fetching WSL distributions from the registry"

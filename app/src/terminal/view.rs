@@ -23377,9 +23377,8 @@ impl TerminalView {
         // same way Cmd+V does at `TerminalView::paste` — write each image to
         // the system clipboard and send the agent's paste keystroke to the
         // PTY. Without this branch the path string would be shell-escaped and
-        // typed into the agent's prompt. When the rich input is open we leave
-        // the existing chip-attach flow alone, since that's where the user
-        // explicitly asked the drop to land.
+        // typed into the agent's prompt. When the rich input is open, paths are
+        // inserted as text instead.
         if !image_filepaths.is_empty()
             && image_filepaths.len() == paths.len()
             && is_in_long_running_command
@@ -23388,23 +23387,6 @@ impl TerminalView {
         {
             self.paste_dropped_images_to_cli_agent(image_filepaths, ctx);
             return;
-        }
-
-        if !is_in_long_running_command {
-            // Check for image file paths to be auto-attached
-            let num_images = image_filepaths.len();
-
-            // If we have image file paths, try to process them for attachment
-            if num_images > 0 {
-                let num_attached = self.input.update(ctx, |input, ctx| {
-                    input.handle_pasted_or_dragdropped_image_filepaths(image_filepaths, ctx)
-                });
-
-                // If dropped only image file paths, we are done
-                if num_attached == paths.len() {
-                    return; // Return early, don't insert file paths
-                }
-            }
         }
 
         let Some(session) = self
