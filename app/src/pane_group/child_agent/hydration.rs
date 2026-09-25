@@ -275,7 +275,6 @@ impl PaneGroup {
 
         let resources = TerminalViewResources {
             tips_completed: self.tips_completed.clone(),
-            server_api: self.server_api.clone(),
             model_event_sender: self.model_event_sender.clone(),
         };
         let view_size = Self::estimated_view_bounds(ctx).size();
@@ -477,7 +476,6 @@ impl PaneGroup {
 
         let resources = TerminalViewResources {
             tips_completed: self.tips_completed.clone(),
-            server_api: self.server_api.clone(),
             model_event_sender: self.model_event_sender.clone(),
         };
         let view_size = Self::estimated_view_bounds(ctx).size();
@@ -571,7 +569,6 @@ impl PaneGroup {
         let child_id = child_conversation.id();
         let resources = TerminalViewResources {
             tips_completed: self.tips_completed.clone(),
-            server_api: self.server_api.clone(),
             model_event_sender: self.model_event_sender.clone(),
         };
         let view_size = Self::estimated_view_bounds(ctx).size();

@@ -333,3 +333,7 @@ Local chip colors, fonts, margins, hover behavior, and CLI-agent interaction gua
 Bootstrap success/slow telemetry and bootstrap-content collection are removed. The real timeout
 handler still warns locally, unhides SSH output, and opens the auto-dismiss banner; its regression
 test now exercises that handler. Legacy shell timing payloads and local session behavior remain.
+
+Terminal teardown no longer sends abandonment telemetry or retains a server, background executor,
+privacy snapshot, or bootstrap timestamp for it. Terminal/input constructors and pane resources no
+longer carry that server handle. Nonblocking local teardown logging remains unchanged.

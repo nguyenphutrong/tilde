@@ -1447,7 +1447,6 @@ pub struct Input {
     menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
     tips_completed: ModelHandle<TipsCompleted>,
     editor: ViewHandle<EditorView>,
-    server_api: Arc<ServerApi>,
     input_suggestions: ViewHandle<InputSuggestions>,
     suggestions_mode_model: ModelHandle<InputSuggestionsModeModel>,
     completions_menu_resizable_width: ResizableStateHandle,
@@ -2118,7 +2117,6 @@ impl Input {
     pub(crate) fn new(
         model: Arc<FairMutex<TerminalModel>>,
         tips_completed: ModelHandle<TipsCompleted>,
-        server_api: Arc<ServerApi>,
         sessions: ModelHandle<Sessions>,
         size_info: SizeInfo,
         menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
@@ -3161,7 +3159,6 @@ impl Input {
             tips_completed,
             editor,
             model,
-            server_api,
             sessions,
             focus_handle: None,
             active_block_metadata: None,
