@@ -117,29 +117,6 @@ pub(crate) fn conversation_navigation_action(
     )
 }
 
-pub(crate) fn parent_conversation_navigation_card(
-    active_conversation: &AIConversation,
-    mouse_state: MouseStateHandle,
-    app: &AppContext,
-) -> Option<Box<dyn Element>> {
-    let parent_conversation_id = parent_conversation_id(active_conversation, app)?;
-    let parent_title = BlocklistAIHistoryModel::as_ref(app)
-        .conversation(&parent_conversation_id)
-        .and_then(|conversation| conversation.title())
-        .unwrap_or_else(|| "Parent conversation".to_string());
-    let action = conversation_navigation_action(parent_conversation_id, app)?;
-    Some(conversation_navigation_card(
-        parent_title,
-        Some("Back to parent conversation".to_string()),
-        move |ctx, _, _| {
-            ctx.dispatch_typed_action(action.clone());
-        },
-        mouse_state,
-        false,
-        app,
-    ))
-}
-
 pub(crate) fn conversation_navigation_card(
     title: String,
     subtitle: Option<String>,

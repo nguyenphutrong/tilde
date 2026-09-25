@@ -278,3 +278,13 @@ terminal is established; remove the remaining consumer coupling rather than addi
 Orchestration pill controls, breadcrumbs, and their pin/scroll singleton are removed. Static avatar
 and label helpers remain for legacy AI surfaces; persisted pin fields and decoding remain untouched.
 The capped drag-preview and restored pane-topology regressions remain runnable.
+
+Terminal pane headers no longer expose sharing, participants, cloud cancellation, conversation
+details toggles, or parent-conversation cards. Their overflow menu contains only local maximize/
+restore when split; legacy viewer state cannot restore sharing actions. Titles, error/shell
+indicators, close controls, and dragging remain. Conversation titles/back buttons and shared-object
+configuration remain removal debt.
+
+At the pane-header recovery increment, all eight focused tests and the Linux GUI build pass.
+Xvfb startup exits 101 before creating a window: `AgentViewConversationSelection::new` requests the
+unregistered `BlocklistAIHistoryModel`. Live terminal rendering remains unverified.

@@ -96,6 +96,7 @@ use crate::terminal::shared_session::{
     IsSharedSessionCreator, SharedSessionActionSource, SharedSessionScrollbackType,
     SharedSessionSource, SharedSessionStatus,
 };
+use crate::terminal::view::TerminalAction;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::undo_close::UndoCloseStack;
 use crate::warp_managed_paths_watcher::WarpManagedPathsWatcher;
@@ -3543,6 +3544,48 @@ fn test_close_pane_clears_transitively_shared_child_entry_on_non_undo_branch() {
                 "host entry must be cleared after close_pane on the non-undo branch"
             );
         })
+    });
+}
+
+#[test]
+fn test_terminal_pane_menu_preserves_maximize_and_restore() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let pane_group = mock_pane_group(&mut app, Default::default());
+        pane_group.read(&app, |panes, ctx| {
+            let terminal = panes
+                .terminal_session_by_pane_index(0)
+                .unwrap()
+                .terminal_view(ctx);
+            assert!(
+                terminal
+                    .as_ref(ctx)
+                    .pane_header_overflow_menu_items(ctx)
+                    .is_empty()
+            );
+        });
+        pane_group.update(&mut app, |panes, ctx| {
+            panes.add_terminal_pane(Direction::Right, None, ctx);
+        });
+        let terminal = pane_group.read(&app, |panes, ctx| {
+            panes
+                .terminal_view_from_pane_id(panes.focused_pane_id(ctx), ctx)
+                .unwrap()
+        });
+        for label in ["Maximize pane", "Minimize pane", "Maximize pane"] {
+            let action = terminal.read(&app, |view, ctx| {
+                let items = view.pane_header_overflow_menu_items(ctx);
+                assert_eq!(items.len(), 1);
+                let fields = items[0].fields().unwrap();
+                assert_eq!(fields.label(), label);
+                let action = fields.on_select_action().unwrap().clone();
+                assert!(matches!(action, TerminalAction::ToggleMaximizePane));
+                action
+            });
+            terminal.update(&mut app, |view, ctx| {
+                view.handle_pane_header_overflow_menu_action(&action, ctx);
+            });
+        }
     });
 }
 
