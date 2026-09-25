@@ -84,6 +84,22 @@ class LocalOnlyGuardTests(unittest.TestCase):
         self.assertEqual(found, {})
         self.assertEqual(forbidden, [])
 
+    def test_scans_extensionless_scripts_and_bootstrap_services(self):
+        paths = ["script/linux/bundle_rpm", ".agents/setup", ".agents/resume",
+                 ".agents/Procfile", ".amp/services.yaml"]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "Cargo.lock").write_text('[[package]]\nname="local"\nversion="1"\n')
+            for relative in paths:
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('curl https://releases.warp.dev/linux/keys/warp.asc\n')
+            found, forbidden = inventory(root, paths)
+            self.assertEqual(len(found), len(paths))
+            for relative in paths:
+                self.assertTrue(any(key.startswith(f"endpoint:{relative}:") for key in found))
+            self.assertEqual(forbidden, [])
+
 
 if __name__ == "__main__":
     unittest.main()
