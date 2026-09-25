@@ -7,8 +7,6 @@ use warp_cli::agent::Harness;
 use warp_core::features::FeatureFlag;
 use warp_core::user_preferences::GetUserPreferences;
 use warp_errors::report_error;
-use warp_managed_secrets::client::SecretOwner;
-use warp_managed_secrets::{ManagedSecretManager, ManagedSecretValue};
 use warpui::{Entity, ModelContext, RequestState, SingletonEntity};
 
 use crate::ai::harness_display;
@@ -57,14 +55,8 @@ fn default_harnesses() -> Vec<HarnessAvailability> {
 pub enum AuthSecretFetchState {
     NotFetched,
     Loading,
-    Loaded(Vec<AuthSecretEntry>),
+    Loaded(Vec<String>),
     Failed(#[allow(dead_code)] String),
-}
-
-#[derive(Debug, Clone)]
-pub struct AuthSecretEntry {
-    pub name: String,
-    pub owner: SecretOwner,
 }
 
 pub enum HarnessAvailabilityEvent {
@@ -75,24 +67,6 @@ pub enum HarnessAvailabilityEvent {
     /// error state — without this signal the picker would otherwise be
     /// stuck on the loading placeholder until the next refetch.
     AuthSecretsFetchFailed,
-    AuthSecretCreated {
-        harness: Harness,
-        name: String,
-    },
-    AuthSecretCreationFailed {
-        error: String,
-    },
-    AuthSecretDeleted {
-        harness: Harness,
-        name: String,
-        owner: SecretOwner,
-    },
-    AuthSecretDeletionFailed {
-        harness: Harness,
-        name: String,
-        owner: SecretOwner,
-        error: String,
-    },
 }
 
 pub struct HarnessAvailabilityModel {
@@ -220,13 +194,7 @@ impl HarnessAvailabilityModel {
                   result: RequestState<Vec<warp_graphql::managed_secrets::ManagedSecret>>,
                   ctx| match result {
                 RequestState::RequestSucceeded(secrets) => {
-                    let entries = secrets
-                        .into_iter()
-                        .map(|s| AuthSecretEntry {
-                            owner: secret_owner_from_space(&s.owner),
-                            name: s.name,
-                        })
-                        .collect();
+                    let entries = secrets.into_iter().map(|s| s.name).collect();
                     me.auth_secrets
                         .insert(harness, AuthSecretFetchState::Loaded(entries));
                     me.auth_secret_retry_after.remove(&harness);
@@ -261,81 +229,6 @@ impl HarnessAvailabilityModel {
     pub fn invalidate_auth_secrets(&mut self, harness: Harness) {
         self.auth_secrets.remove(&harness);
         self.auth_secret_retry_after.remove(&harness);
-    }
-
-    pub fn create_auth_secret(
-        &mut self,
-        harness: Harness,
-        name: String,
-        value: ManagedSecretValue,
-        owner: SecretOwner,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let manager = ManagedSecretManager::handle(ctx);
-        let create_future = manager.as_ref(ctx).create_secret(owner, name, value, None);
-        ctx.spawn(create_future, move |me, result, ctx| match result {
-            Ok(secret) => {
-                let entry = AuthSecretEntry {
-                    name: secret.name.clone(),
-                    owner: secret_owner_from_space(&secret.owner),
-                };
-                match me.auth_secrets.get_mut(&harness) {
-                    Some(AuthSecretFetchState::Loaded(entries)) => {
-                        entries.push(entry);
-                    }
-                    _ => {
-                        me.auth_secrets
-                            .insert(harness, AuthSecretFetchState::Loaded(vec![entry]));
-                    }
-                }
-                ctx.emit(HarnessAvailabilityEvent::AuthSecretCreated {
-                    harness,
-                    name: secret.name,
-                });
-            }
-            Err(e) => {
-                let msg = e.to_string();
-                report_error!(e.context("Failed to create harness auth secret"));
-                ctx.emit(HarnessAvailabilityEvent::AuthSecretCreationFailed { error: msg });
-            }
-        });
-    }
-
-    pub fn delete_auth_secret(
-        &mut self,
-        harness: Harness,
-        name: String,
-        owner: SecretOwner,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let manager = ManagedSecretManager::handle(ctx);
-        let delete_future = manager
-            .as_ref(ctx)
-            .delete_secret(owner.clone(), name.clone());
-        ctx.spawn(delete_future, move |me, result, ctx| match result {
-            Ok(()) => {
-                if let Some(AuthSecretFetchState::Loaded(entries)) =
-                    me.auth_secrets.get_mut(&harness)
-                {
-                    remove_deleted_auth_secret_entry(entries, &name, &owner);
-                }
-                ctx.emit(HarnessAvailabilityEvent::AuthSecretDeleted {
-                    harness,
-                    name,
-                    owner,
-                });
-            }
-            Err(e) => {
-                let msg = e.to_string();
-                report_error!(e.context("Failed to delete harness auth secret"));
-                ctx.emit(HarnessAvailabilityEvent::AuthSecretDeletionFailed {
-                    harness,
-                    name,
-                    owner,
-                    error: msg,
-                });
-            }
-        });
     }
 
     pub fn refresh(&self, ctx: &mut ModelContext<Self>) {
@@ -403,22 +296,6 @@ fn normalize_harness_display_names(
         .collect()
 }
 
-fn secret_owner_from_space(space: &warp_graphql::object::Space) -> SecretOwner {
-    match space.type_ {
-        warp_graphql::object::SpaceType::Team => SecretOwner::Team {
-            team_uid: space.uid.clone().into_inner(),
-        },
-        warp_graphql::object::SpaceType::User => SecretOwner::CurrentUser,
-    }
-}
-
-fn remove_deleted_auth_secret_entry(
-    entries: &mut Vec<AuthSecretEntry>,
-    name: &str,
-    owner: &SecretOwner,
-) {
-    entries.retain(|entry| entry.name.as_str() != name || &entry.owner != owner);
-}
 fn harness_to_graphql_harness(harness: Harness) -> Option<warp_graphql::ai::AgentHarness> {
     match harness {
         Harness::Oz => Some(warp_graphql::ai::AgentHarness::Oz),

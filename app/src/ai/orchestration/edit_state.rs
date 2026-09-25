@@ -67,9 +67,7 @@ impl OrchestrationConfigState {
             .filter(|harness| *harness != Harness::Oz)
             .and_then(|harness| {
                 match HarnessAvailabilityModel::as_ref(ctx).auth_secrets_for(harness) {
-                    AuthSecretFetchState::Loaded(secrets) => {
-                        Some(secrets.iter().map(|s| s.name.clone()).collect::<Vec<_>>())
-                    }
+                    AuthSecretFetchState::Loaded(secrets) => Some(secrets.clone()),
                     AuthSecretFetchState::NotFetched
                     | AuthSecretFetchState::Loading
                     | AuthSecretFetchState::Failed(_) => None,
