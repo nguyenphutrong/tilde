@@ -2387,7 +2387,6 @@ impl Input {
                     terminal_view_id,
                     active_session,
                     &suggestions_mode_model,
-                    agent_view_controller.clone(),
                     &inline_terminal_menu_positioner,
                     buffer_model,
                     ctx,
@@ -3866,26 +3865,6 @@ impl Input {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            inline_history::InlineHistoryMenuEvent::NavigateToConversation { conversation_id } => {
-                if self
-                    .suggestions_mode_model
-                    .as_ref(ctx)
-                    .is_inline_history_menu()
-                {
-                    self.suggestions_mode_model.update(ctx, |model, ctx| {
-                        model.set_mode(InputSuggestionsMode::Closed, ctx);
-                    });
-                    ctx.notify();
-                }
-                self.clear_buffer_and_reset_undo_stack(ctx);
-                self.agent_view_controller.update(ctx, |controller, ctx| {
-                    let _ = controller.try_enter_agent_view(
-                        Some(*conversation_id),
-                        AgentViewEntryOrigin::InlineHistoryMenu,
-                        ctx,
-                    );
-                });
-            }
             inline_history::InlineHistoryMenuEvent::AcceptCommand { command, .. } => {
                 if self
                     .suggestions_mode_model
@@ -3899,22 +3878,6 @@ impl Input {
                 }
                 self.editor.update(ctx, |editor, ctx| {
                     editor.set_buffer_text(command, ctx);
-                });
-                self.input_enter(ctx);
-            }
-            inline_history::InlineHistoryMenuEvent::AcceptAIPrompt { query_text } => {
-                if self
-                    .suggestions_mode_model
-                    .as_ref(ctx)
-                    .is_inline_history_menu()
-                {
-                    self.suggestions_mode_model.update(ctx, |model, ctx| {
-                        model.set_mode(InputSuggestionsMode::Closed, ctx);
-                    });
-                    ctx.notify();
-                }
-                self.editor.update(ctx, |editor, ctx| {
-                    editor.set_buffer_text(query_text, ctx);
                 });
                 self.input_enter(ctx);
             }
@@ -3945,46 +3908,12 @@ impl Input {
                     });
                 }
 
-                // In fullscreen agent view, lock to Shell mode so the '!' indicator is
-                // rendered while cycling through shell command history.
-                let is_agent_view_fullscreen =
-                    self.agent_view_controller.as_ref(ctx).is_fullscreen();
-                self.ai_input_model.update(ctx, |ai_input_model, ctx| {
-                    if is_agent_view_fullscreen {
-                        ai_input_model.set_input_config(
-                            InputConfig {
-                                input_type: InputType::Shell,
-                                is_locked: true,
-                            },
-                            false,
-                            Some(InputTypeAutoDetectionSource::FullscreenInlineHistoryCycling),
-                            ctx,
-                        );
-                    } else {
-                        ai_input_model.set_input_type(
-                            InputType::Shell,
-                            Some(InputTypeAutoDetectionSource::HistorySelection),
-                            ctx,
-                        );
-                    }
-                });
-            }
-            inline_history::InlineHistoryMenuEvent::SelectAIPrompt { query_text } => {
-                self.editor.update(ctx, |editor, ctx| {
-                    editor.set_buffer_text_ignoring_undo(query_text, ctx);
-                });
-
                 self.ai_input_model.update(ctx, |ai_input_model, ctx| {
                     ai_input_model.set_input_type(
-                        InputType::AI,
+                        InputType::Shell,
                         Some(InputTypeAutoDetectionSource::HistorySelection),
                         ctx,
                     );
-                });
-            }
-            inline_history::InlineHistoryMenuEvent::SelectConversation => {
-                self.editor.update(ctx, |editor, ctx| {
-                    editor.set_buffer_text_ignoring_undo("", ctx);
                 });
             }
             inline_history::InlineHistoryMenuEvent::Close => {
@@ -7877,7 +7806,7 @@ impl Input {
                             .model()
                             .as_ref(ctx)
                             .selected_item()
-                            .and_then(|item| item.buffer_replacement_text())
+                            .map(|item| &item.command)
                             .is_some_and(|selected_item_text| {
                                 *selected_item_text != self.editor.as_ref(ctx).buffer_text(ctx)
                             });
@@ -9248,19 +9177,6 @@ impl Input {
             InputSuggestionsMode::ModelSelector => {
                 if self
                     .inline_model_selector_view
-                    .update(ctx, |view, ctx| view.select_next_tab(ctx))
-                {
-                    return;
-                }
-            }
-            // If the inline history menu is open and has multiple tabs,
-            // shift + tab should cycle between them.
-            InputSuggestionsMode::InlineHistoryMenu { .. } => {
-                if self.is_cloud_mode_input_v2_composing(ctx) {
-                    return;
-                }
-                if self
-                    .inline_history_menu_view
                     .update(ctx, |view, ctx| view.select_next_tab(ctx))
                 {
                     return;

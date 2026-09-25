@@ -409,3 +409,8 @@ menu's agent-controller dependency and AI history results are separate removal c
 Shared inline menus and their contextual hint bar no longer own or subscribe to an agent controller.
 They always use terminal borders while preserving placement, hint content, and selection behavior.
 Specialized AI menu consumers and inline AI history remain separate debt.
+
+Inline history now contains shell commands only, without conversation/prompt tabs or AI-model
+lookups. It reuses local history ordering, normalization, deduplication, and session visibility.
+Regressions cover prefix filtering and accessibility labels without AI models, plus shell-draft
+restoration on close and Escape. Persisted history is unchanged.
