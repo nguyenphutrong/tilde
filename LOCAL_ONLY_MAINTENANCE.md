@@ -326,3 +326,6 @@ Prompt generators use only the local prompt configuration and PS1/input settings
 CLI-agent footer selections remain persisted but cannot start generators. Shell bootstrap tracks
 pending session IDs without timing telemetry; legacy shell timing payloads still decode. Local
 bootstrap and PS1 generator suppression are tested without AI/auth/server/telemetry models.
+
+The prompt-chip renderer no longer owns ambient-agent state or unreachable agent-only styling.
+Local chip colors, fonts, margins, hover behavior, and CLI-agent interaction guards are preserved.
