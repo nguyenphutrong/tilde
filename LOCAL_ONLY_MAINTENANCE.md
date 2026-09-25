@@ -208,6 +208,10 @@ mode transitions, slash command and dedicated telemetry are removed; manual AI m
 The classifier-only prompt cache, block override marker and autodetection timestamp are removed.
 Persisted queries, conversation data and input-mode serialization are unchanged.
 
+Orphaned TUI zero-state and transcript benchmark targets are removed: both imported the deleted
+AI-front-end benchmark harness. Benchmark discovery, production TUI/PTY code and unit tests remain.
+This removes stale build targets, not a performance measurement.
+
 The terminal AI welcome block, autodetection footer control, classifier command denylist and
 history-matching feature flag are removed. Legacy toolbar arrays still decode retired NLD items
 without exposing them or discarding other saved items. Historical settings and database rows are
