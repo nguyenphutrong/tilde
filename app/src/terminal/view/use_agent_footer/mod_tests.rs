@@ -1,7 +1,6 @@
 use warpui::{App, TypedActionView};
 
 use super::warpify_footer::WarpifyFooterViewAction;
-use super::{CLIAgent, RichInputSubmitStrategy, rich_input_submit_strategy};
 use crate::terminal::model::ansi::{BootstrappedValue, Handler as _, InitShellValue};
 use crate::test_util::add_window_with_terminal;
 use crate::test_util::terminal::initialize_app_for_terminal_view;
@@ -58,22 +57,4 @@ fn shell_integration_footer_dismissal_removes_content_and_allows_reopening() {
             });
         }
     })
-}
-
-#[test]
-fn test_rich_input_submit_strategy_for_oh_my_pi() {
-    assert_eq!(
-        rich_input_submit_strategy(CLIAgent::OhMyPi),
-        RichInputSubmitStrategy::BracketedPaste
-    );
-}
-
-/// Hermes interprets embedded newlines as submit actions when text is written
-/// directly. Bracketed paste preserves them as part of one input payload.
-#[test]
-fn test_rich_input_submit_strategy_for_hermes_uses_bracketed_paste() {
-    assert_eq!(
-        rich_input_submit_strategy(CLIAgent::Hermes),
-        RichInputSubmitStrategy::BracketedPaste
-    );
 }

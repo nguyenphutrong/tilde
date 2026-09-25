@@ -13,7 +13,7 @@ use settings::Setting as _;
 use warp_core::features::FeatureFlag;
 #[cfg(any(test, feature = "test-util"))]
 use warpui::ModelHandle;
-use warpui::{AppContext, Entity, EntityId, ModelContext, SingletonEntity};
+use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 /// The type of input the user has provided.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -109,9 +109,6 @@ use super::ConversationSelectionHandle;
 use super::input_mode_policy::{InputModePolicyHandle, PolicyConfigUpdate};
 use crate::settings::{AISettings, InputBoxType, InputSettings};
 use crate::terminal::TerminalModel;
-use crate::terminal::cli_agent_sessions::{
-    CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
-};
 
 /// Configuration for the terminal pane's input.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -207,41 +204,8 @@ impl BlocklistAIInputModel {
         model: Arc<FairMutex<TerminalModel>>,
         conversation_selection: ConversationSelectionHandle,
         policy: InputModePolicyHandle,
-        terminal_surface_id: EntityId,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        // Reactively restore input config when CLI agent rich input closes.
-        ctx.subscribe_to_model(
-            &CLIAgentSessionsModel::handle(ctx),
-            move |me, _, event, ctx| {
-                let CLIAgentSessionsModelEvent::InputSessionChanged {
-                    terminal_view_id: event_view_id,
-                    previous_input_state,
-                    ..
-                } = event
-                else {
-                    return;
-                };
-                // CLI agent sessions are keyed by terminal view id; GUI surfaces use the
-                // view id as their surface id, so this filters events to our surface.
-                if *event_view_id != terminal_surface_id {
-                    return;
-                }
-                if let CLIAgentInputState::Open {
-                    previous_input_config,
-                    previous_was_lock_set_with_empty_buffer,
-                    ..
-                } = previous_input_state
-                {
-                    me.restore_input_config(
-                        *previous_input_config,
-                        *previous_was_lock_set_with_empty_buffer,
-                        ctx,
-                    );
-                }
-            },
-        );
-
         ctx.subscribe_to_model(&conversation_selection, |me, _, event, ctx| {
             if let Some(update) =
                 me.policy
@@ -423,18 +387,6 @@ impl BlocklistAIInputModel {
     ) {
         self.set_input_config_internal(new_config, decision_source, ctx);
         self.was_lock_set_with_empty_buffer = self.is_input_type_locked() && is_input_buffer_empty;
-    }
-
-    /// Restores a previous input config without recomputing whether the lock was set while the
-    /// buffer was empty.
-    fn restore_input_config(
-        &mut self,
-        new_config: InputConfig,
-        was_lock_set_with_empty_buffer: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.set_input_config_internal(new_config, None, ctx);
-        self.was_lock_set_with_empty_buffer = was_lock_set_with_empty_buffer;
     }
 
     /// Handles the input buffer being submitted.

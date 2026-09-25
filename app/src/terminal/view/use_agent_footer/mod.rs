@@ -1,9 +1,7 @@
-//! Shell-integration footer placement and legacy CLI rich-input submission.
+//! Shell-integration footer placement and legacy CLI input controls.
 
-use base64::Engine;
 use warpui::clipboard::{ClipboardContent, ImageData};
 
-use crate::ai::agent::ImageContext;
 use crate::terminal::cli_agent_sessions::{CLIAgentInputEntrypoint, CLIAgentSessionsModel};
 use crate::util::image::{MAX_IMAGE_SIZE_BYTES_FOR_CLI_AGENT, MIME_SNIFF_BYTES, infer_mime_type};
 mod warpify_footer;
@@ -23,7 +21,6 @@ use warp_core::ui::color::contrast::{
 use warp_core::ui::theme::Fill as ThemeFill;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_error;
-use warp_terminal::model::escape_sequences::{BRACKETED_PASTE_END, BRACKETED_PASTE_START};
 pub(super) use warpify_footer::WarpifyFooterView;
 use warpify_footer::WarpifyFooterViewEvent;
 use warpui::r#async::Timer;
@@ -31,33 +28,17 @@ use warpui::{AppContext, SingletonEntity, TypedActionView, ViewContext};
 
 use super::{RichContentInsertionPosition, TerminalAction, TerminalView};
 use crate::server::telemetry::{CLIAgentType, CLISubagentControlState, TelemetryEvent};
-use crate::settings::{AISettings, CompiledCommandsForCodingAgentToolbar, InputModeSettings};
+use crate::settings::InputModeSettings;
 pub use crate::terminal::CLIAgent;
 use crate::terminal::TerminalModel;
 use crate::terminal::cli_agent_sessions::CLIAgentRichInputCloseReason;
 use crate::ui_components::blended_colors;
 use crate::view_components::action_button::ActionButtonTheme;
 
-/// Small delay inserted between separate PTY writes to CLI agents.
-/// (Used both for the mode-switch prefix split and for the `DelayedEnter`
-/// submit strategy so each write is delivered as a distinct stdin read.)
-const CLI_AGENT_PTY_WRITE_DELAY: Duration = Duration::from_millis(50);
-
-/// Longer delay for agents (like Copilot) that need extra time after a
-/// bracketed paste before they will accept a submit keystroke.
-const CLI_AGENT_BRACKETED_PASTE_ENTER_DELAY: Duration = Duration::from_millis(300);
-
 /// Longer delay between clipboard image pastes (Ctrl+V) to CLI agents.
 /// The CLI agent needs time to read from the system clipboard before
 /// we overwrite it with the next image.
 const CLI_AGENT_IMAGE_PASTE_DELAY: Duration = Duration::from_millis(300);
-
-/// ASCII prefixes that CLI agents use to switch input modes (e.g. `!` for bash
-/// mode in Claude Code). When the rich input starts with one of these, the
-/// prefix byte is written to the PTY separately so the agent can process it
-/// before the rest of the command arrives.
-#[allow(clippy::byte_char_slices)]
-const CLI_AGENT_MODE_SWITCH_PREFIXES: &[u8] = &[b'!', b'&'];
 
 /// Bytes that simulate a "paste image from clipboard" keystroke for the
 /// foreground CLI agent. `0x16` is `Ctrl+V` (SYN); on Windows Claude Code
@@ -68,50 +49,6 @@ fn cli_agent_paste_keystroke_bytes() -> Vec<u8> {
         vec![0x1b, b'v']
     } else {
         vec![0x16]
-    }
-}
-
-/// How rich input delivers text + Enter to the CLI agent's PTY.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RichInputSubmitStrategy {
-    /// Send text bytes followed by `\r` in a single write.
-    /// Works for agents whose input layer processes the carriage return as
-    /// a submit even when it arrives in the same buffer as the preceding text.
-    Inline,
-    /// Wrap text in bracketed paste escape sequences, then send `\r` separately.
-    /// Required for agents like Codex whose paste-burst heuristics would
-    /// otherwise suppress a rapid Enter after a character stream.
-    BracketedPaste,
-    /// Send text first, then `\r` after a short delay.
-    /// For agents that don't respond to `\r` when it arrives in the same
-    /// buffer as the text and don't support bracketed paste reliably.
-    DelayedEnter,
-    /// Wrap text in bracketed paste (reliable buffer insertion), then send
-    /// `\r` after a delay. For agents like Copilot that need bracketed paste
-    /// for reliable text delivery but also need a separate delayed Enter.
-    BracketedPasteDelayedEnter,
-}
-
-/// Returns the strategy for submitting rich input text to a CLI agent's PTY.
-fn rich_input_submit_strategy(agent: CLIAgent) -> RichInputSubmitStrategy {
-    match agent {
-        CLIAgent::Codex => RichInputSubmitStrategy::BracketedPaste,
-        CLIAgent::OhMyPi => RichInputSubmitStrategy::BracketedPaste,
-        CLIAgent::Copilot => RichInputSubmitStrategy::BracketedPasteDelayedEnter,
-        CLIAgent::Claude
-        | CLIAgent::OpenCode
-        | CLIAgent::Gemini
-        | CLIAgent::Auggie
-        | CLIAgent::CursorCli => RichInputSubmitStrategy::DelayedEnter,
-        CLIAgent::Hermes => RichInputSubmitStrategy::BracketedPaste,
-        CLIAgent::Amp
-        | CLIAgent::Droid
-        | CLIAgent::Pi
-        | CLIAgent::Goose
-        | CLIAgent::Vibe
-        | CLIAgent::Antigravity
-        | CLIAgent::WarpTui
-        | CLIAgent::Unknown => RichInputSubmitStrategy::Inline,
     }
 }
 
@@ -142,51 +79,6 @@ impl TerminalView {
 
     pub(super) fn has_active_cli_agent_input_session(&self, app: &AppContext) -> bool {
         CLIAgentSessionsModel::as_ref(app).is_input_open(self.view_id)
-    }
-
-    /// Returns the detected CLI agent for the active block's command, if any.
-    ///
-    /// This method resolves aliases before detecting the CLI agent. For example,
-    /// if a user has aliased `foo` to `claude`, running `foo` will detect Claude.
-    /// Falls back to user-configured toolbar command patterns, returning the
-    /// assigned agent (or `CLIAgent::Unknown` for unassigned patterns).
-    ///
-    /// The second tuple element is the custom command prefix (the first word of
-    /// the command), present only when the agent was resolved via a custom
-    /// toolbar command pattern rather than native detection.
-    pub(super) fn detect_cli_agent_from_model(
-        &self,
-        model: &TerminalModel,
-        ctx: &AppContext,
-    ) -> Option<(CLIAgent, Option<String>)> {
-        let active_block = model.block_list().active_block();
-
-        if !active_block.is_active_and_long_running() {
-            return None;
-        }
-
-        let command = active_block.command_with_secrets_obfuscated(false);
-
-        let detected = self.active_block_session_id().and_then(|session_id| {
-            self.sessions.read(ctx, |sessions, _| {
-                let session = sessions.get(session_id)?;
-                CLIAgent::detect(
-                    &command,
-                    Some(session.shell_family().escape_char()),
-                    Some(session.aliases()),
-                    ctx,
-                )
-            })
-        });
-
-        if let Some(agent) = detected {
-            return Some((agent, None));
-        }
-
-        CompiledCommandsForCodingAgentToolbar::matched_agent(ctx, &command).map(|agent| {
-            let prefix = command.split_whitespace().next().map(str::to_owned);
-            (agent, prefix)
-        })
     }
 
     /// Returns whether the active long-running command in this terminal is
@@ -390,251 +282,6 @@ impl TerminalView {
         ctx.notify();
     }
 
-    /// Conditionally closes CLI agent rich input after a prompt submission.
-    /// When auto-toggle is active with a plugin listener that emits rich
-    /// status, rich input stays open (status-change events manage visibility
-    /// instead). Otherwise, respects the auto-dismiss-after-submit setting.
-    fn maybe_close_rich_input_after_submit(&mut self, ctx: &mut ViewContext<Self>) {
-        let session = CLIAgentSessionsModel::as_ref(ctx).session(self.view_id);
-        let has_plugin = session
-            .as_ref()
-            .is_some_and(|s| s.supports_rich_status() && s.should_auto_toggle_input);
-        let ai_settings = AISettings::as_ref(ctx);
-
-        let should_close = if has_plugin && *ai_settings.auto_toggle_rich_input {
-            false
-        } else {
-            *ai_settings.auto_dismiss_rich_input_after_submit
-        };
-
-        if should_close {
-            self.close_cli_agent_rich_input(CLIAgentRichInputCloseReason::Submit, ctx);
-        } else {
-            self.input.update(ctx, |input, ctx| {
-                input.clear_buffer_and_reset_undo_stack(ctx);
-            });
-        }
-    }
-
-    pub(super) fn submit_cli_agent_rich_input(
-        &mut self,
-        text: String,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if !self.has_active_cli_agent_input_session(ctx) {
-            return;
-        }
-        if text.trim().is_empty() {
-            return;
-        }
-
-        let prompt_length = text.chars().count();
-        let cli_agent: Option<CLIAgentType> = CLIAgentSessionsModel::as_ref(ctx)
-            .session(self.view_id)
-            .map(|s| s.agent.into());
-        if let Some(cli_agent) = cli_agent {
-            send_telemetry_from_ctx!(
-                TelemetryEvent::CLIAgentRichInputSubmitted {
-                    cli_agent,
-                    prompt_length,
-                },
-                ctx
-            );
-        }
-
-        // Clear any saved draft so submitted text isn't restored on the next open.
-        let view_id = self.view_id;
-        CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions_model, _| {
-            sessions_model.clear_draft(view_id);
-        });
-
-        let strategy = CLIAgentSessionsModel::as_ref(ctx)
-            .session(self.view_id)
-            .map(|s| rich_input_submit_strategy(s.agent))
-            .unwrap_or(RichInputSubmitStrategy::Inline);
-
-        let text_bytes = text.into_bytes();
-
-        // Clear the buffer eagerly so that any close path (auto-dismiss,
-        // auto-toggle, or a deferred timer) sees an empty buffer and doesn't
-        // re-save the submitted text as a draft.
-        self.input.update(ctx, |input, ctx| {
-            input.clear_buffer_and_reset_undo_stack(ctx);
-        });
-
-        // Extract pending image attachments and clear them from the context
-        // model before submission.
-        let images: Vec<_> = self
-            .ai_context_model
-            .as_ref(ctx)
-            .pending_images()
-            .into_iter()
-            .cloned()
-            .collect();
-        if !images.is_empty() {
-            self.ai_context_model.update(ctx, |model, ctx| {
-                model.clear_pending_images(ctx);
-            });
-        }
-
-        // When the input starts with a known mode-switch prefix (e.g. `!` for
-        // bash mode, `&` for background mode), write the prefix byte separately
-        // with a small delay before the rest of the command. This gives CLI
-        // agents like Claude Code time to recognise the prefix and switch modes
-        // before the command text arrives.
-        //
-        // Only applied to known ASCII prefixes to avoid splitting multi-byte
-        // UTF-8 characters.
-        if text_bytes.len() > 1 && CLI_AGENT_MODE_SWITCH_PREFIXES.contains(&text_bytes[0]) {
-            self.write_user_bytes_to_pty(vec![text_bytes[0]], ctx);
-            let rest = text_bytes[1..].to_vec();
-            ctx.spawn(
-                Timer::after(CLI_AGENT_PTY_WRITE_DELAY),
-                move |me, _, ctx| {
-                    me.paste_images_then_submit_text(images, rest, strategy, ctx);
-                },
-            );
-        } else {
-            self.paste_images_then_submit_text(images, text_bytes, strategy, ctx);
-        }
-    }
-
-    /// Submits `text` as a prompt to the active CLI agent on this terminal by
-    /// writing it to the PTY using the agent-specific submission strategy
-    /// (the same pipeline as the CLI agent rich input composer).
-    ///
-    /// Intended for callers that produce prompts outside the rich input
-    /// editor (e.g. shared-session viewer follow-up prompts). Returns
-    /// without writing if there is no active CLI agent session or the text
-    /// is empty.
-    #[cfg(feature = "local_tty")]
-    pub(crate) fn submit_text_to_cli_agent_pty(
-        &mut self,
-        text: String,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let Some(agent) = CLIAgentSessionsModel::as_ref(ctx)
-            .session(self.view_id)
-            .map(|s| s.agent)
-        else {
-            return;
-        };
-
-        let text_bytes = text.into_bytes();
-        if text_bytes.is_empty() {
-            return;
-        }
-
-        let strategy = rich_input_submit_strategy(agent);
-        self.write_cli_agent_text_then_submit(text_bytes, strategy, ctx);
-    }
-
-    fn write_cli_agent_text(
-        &mut self,
-        text_bytes: &[u8],
-        strategy: RichInputSubmitStrategy,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let bytes = match strategy {
-            RichInputSubmitStrategy::BracketedPaste
-            | RichInputSubmitStrategy::BracketedPasteDelayedEnter => {
-                let mut bytes = Vec::with_capacity(
-                    BRACKETED_PASTE_START.len() + text_bytes.len() + BRACKETED_PASTE_END.len(),
-                );
-                bytes.extend_from_slice(BRACKETED_PASTE_START);
-                bytes.extend_from_slice(text_bytes);
-                bytes.extend_from_slice(BRACKETED_PASTE_END);
-                bytes
-            }
-            RichInputSubmitStrategy::Inline | RichInputSubmitStrategy::DelayedEnter => {
-                text_bytes.to_vec()
-            }
-        };
-        self.write_user_bytes_to_pty(bytes, ctx);
-    }
-    /// Simulates clipboard image paste for each pending image attachment by
-    /// writing the image to the system clipboard and sending Ctrl+V to the PTY.
-    /// After all images are pasted, the text prompt is sent via the normal
-    /// submission strategy.
-    ///
-    /// Uses a single async task that hops back to the view context via
-    /// [`ViewSpawner`] for each image, rather than chaining per-image timers.
-    /// If the rich input session closes mid-paste, the loop exits early so we
-    /// don't leak Ctrl+V bytes into an unrelated PTY context.
-    fn paste_images_then_submit_text(
-        &mut self,
-        images: Vec<ImageContext>,
-        text_bytes: Vec<u8>,
-        strategy: RichInputSubmitStrategy,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Bail if the rich input session was closed before we got here.
-        if !self.has_active_cli_agent_input_session(ctx) {
-            return;
-        }
-
-        if images.is_empty() {
-            self.write_cli_agent_text_then_submit(text_bytes, strategy, ctx);
-            return;
-        }
-
-        let spawner = ctx.spawner();
-        ctx.spawn(
-            async move {
-                for image in images {
-                    // Decode off the main thread; log and skip on failure.
-                    let raw_bytes =
-                        match base64::engine::general_purpose::STANDARD.decode(&image.data) {
-                            Ok(bytes) => bytes,
-                            Err(_) => {
-                                report_error!(
-                                    "Failed to decode base64 image data",
-                                    extra: { "file_name" => %image.file_name }
-                                );
-                                continue;
-                            }
-                        };
-
-                    // Hop back to the view to write the clipboard + Ctrl+V.
-                    // Returns false if the input session has closed, in which
-                    // case we stop pasting and skip the final text submit.
-                    let should_continue = spawner
-                        .spawn(move |me, ctx| {
-                            if !me.has_active_cli_agent_input_session(ctx) {
-                                return false;
-                            }
-                            ctx.clipboard().write(ClipboardContent {
-                                images: Some(vec![ImageData {
-                                    data: raw_bytes,
-                                    mime_type: image.mime_type,
-                                    filename: Some(image.file_name),
-                                }]),
-                                ..Default::default()
-                            });
-                            me.write_user_bytes_to_pty(cli_agent_paste_keystroke_bytes(), ctx);
-                            true
-                        })
-                        .await;
-
-                    if !matches!(should_continue, Ok(true)) {
-                        return false;
-                    }
-
-                    // Give the CLI agent time to read from the clipboard before
-                    // we overwrite it with the next image (or send the text).
-                    Timer::after(CLI_AGENT_IMAGE_PASTE_DELAY).await;
-                }
-                true
-            },
-            move |me, ok, ctx| {
-                if !ok || !me.has_active_cli_agent_input_session(ctx) {
-                    return;
-                }
-                me.write_cli_agent_text_then_submit(text_bytes, strategy, ctx);
-            },
-        );
-    }
-
     /// Mirrors the CLI-agent Cmd+V image-paste path in `TerminalView::paste`
     /// for dropped image files: reads each file, writes its bytes to the
     /// system clipboard as image data, and sends the agent's paste keystroke
@@ -743,52 +390,6 @@ impl TerminalView {
             },
             |_, _, _| {},
         );
-    }
-
-    /// Writes the input text to the PTY and then sends a carriage return to
-    /// submit it, using the agent-specific strategy. After the submission is
-    /// complete (synchronously for the inline strategies, after a timer for
-    /// the delayed strategies), closes the rich input if the user's settings
-    /// request auto-dismissal.
-    fn write_cli_agent_text_then_submit(
-        &mut self,
-        text_bytes: Vec<u8>,
-        strategy: RichInputSubmitStrategy,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match strategy {
-            RichInputSubmitStrategy::Inline => {
-                let mut bytes = text_bytes;
-                bytes.extend_from_slice(b"\r");
-                self.write_user_bytes_to_pty(bytes, ctx);
-                self.maybe_close_rich_input_after_submit(ctx);
-            }
-            RichInputSubmitStrategy::BracketedPaste => {
-                self.write_cli_agent_text(&text_bytes, strategy, ctx);
-                self.write_user_bytes_to_pty(b"\r".to_vec(), ctx);
-                self.maybe_close_rich_input_after_submit(ctx);
-            }
-            RichInputSubmitStrategy::DelayedEnter => {
-                self.write_user_bytes_to_pty(text_bytes, ctx);
-                ctx.spawn(
-                    Timer::after(CLI_AGENT_PTY_WRITE_DELAY),
-                    move |me, _, ctx| {
-                        me.write_user_bytes_to_pty(b"\r".to_vec(), ctx);
-                        me.maybe_close_rich_input_after_submit(ctx);
-                    },
-                );
-            }
-            RichInputSubmitStrategy::BracketedPasteDelayedEnter => {
-                self.write_cli_agent_text(&text_bytes, strategy, ctx);
-                ctx.spawn(
-                    Timer::after(CLI_AGENT_BRACKETED_PASTE_ENTER_DELAY),
-                    move |me, _, ctx| {
-                        me.write_user_bytes_to_pty(b"\r".to_vec(), ctx);
-                        me.maybe_close_rich_input_after_submit(ctx);
-                    },
-                );
-            }
-        }
     }
 
     pub(in crate::terminal) fn open_cli_agent_rich_input(
