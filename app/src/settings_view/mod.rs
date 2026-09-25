@@ -301,7 +301,6 @@ pub mod flags {
     pub const AGENT_MODE_INPUT: &str = "InputAgentMode";
     pub const TERMINAL_MODE_INPUT: &str = "InputTerminalMode";
     pub const WARP_IS_DEFAULT_TERMINAL: &str = "WarpIsDefaultTerminal";
-    pub const PASSIVE_CODE_DIFF_KEYBINDINGS_ENABLED: &str = "PassiveCodeDiffKeybindingsEnabled";
     /// When set, the terminal input owns Page Up / Page Down so the editor's fixed bindings
     /// should not match.
     pub const TERMINAL_INPUT_PAGE_KEYS_HANDLED_BY_INPUT: &str =

@@ -267,7 +267,7 @@ use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::session::shell_quote_arg;
 use crate::terminal::package_installers::command_at_cursor_has_common_package_installer_prefix;
 use crate::terminal::prompt_render_helper::should_render_ps1_prompt;
-use crate::terminal::view::{AIQueryRouting, CodeDiffAction, resolve_ai_query_routing};
+use crate::terminal::view::{AIQueryRouting, resolve_ai_query_routing};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 use crate::user_config::WarpConfig;
@@ -989,7 +989,6 @@ pub enum Event {
     OpenFilesPalette {
         source: PaletteSource,
     },
-    TryHandlePassiveCodeDiff(CodeDiffAction),
     ToggleAIDocumentPane {
         document_id: AIDocumentId,
         document_version: AIDocumentVersion,
@@ -1062,9 +1061,6 @@ pub enum InputAction {
     StartNewAgentConversation {
         origin: AgentViewEntryOrigin,
     },
-
-    /// A passive code diff action.
-    TryHandlePassiveCodeDiff(CodeDiffAction),
 
     /// Clears the AI context menu search query back to the @ character and resets menu state.
     ClearAndResetAIContextMenuQuery,
@@ -1960,15 +1956,6 @@ pub fn init(app: &mut AppContext) {
         .collect::<Vec<_>>();
 
     app.register_editable_bindings(slash_command_bindings);
-
-    // Fixed bindings for passive code diffs
-    app.register_fixed_bindings([FixedBinding::new(
-        cmd_or_ctrl_shift("e"),
-        InputAction::TryHandlePassiveCodeDiff(CodeDiffAction::Edit),
-        id!("Input")
-            & id!(flags::CODE_SUGGESTIONS_FLAG)
-            & id!(flags::PASSIVE_CODE_DIFF_KEYBINDINGS_ENABLED),
-    )]);
 
     if FeatureFlag::AgentView.is_enabled() {
         app.register_fixed_bindings([FixedBinding::new(
@@ -7796,11 +7783,6 @@ impl Input {
             }
         } else {
             self.editor.update(ctx, |editor, ctx| editor.move_down(ctx));
-
-            // Try to expand the most recent passive code diff if it exists.
-            ctx.emit(Event::TryHandlePassiveCodeDiff(
-                CodeDiffAction::ScrollToExpand,
-            ));
         }
     }
 
@@ -13636,9 +13618,6 @@ impl TypedActionView for Input {
                     }
                 });
             }
-            InputAction::TryHandlePassiveCodeDiff(action) => {
-                ctx.emit(Event::TryHandlePassiveCodeDiff(action.clone()));
-            }
             InputAction::ToggleAgentViewShortcuts => {
                 self.agent_shortcut_view_model.update(ctx, |model, ctx| {
                     if model.is_shortcut_view_open() {
@@ -13847,21 +13826,6 @@ impl View for Input {
             ctx.set.insert("TerminalView_EmptyBlockList");
         } else {
             ctx.set.insert("TerminalView_NonEmptyBlockList");
-        }
-
-        // Only enable keybindings for passive code diffs when there is one pending in the
-        // blocklist that is undismissed (i.e. keybindings are shown in the banner/block).
-        // This is to prevent any keybinding conflicts (with actions such as split pane
-        // down on non-Macs).
-        let has_undismissed_passive_code_diff = model_lock
-            .block_list()
-            .last_non_hidden_ai_block_handle(app)
-            .is_some_and(|ai_block| {
-                let block = ai_block.as_ref(app);
-                block.is_passive_conversation() && block.find_undismissed_code_diff(app).is_some()
-            });
-        if has_undismissed_passive_code_diff {
-            ctx.set.insert(flags::PASSIVE_CODE_DIFF_KEYBINDINGS_ENABLED);
         }
 
         for (_, command) in self.slash_command_data_source.as_ref(app).active_commands() {

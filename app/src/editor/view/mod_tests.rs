@@ -65,6 +65,28 @@ fn initialize_app(app: &mut App) {
 }
 
 #[test]
+fn ctrl_c_clears_local_input_without_discarding_undo() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        app.update(|ctx| {
+            AppEditorSettings::handle(ctx).update(ctx, |settings, ctx| {
+                settings.vim_mode.set_value(false, ctx).unwrap();
+            });
+        });
+        let (_, editor) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
+            EditorView::new_with_base_text("printf 'hi 🌍'\n", Default::default(), ctx)
+        });
+
+        editor.update(&mut app, |editor, ctx| {
+            editor.handle_ctrl_c(ctx);
+            assert_eq!(editor.buffer_text(ctx), "");
+            editor.undo(ctx);
+            assert_eq!(editor.buffer_text(ctx), "printf 'hi 🌍'\n");
+        });
+    });
+}
+
+#[test]
 fn test_selection_with_mouse() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);

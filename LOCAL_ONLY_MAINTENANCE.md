@@ -340,3 +340,8 @@ longer carry that server handle. Nonblocking local teardown logging remains unch
 
 Background block creation and SSH bootstrap no longer emit telemetry-only events. Background output
 insertion, block-height updates, completion events, and the supported-shell SSH bootstrap timer remain.
+
+Passive AI suggestion dispatch and keybindings are removed. Down retains local completion/history
+navigation and editor movement. Editor Ctrl-C no longer traverses workspace or AI history: it retains
+Vim handling, Windows selected-text copying, and undoable input clearing. Other terminal-level agent
+Ctrl-C branches remain removal debt.

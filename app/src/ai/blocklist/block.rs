@@ -185,9 +185,7 @@ use crate::terminal::safe_mode_settings::{
     SafeModeSettings, SafeModeSettingsChangedEvent, get_secret_obfuscation_mode,
 };
 use crate::terminal::view::ambient_agent::{AmbientAgentViewModel, AmbientAgentViewModelEvent};
-use crate::terminal::view::{
-    CodeDiffAction, RichContentLink, RichContentLinkTooltipInfo, TerminalAction,
-};
+use crate::terminal::view::{RichContentLink, RichContentLinkTooltipInfo, TerminalAction};
 use crate::terminal::{ShellLaunchData, TerminalModel, TerminalView};
 use crate::ui_components::icons::Icon;
 use crate::util::link_detection::*;
@@ -4102,17 +4100,6 @@ impl AIBlock {
         self.gemini_enterprise_credentials_error_view = Some(view);
         ctx.notify();
     }
-    pub fn accept_pending_unit_test_suggestion(
-        &mut self,
-        interaction_source: InteractionSource,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
-        let Some(suggested_prompt) = self.pending_unit_test_suggestion(ctx) else {
-            return false;
-        };
-        self.accept_unit_test_suggestion(suggested_prompt.clone(), interaction_source, ctx)
-    }
-
     pub fn dismiss_pending_suggested_prompt(
         &mut self,
         interaction_source: InteractionSource,
@@ -5391,24 +5378,6 @@ impl AIBlock {
         let requested_command = self.requested_commands.get(action_id)?;
         let requested_command_view = requested_command.view.as_ref(ctx);
         requested_command_view.copied_from_citation().cloned()
-    }
-
-    pub fn handle_passive_code_diff_action(
-        &mut self,
-        action: CodeDiffAction,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
-        let Some(edit) = self.find_undismissed_code_diff(ctx) else {
-            return false;
-        };
-        edit.view.update(ctx, |view, ctx| match action {
-            CodeDiffAction::Accept => view.try_accept_action(ctx),
-            CodeDiffAction::Reject => view.reject(ctx),
-            CodeDiffAction::Edit => view.expand_and_edit(ctx),
-            CodeDiffAction::ScrollToExpand => view.expand_inline_banner(ctx),
-        });
-        ctx.notify();
-        true
     }
 
     /// Marks all pending passive actions (code diffs and suggested prompts) as dismissed/ignored.
