@@ -1059,14 +1059,6 @@ impl From<QueuedQueryOrigin> for TelemetryQueuedQueryOrigin {
     }
 }
 
-/// How a queued prompt row was sent immediately.
-#[derive(Clone, Copy, Debug, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum QueuedPromptSendNowTrigger {
-    SendNowButton,
-    EnterOnEmptyInput,
-}
-
 /// Details about which type of slash command was accepted
 #[derive(Clone, Debug, Serialize)]
 pub enum SlashCommandAcceptedDetails {
@@ -2591,16 +2583,6 @@ pub enum TelemetryEvent {
         origin: TelemetryQueuedQueryOrigin,
         from_index: usize,
         to_index: usize,
-    },
-    /// Emitted when the user toggles the queued prompts panel collapse state.
-    QueuedPromptPanelCollapseToggled {
-        collapsed: bool,
-    },
-    /// Emitted when the user sends a queued prompt row immediately, via the row's send-now
-    /// button or by pressing Enter with an empty input.
-    QueuedPromptSentNow {
-        origin: TelemetryQueuedQueryOrigin,
-        trigger: QueuedPromptSendNowTrigger,
     },
 }
 
@@ -4199,13 +4181,6 @@ impl TelemetryEvent {
                 "from_index": from_index,
                 "to_index": to_index,
             })),
-            TelemetryEvent::QueuedPromptPanelCollapseToggled { collapsed } => Some(json!({
-                "collapsed": collapsed,
-            })),
-            TelemetryEvent::QueuedPromptSentNow { origin, trigger } => Some(json!({
-                "origin": origin,
-                "trigger": trigger,
-            })),
         }
     }
 
@@ -4566,8 +4541,6 @@ impl TelemetryEvent {
             | TelemetryEvent::QueuedPromptEdited { .. }
             | TelemetryEvent::QueuedPromptDeleted { .. }
             | TelemetryEvent::QueuedPromptReordered { .. }
-            | TelemetryEvent::QueuedPromptPanelCollapseToggled { .. }
-            | TelemetryEvent::QueuedPromptSentNow { .. }
             | TelemetryEvent::CLISubagentControlStateChanged { .. }
             | TelemetryEvent::CLISubagentResponsesToggled { .. }
             | TelemetryEvent::CLISubagentInputDismissed { .. }
@@ -5117,11 +5090,9 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             | Self::RemoteCodebaseAutoIndexRequested => {
                 EnablementState::Flag(FeatureFlag::SshRemoteServer)
             }
-            Self::QueuedPromptEdited
-            | Self::QueuedPromptDeleted
-            | Self::QueuedPromptReordered
-            | Self::QueuedPromptPanelCollapseToggled
-            | Self::QueuedPromptSentNow => EnablementState::Flag(FeatureFlag::QueueSlashCommand),
+            Self::QueuedPromptEdited | Self::QueuedPromptDeleted | Self::QueuedPromptReordered => {
+                EnablementState::Flag(FeatureFlag::QueueSlashCommand)
+            }
         }
     }
 
@@ -5484,8 +5455,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::QueuedPromptEdited => "QueuedPrompt.Edited",
             Self::QueuedPromptDeleted => "QueuedPrompt.Deleted",
             Self::QueuedPromptReordered => "QueuedPrompt.Reordered",
-            Self::QueuedPromptPanelCollapseToggled => "QueuedPrompt.PanelCollapseToggled",
-            Self::QueuedPromptSentNow => "QueuedPrompt.SentNow",
             #[cfg(windows)]
             Self::WSLRegistryError => "WSL Distribution Registry Error",
             #[cfg(windows)]
@@ -6408,12 +6377,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::QueuedPromptEdited => "User committed a non-empty edit to a queued prompt row",
             Self::QueuedPromptDeleted => "User deleted a queued prompt row",
             Self::QueuedPromptReordered => "User reordered a queued prompt row via drag-and-drop",
-            Self::QueuedPromptPanelCollapseToggled => {
-                "User toggled the queued prompts panel collapse state"
-            }
-            Self::QueuedPromptSentNow => {
-                "User sent a queued prompt row immediately (send-now button or Enter on empty input)"
-            }
         }
     }
 }

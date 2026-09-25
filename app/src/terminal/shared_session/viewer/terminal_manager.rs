@@ -217,7 +217,7 @@ impl TerminalManager {
         });
     }
 
-    /// Handles a failed viewer command request and clears any queued-command dispatch state.
+    /// Handles a failed viewer command request.
     fn handle_command_execution_request_failed(
         terminal_view: &mut TerminalView,
         reason: &CommandExecutionFailureReason,
@@ -225,7 +225,6 @@ impl TerminalManager {
     ) {
         let reason_string = command_execution_failure_reason_string(reason);
         terminal_view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
-        terminal_view.clear_queued_command_in_flight(ctx);
 
         // On command execution request, the input is frozen and set to a loading state.
         // We only need to restore the input for errors that aren't the result of a new buffer.

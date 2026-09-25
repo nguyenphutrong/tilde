@@ -37,7 +37,9 @@ use crate::ai::agent::{
     AIAgentActionId, AIAgentExchange, AIAgentInput, AIAgentOutputStatus, UserQueryMode,
 };
 use crate::ai::agent_conversations_model::AgentConversationsModel;
-use crate::ai::blocklist::{AIQueryHistory, BlocklistAIPermissions, ResponseStreamId};
+use crate::ai::blocklist::{
+    AIQueryHistory, BlocklistAIPermissions, QueuedQueryOrigin, ResponseStreamId,
+};
 use crate::ai::connected_self_hosted_workers::ConnectedSelfHostedWorkersModel;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
@@ -1517,193 +1519,6 @@ fn maybe_route_ai_query_to_remote_target_forwards_executor_viewer_prompt() {
     });
 }
 
-#[test]
-fn send_now_event_submits_through_active_pane_and_preserves_draft() {
-    // A queued-prompt "send now" surfaces as a SendNow event on the input. The host should
-    // immediately route the removed prompt through the active-pane submission path (here, the
-    // shared-session viewer path, which emits SendAgentPrompt) without clobbering a draft the
-    // user has typed locally.
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let tips_model = app.add_model(|_| TipsCompleted::default());
-        let (_, terminal) = app.add_window(WindowStyle::NotStealFocus, move |ctx| {
-            TerminalView::new_for_test(tips_model, None, ctx)
-        });
-        terminal.update(&mut app, |view, _| {
-            let mut model = view.model.lock();
-            model.block_list_mut().set_bootstrapped();
-            model
-                .block_list_mut()
-                .active_block_for_test()
-                .set_session_id(SessionId::from(0));
-            model.set_shared_session_status(SharedSessionStatus::executor());
-        });
-
-        let input = terminal.read(&app, |view, _| view.input().clone());
-
-        let submitted_prompts = Rc::new(RefCell::new(Vec::<String>::new()));
-        let submitted_prompts_for_subscription = submitted_prompts.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event: &super::Event, _| {
-                if let super::Event::SendAgentPrompt { prompt, .. } = event {
-                    submitted_prompts_for_subscription
-                        .borrow_mut()
-                        .push(prompt.clone());
-                }
-            });
-        });
-
-        // Seed a queued row so the host can identify it by id, fire it, and remove it afterward.
-        let conversation_id = AIConversationId::new();
-        let query_id = QueuedQueryModel::handle(&app).update(&mut app, |model, ctx| {
-            model.append(
-                conversation_id,
-                QueuedQuery::new(
-                    "queued prompt".to_owned(),
-                    QueuedQueryOrigin::QueueSlashCommand,
-                ),
-                ctx,
-            )
-        });
-
-        input.update(&mut app, |input, ctx| {
-            input.replace_buffer_content("draft in progress", ctx);
-            input.handle_queued_prompts_panel_event(
-                &QueuedPromptsPanelEvent::SendNow {
-                    conversation_id,
-                    query_id,
-                    text: "queued prompt".to_owned(),
-                    is_command: false,
-                },
-                ctx,
-            );
-        });
-
-        // The queued prompt was submitted immediately...
-        assert_eq!(submitted_prompts.borrow().as_slice(), ["queued prompt"]);
-        // ...the in-progress draft the user typed was left untouched...
-        input.read(&app, |input, ctx| {
-            assert_eq!(input.buffer_text(ctx), "draft in progress");
-        });
-        // ...and the host removed the fired row from the queue.
-        QueuedQueryModel::handle(&app).read(&app, |model, _| {
-            assert!(model.queue(conversation_id).is_empty());
-        });
-    });
-}
-
-#[test]
-fn send_now_command_event_executes_command_and_arms_in_flight() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let session_info = SessionInfo::new_for_test();
-        let session_id = session_info.session_id;
-        let terminal =
-            add_window_with_bootstrapped_terminal(&mut app, None, Some(session_info)).await;
-        simulate_directory_for_completion(session_id, &terminal, &mut app, "~");
-        let input = terminal.read(&app, |view, _| view.input().clone());
-
-        let executed_commands = Rc::new(RefCell::new(Vec::<(String, bool)>::new()));
-        let executed_commands_for_subscription = executed_commands.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event: &super::Event, _| {
-                if let super::Event::ExecuteCommand(event) = event {
-                    executed_commands_for_subscription
-                        .borrow_mut()
-                        .push((event.command.clone(), event.source.should_preserve_input()));
-                }
-            });
-        });
-
-        let conversation_id = AIConversationId::new();
-        let query_id = QueuedQueryModel::handle(&app).update(&mut app, |model, ctx| {
-            model.append(
-                conversation_id,
-                QueuedQuery::new_command("echo 1".to_owned(), QueuedQueryOrigin::AutoQueueToggle),
-                ctx,
-            )
-        });
-
-        input.update(&mut app, |input, ctx| {
-            input.replace_buffer_content("draft in progress", ctx);
-            input.handle_queued_prompts_panel_event(
-                &QueuedPromptsPanelEvent::SendNow {
-                    conversation_id,
-                    query_id,
-                    text: "echo 1".to_owned(),
-                    is_command: true,
-                },
-                ctx,
-            );
-        });
-
-        assert_eq!(
-            executed_commands.borrow().as_slice(),
-            [("echo 1".to_owned(), true)]
-        );
-        input.read(&app, |input, ctx| {
-            assert_eq!(input.buffer_text(ctx), "draft in progress");
-        });
-        QueuedQueryModel::handle(&app).read(&app, |model, _| {
-            assert!(model.queue(conversation_id).is_empty());
-            assert!(model.has_command_in_flight(conversation_id));
-        });
-    });
-}
-
-#[test]
-fn queued_command_completion_preserves_draft() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let terminal_view_id = terminal.read(&app, |view, _| view.id());
-        let conversation_id =
-            BlocklistAIHistoryModel::handle(&app).update(&mut app, |history, ctx| {
-                let id = history.start_new_conversation(terminal_view_id, false, false, false, ctx);
-                history.set_active_conversation_id(id, terminal_view_id, ctx);
-                id
-            });
-        QueuedQueryModel::handle(&app).update(&mut app, |model, _| {
-            model.arm_command_in_flight(conversation_id);
-        });
-
-        let input = terminal.read(&app, |view, _| view.input().clone());
-        input.update(&mut app, |input, ctx| {
-            input.replace_buffer_content("draft in progress", ctx);
-            input.deferred_remote_operations.latest_block_id = BlockId::new();
-            input.handle_block_completed_event(
-                BlockCompletedEvent {
-                    block_type: BlockType::User(UserBlockCompleted::new_for_test(
-                        BlockIndex::zero(),
-                        Arc::new(SerializedBlock::new_for_test(b"echo 1".to_vec(), vec![])),
-                        "echo 1".to_owned(),
-                        "echo 1".to_owned(),
-                        String::new(),
-                        String::new(),
-                        false,
-                        None,
-                        0,
-                        0,
-                    )),
-                    num_secrets_obfuscated: 0,
-                    block_index: BlockIndex::zero(),
-                    block_id: BlockId::new(),
-                    session_id: None,
-                    restored_block_was_local: None,
-                },
-                ctx,
-            );
-        });
-
-        input.read(&app, |input, ctx| {
-            assert_eq!(input.buffer_text(ctx), "draft in progress");
-        });
-    });
-}
-
 fn user_block_completed_for_test(command: &str) -> BlockType {
     BlockType::User(UserBlockCompleted::new_for_test(
         BlockIndex::zero(),
@@ -2039,27 +1854,6 @@ fn ctrl_t_binding_is_ineligible_when_shell_widget_handoff_flag_is_disabled() {
     });
 }
 
-/// Verifies deleting a queued row does not overwrite an existing draft.
-#[test]
-fn row_deleted_event_preserves_existing_draft() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |view, _| view.input().clone());
-        input.update(&mut app, |input, ctx| {
-            input.replace_buffer_content("draft in progress", ctx);
-            input.handle_queued_prompts_panel_event(&QueuedPromptsPanelEvent::RowDeleted, ctx);
-        });
-
-        input.read(&app, |input, ctx| {
-            assert_eq!(input.buffer_text(ctx), "draft in progress");
-        });
-    });
-}
-
-/// Seeds an active conversation in the history model for `terminal_view_id` so the queued
-/// prompts panel (and the empty-buffer Enter path) can resolve it.
 fn seed_active_conversation(app: &mut App, terminal_view_id: EntityId) -> AIConversationId {
     BlocklistAIHistoryModel::handle(app).update(app, |history, ctx| {
         let id = history.start_new_conversation(terminal_view_id, false, false, false, ctx);
@@ -2068,10 +1862,8 @@ fn seed_active_conversation(app: &mut App, terminal_view_id: EntityId) -> AIConv
     })
 }
 
-/// Enter on an empty buffer sends the top queued prompt; a second Enter sends the next row.
-/// The buffer stays empty throughout.
 #[test]
-fn empty_buffer_enter_sends_top_queued_prompt_then_next_on_repeat() {
+fn empty_buffer_enter_leaves_queued_prompts_untouched() {
     App::test((), |mut app| async move {
         let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app(&mut app);
@@ -2105,28 +1897,27 @@ fn empty_buffer_enter_sends_top_queued_prompt_then_next_on_repeat() {
         });
 
         input.update(&mut app, |input, ctx| input.input_enter(ctx));
-        assert_eq!(*ai_query_count.borrow(), 1);
+        assert_eq!(*ai_query_count.borrow(), 0);
         QueuedQueryModel::handle(&app).read(&app, |model, _| {
             let queue = model.queue(conversation_id);
-            assert_eq!(queue.len(), 1);
-            assert_eq!(queue[0].text(), "second");
+            assert_eq!(queue.len(), 2);
+            assert_eq!(queue[0].text(), "first");
+            assert_eq!(queue[1].text(), "second");
         });
         input.read(&app, |input, ctx| {
             assert!(input.buffer_text(ctx).is_empty());
         });
 
         input.update(&mut app, |input, ctx| input.input_enter(ctx));
-        assert_eq!(*ai_query_count.borrow(), 2);
+        assert_eq!(*ai_query_count.borrow(), 0);
         QueuedQueryModel::handle(&app).read(&app, |model, _| {
-            assert!(model.queue(conversation_id).is_empty());
+            assert_eq!(model.queue(conversation_id).len(), 2);
         });
     });
 }
 
-/// With the input in (default) shell mode and an empty buffer, Enter executes the top queued
-/// command row instead of submitting an empty shell command.
 #[test]
-fn empty_buffer_enter_executes_top_queued_command() {
+fn empty_buffer_enter_leaves_queued_command_untouched() {
     App::test((), |mut app| async move {
         let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
         initialize_app(&mut app);
@@ -2164,11 +1955,11 @@ fn empty_buffer_enter_executes_top_queued_command() {
 
         assert_eq!(
             executed_commands.borrow().as_slice(),
-            [("echo 1".to_owned(), true)]
+            [(String::new(), false)]
         );
         QueuedQueryModel::handle(&app).read(&app, |model, _| {
-            assert!(model.queue(conversation_id).is_empty());
-            assert!(model.has_command_in_flight(conversation_id));
+            assert_eq!(model.queue(conversation_id)[0].text(), "echo 1");
+            assert!(!model.has_command_in_flight(conversation_id));
         });
     });
 }
@@ -2359,10 +2150,8 @@ fn select_conversation(
     });
 }
 
-/// While an agent controls an agent-requested long-running command, a prompt submission
-/// auto-queues (with the `LrcAutoQueue` origin) instead of being sent.
 #[test]
-fn prompt_submission_auto_queues_during_agent_requested_lrc() {
+fn enter_during_running_command_preserves_draft_without_queueing() {
     App::test((), |mut app| async move {
         let _agent_view = FeatureFlag::AgentView.override_enabled(false);
         let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
@@ -2379,198 +2168,14 @@ fn prompt_submission_auto_queues_during_agent_requested_lrc() {
         });
 
         QueuedQueryModel::handle(&app).read(&app, |model, _| {
-            let queue = model.queue(conversation_id);
-            assert_eq!(queue.len(), 1);
-            assert_eq!(queue[0].text(), "queue me");
-            assert_eq!(queue[0].origin(), QueuedQueryOrigin::LrcAutoQueue);
-        });
-        input.read(&app, |input, ctx| {
-            assert!(input.buffer_text(ctx).is_empty());
-        });
-    });
-}
-
-/// LRC queued prompts do not fire on command finish while the conversation still has an active
-/// subagent. They fire when history shows the subagent has handed back to the main agent.
-#[test]
-fn lrc_queued_prompts_wait_while_subagent_is_active() {
-    App::test((), |mut app| async move {
-        let _agent_view = FeatureFlag::AgentView.override_enabled(false);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let conversation_id = simulate_agent_requested_lrc(&mut app, &terminal);
-        let terminal_view_id = terminal.read(&app, |view, _| view.view_id());
-        let input = terminal.read(&app, |view, _| view.input().clone());
-
-        input.update(&mut app, |input, ctx| {
-            input.set_input_mode_agent(/* ensure_input_is_focused */ false, ctx);
-            input.replace_buffer_content("/compact-and test", ctx);
-            input.input_enter(ctx);
-        });
-        let active_block_id = terminal.read(&app, |view, _| {
-            view.model.lock().block_list().active_block().id().clone()
-        });
-        BlocklistAIHistoryModel::handle(&app).update(&mut app, |history, ctx| {
-            history
-                .conversation_mut(&conversation_id)
-                .expect("conversation should exist")
-                .create_optimistic_cli_subagent_task_for_test(&active_block_id);
-            ctx.notify();
-        });
-
-        let ai_query_count = Rc::new(RefCell::new(0));
-        let ai_query_count_for_subscription = ai_query_count.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event: &super::Event, _| {
-                if matches!(event, super::Event::ExecuteAIQuery) {
-                    *ai_query_count_for_subscription.borrow_mut() += 1;
-                }
-            });
-        });
-        terminal.update(&mut app, |view, ctx| {
-            view.send_lrc_queued_prompts(conversation_id, ctx);
-        });
-
-        assert_eq!(*ai_query_count.borrow(), 0);
-        QueuedQueryModel::handle(&app).read(&app, |model, _| {
-            let queue = model.queue(conversation_id);
-            assert_eq!(queue.len(), 1);
-            assert_eq!(queue[0].text(), "/compact-and test");
-            assert_eq!(queue[0].origin(), QueuedQueryOrigin::LrcAutoQueue);
-        });
-
-        BlocklistAIHistoryModel::handle(&app).update(&mut app, |history, ctx| {
-            history
-                .conversation_mut(&conversation_id)
-                .expect("conversation should exist")
-                .clear_optimistic_cli_subagent_task_for_test();
-            history.update_conversation_status(
-                terminal_view_id,
-                conversation_id,
-                ConversationStatus::InProgress,
-                ctx,
-            );
-        });
-        QueuedQueryModel::handle(&app).read(&app, |model, _| {
-            let queue = model.queue(conversation_id);
-            assert_eq!(queue.len(), 1);
-            assert_eq!(queue[0].text(), "test");
-            assert_eq!(queue[0].origin(), QueuedQueryOrigin::CompactAndSlashCommand);
-        });
-    });
-}
-/// If the conversation already has queued rows, LRC submissions append as regular queued rows
-/// when the current queue head is not LRC-queued, so command-finish delivery never jumps it.
-#[test]
-fn prompt_submission_during_lrc_with_non_lrc_queue_head_uses_generic_origin() {
-    App::test((), |mut app| async move {
-        let _agent_view = FeatureFlag::AgentView.override_enabled(false);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let conversation_id = simulate_agent_requested_lrc(&mut app, &terminal);
-        QueuedQueryModel::handle(&app).update(&mut app, |model, ctx| {
-            model.append(
-                conversation_id,
-                QueuedQuery::new(
-                    "already queued".to_owned(),
-                    QueuedQueryOrigin::QueueSlashCommand,
-                ),
-                ctx,
-            );
-        });
-        let input = terminal.read(&app, |view, _| view.input().clone());
-
-        input.update(&mut app, |input, ctx| {
-            input.set_input_mode_agent(/* ensure_input_is_focused */ false, ctx);
-            input.replace_buffer_content("queue behind it", ctx);
-            input.input_enter(ctx);
-        });
-
-        let ai_query_count = Rc::new(RefCell::new(0));
-        let ai_query_count_for_subscription = ai_query_count.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event: &super::Event, _| {
-                if matches!(event, super::Event::ExecuteAIQuery) {
-                    *ai_query_count_for_subscription.borrow_mut() += 1;
-                }
-            });
-        });
-        terminal.update(&mut app, |view, ctx| {
-            view.send_lrc_queued_prompts(conversation_id, ctx);
-        });
-
-        assert_eq!(*ai_query_count.borrow(), 0);
-        QueuedQueryModel::handle(&app).read(&app, |model, _| {
-            let queue = model.queue(conversation_id);
-            assert_eq!(queue.len(), 2);
-            assert_eq!(queue[0].text(), "already queued");
-            assert_eq!(queue[0].origin(), QueuedQueryOrigin::QueueSlashCommand);
-            assert_eq!(queue[1].text(), "queue behind it");
-            assert_eq!(queue[1].origin(), QueuedQueryOrigin::AutoQueueToggle);
-        });
-    });
-}
-
-/// If the current queue head is LRC-queued, later LRC submissions join that same
-/// command-finish batch and fire in FIFO order.
-#[test]
-fn prompt_submission_during_lrc_with_lrc_queue_head_uses_lrc_origin() {
-    App::test((), |mut app| async move {
-        let _agent_view = FeatureFlag::AgentView.override_enabled(false);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let conversation_id = simulate_agent_requested_lrc(&mut app, &terminal);
-        QueuedQueryModel::handle(&app).update(&mut app, |model, ctx| {
-            model.append(
-                conversation_id,
-                QueuedQuery::new("first lrc".to_owned(), QueuedQueryOrigin::LrcAutoQueue),
-                ctx,
-            );
-        });
-        let input = terminal.read(&app, |view, _| view.input().clone());
-
-        input.update(&mut app, |input, ctx| {
-            input.set_input_mode_agent(/* ensure_input_is_focused */ false, ctx);
-            input.replace_buffer_content("second lrc", ctx);
-            input.input_enter(ctx);
-        });
-
-        QueuedQueryModel::handle(&app).read(&app, |model, _| {
-            let queue = model.queue(conversation_id);
-            assert_eq!(queue.len(), 2);
-            assert_eq!(queue[0].text(), "first lrc");
-            assert_eq!(queue[0].origin(), QueuedQueryOrigin::LrcAutoQueue);
-            assert_eq!(queue[1].text(), "second lrc");
-            assert_eq!(queue[1].origin(), QueuedQueryOrigin::LrcAutoQueue);
-        });
-
-        let ai_query_count = Rc::new(RefCell::new(0));
-        let ai_query_count_for_subscription = ai_query_count.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event: &super::Event, _| {
-                if matches!(event, super::Event::ExecuteAIQuery) {
-                    *ai_query_count_for_subscription.borrow_mut() += 1;
-                }
-            });
-        });
-        terminal.update(&mut app, |view, ctx| {
-            view.send_lrc_queued_prompts(conversation_id, ctx);
-        });
-
-        assert_eq!(*ai_query_count.borrow(), 2);
-        QueuedQueryModel::handle(&app).read(&app, |model, _| {
             assert!(model.queue(conversation_id).is_empty());
         });
+        input.read(&app, |input, ctx| {
+            assert_eq!(input.buffer_text(ctx), "queue me");
+        });
     });
 }
-/// Explicitly tagging the agent into a user-started long-running command preserves steering:
-/// prompts submit immediately instead of using the LRC auto-queue path.
+
 #[test]
 fn prompt_submission_does_not_auto_queue_for_user_tagged_lrc() {
     App::test((), |mut app| async move {
@@ -2623,11 +2228,8 @@ fn prompt_submission_is_not_queued_during_lrc_when_set_to_send_immediately() {
     });
 }
 
-/// With the default submission mode set to Queue, the LRC machinery is inert: a submission
-/// during an agent-requested LRC still queues, but as a regular queued row (generic origin)
-/// that waits for the end of the full response rather than the end of the command.
 #[test]
-fn prompt_submission_during_lrc_with_queue_default_uses_generic_origin() {
+fn enter_ignores_legacy_queue_default() {
     App::test((), |mut app| async move {
         let _agent_view = FeatureFlag::AgentView.override_enabled(false);
         let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
@@ -2649,63 +2251,7 @@ fn prompt_submission_during_lrc_with_queue_default_uses_generic_origin() {
         });
 
         QueuedQueryModel::handle(&app).read(&app, |model, _| {
-            let queue = model.queue(conversation_id);
-            assert_eq!(queue.len(), 1);
-            assert_eq!(queue[0].origin(), QueuedQueryOrigin::AutoQueueToggle);
-        });
-    });
-}
-
-/// When the long-running command finishes, leading `LrcAutoQueue` rows fire to the agent in
-/// queue order; rows behind other origins stay queued for the normal end-of-response drain.
-#[test]
-fn lrc_queued_prompts_fire_from_queue_head_when_command_finishes() {
-    App::test((), |mut app| async move {
-        let _agent_view = FeatureFlag::AgentView.override_enabled(false);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let conversation_id = simulate_agent_requested_lrc(&mut app, &terminal);
-        let input = terminal.read(&app, |view, _| view.input().clone());
-
-        QueuedQueryModel::handle(&app).update(&mut app, |model, ctx| {
-            model.append(
-                conversation_id,
-                QueuedQuery::new("first".to_owned(), QueuedQueryOrigin::LrcAutoQueue),
-                ctx,
-            );
-            model.append(
-                conversation_id,
-                QueuedQuery::new("keep me".to_owned(), QueuedQueryOrigin::QueueSlashCommand),
-                ctx,
-            );
-            model.append(
-                conversation_id,
-                QueuedQuery::new("second".to_owned(), QueuedQueryOrigin::LrcAutoQueue),
-                ctx,
-            );
-        });
-
-        let ai_query_count = Rc::new(RefCell::new(0));
-        let ai_query_count_for_subscription = ai_query_count.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_view(&input, move |_, event: &super::Event, _| {
-                if matches!(event, super::Event::ExecuteAIQuery) {
-                    *ai_query_count_for_subscription.borrow_mut() += 1;
-                }
-            });
-        });
-
-        terminal.update(&mut app, |view, ctx| {
-            view.send_lrc_queued_prompts(conversation_id, ctx);
-        });
-        assert_eq!(*ai_query_count.borrow(), 1);
-        QueuedQueryModel::handle(&app).read(&app, |model, _| {
-            let queue = model.queue(conversation_id);
-            assert_eq!(queue.len(), 2);
-            assert_eq!(queue[0].text(), "keep me");
-            assert_eq!(queue[1].text(), "second");
+            assert!(model.queue(conversation_id).is_empty());
         });
     });
 }
@@ -2735,10 +2281,7 @@ fn ghost_text_shows_queue_hint_during_agent_requested_lrc() {
 }
 
 #[test]
-fn shell_submission_queues_as_command_row_when_gated_under_v2() {
-    // A shell-mode submission while a queued command is already in flight is captured as a
-    // command row (not executed and not interrupting the queue), carries no attachments, and
-    // clears the editor.
+fn shell_submission_ignores_retired_queue_flags() {
     App::test((), |mut app| async move {
         let _agent_view = FeatureFlag::AgentView.override_enabled(false);
         let _queue_slash_command = FeatureFlag::QueueSlashCommand.override_enabled(true);
@@ -2747,6 +2290,16 @@ fn shell_submission_queues_as_command_row_when_gated_under_v2() {
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
         let input = terminal.read(&app, |view, _| view.input().clone());
+
+        let commands = Rc::new(RefCell::new(Vec::new()));
+        let observed_commands = commands.clone();
+        app.update(|ctx| {
+            ctx.subscribe_to_view(&input, move |_, event, _| {
+                if let Event::ExecuteCommand(event) = event {
+                    observed_commands.borrow_mut().push(event.command.clone());
+                }
+            });
+        });
 
         // Select a conversation, turn on auto-queue, and mark a command as in flight so the gate
         // keeps queueing while the agent is idle.
@@ -2765,15 +2318,9 @@ fn shell_submission_queues_as_command_row_when_gated_under_v2() {
         });
 
         QueuedQueryModel::handle(&app).read(&app, |model, _| {
-            let queue = model.queue(conversation_id);
-            assert_eq!(queue.len(), 1);
-            assert!(queue[0].is_command());
-            assert_eq!(queue[0].text(), "echo 1");
-            assert!(queue[0].attachments().is_empty());
+            assert!(model.queue(conversation_id).is_empty());
         });
-        input.read(&app, |input, ctx| {
-            assert!(input.buffer_text(ctx).is_empty())
-        });
+        assert_eq!(commands.borrow().as_slice(), ["echo 1"]);
     });
 }
 
@@ -2845,11 +2392,8 @@ fn slash_fork_bypasses_prompt_queue_while_in_progress() {
     });
 }
 
-/// Counterpart to the fork bypass: prompt-submitting commands like `/compact` reiterate their text
-/// into the conversation, so they are still queued while an agent is in progress. This keeps the
-/// bypass scoped to action-emitting commands only.
 #[test]
-fn slash_compact_still_queues_while_in_progress() {
+fn slash_compact_enter_does_not_queue() {
     App::test((), |mut app| async move {
         let _agent_view = FeatureFlag::AgentView.override_enabled(false);
         let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
@@ -2870,15 +2414,8 @@ fn slash_compact_still_queues_while_in_progress() {
             input.input_enter(ctx);
         });
 
-        // /compact reiterates into the conversation as a prompt, so it is queued.
         QueuedQueryModel::handle(&app).read(&app, |model, _| {
-            let queue = model.queue(conversation_id);
-            assert_eq!(
-                queue.len(),
-                1,
-                "/compact should be queued while in progress"
-            );
-            assert_eq!(queue[0].text(), "/compact");
+            assert!(model.queue(conversation_id).is_empty());
         });
     });
 }
@@ -4641,110 +4178,6 @@ fn test_new_conversation_keybinding_requires_double_press_in_non_empty_agent_vie
                 .active_conversation_id()
                 .expect("agent view should still be active");
             assert_ne!(active_conversation_id, conversation_id);
-        });
-    });
-}
-
-/// Pressing `?` while editing a queued prompt must NOT toggle the agent help/shortcuts panel —
-/// the keystroke should fall through to the inline editor so a literal `?` is typed. The `shift-?`
-/// binding is gated on an empty *main* input buffer, which is also true while the queued-prompt
-/// inline editor is focused, so without the `QueuedPromptInlineEditorOpen` guard the help panel
-/// would wrongly open instead of inserting `?`.
-#[test]
-fn question_mark_does_not_toggle_shortcuts_while_editing_queued_prompt() {
-    App::test((), |mut app| async move {
-        let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
-        let _queue_flag = FeatureFlag::QueueSlashCommand.override_enabled(true);
-        initialize_app(&mut app);
-
-        let (window_id, terminal) =
-            add_window_with_bootstrapped_terminal_and_window_id(&mut app, None, None).await;
-        let (input, editor) = terminal.read(&app, |terminal, ctx| {
-            let input = terminal.input().clone();
-            let editor = input.as_ref(ctx).editor().clone();
-            (input, editor)
-        });
-
-        // Enter fullscreen agent view so the `shift-?` binding's ACTIVE_AGENT_VIEW context is set.
-        let conversation_id = terminal.update(&mut app, |view, ctx| {
-            view.agent_view_controller().update(ctx, |controller, ctx| {
-                controller
-                    .try_enter_agent_view(
-                        None,
-                        AgentViewEntryOrigin::Input {
-                            was_prompt_autodetected: false,
-                        },
-                        ctx,
-                    )
-                    .expect("Should be able to enter agent view")
-            })
-        });
-
-        // Queue a prompt and put it into inline edit mode; the main input buffer stays empty.
-        let query_id = QueuedQueryModel::handle(&app).update(&mut app, |model, ctx| {
-            model.append(
-                conversation_id,
-                QueuedQuery::new(
-                    "queued prompt".to_owned(),
-                    QueuedQueryOrigin::QueueSlashCommand,
-                ),
-                ctx,
-            )
-        });
-        QueuedQueryModel::handle(&app).update(&mut app, |model, ctx| {
-            model.enter_edit_mode(conversation_id, query_id, ctx);
-        });
-
-        let focus_path = [terminal.id(), input.id(), editor.id()];
-
-        // While editing the queued prompt, `?` must NOT be consumed by the shortcuts binding.
-        let handled = app
-            .dispatch_keystroke(
-                window_id,
-                &focus_path,
-                &Keystroke::parse("shift-?").unwrap(),
-                false,
-            )
-            .unwrap();
-        assert!(
-            !handled,
-            "`?` must not be consumed by the shortcuts binding while editing a queued prompt"
-        );
-        input.read(&app, |input, ctx| {
-            assert!(
-                !input
-                    .agent_shortcut_view_model
-                    .as_ref(ctx)
-                    .is_shortcut_view_open(),
-                "help/shortcuts panel must not open when typing `?` in the queued-prompt editor"
-            );
-        });
-
-        // Control: with no queued-prompt edit in progress, the same `?` DOES toggle the panel,
-        // confirming the binding is otherwise active in this exact state.
-        QueuedQueryModel::handle(&app).update(&mut app, |model, ctx| {
-            model.cancel_edit(conversation_id, ctx);
-        });
-        let handled = app
-            .dispatch_keystroke(
-                window_id,
-                &focus_path,
-                &Keystroke::parse("shift-?").unwrap(),
-                false,
-            )
-            .unwrap();
-        assert!(
-            handled,
-            "`?` should toggle the shortcuts panel in agent view when not editing a queued prompt"
-        );
-        input.read(&app, |input, ctx| {
-            assert!(
-                input
-                    .agent_shortcut_view_model
-                    .as_ref(ctx)
-                    .is_shortcut_view_open(),
-                "help/shortcuts panel should open for `?` outside the queued-prompt editor"
-            );
         });
     });
 }
@@ -8305,7 +7738,7 @@ fn open_rich_input_for_terminal(terminal: &ViewHandle<TerminalView>, app: &mut A
 }
 
 #[test]
-fn enter_submits_when_submit_on_ctrl_enter_is_false() {
+fn enter_does_not_submit_when_submit_on_ctrl_enter_is_false() {
     use std::cell::RefCell;
     use std::rc::Rc;
 
@@ -8314,12 +7747,6 @@ fn enter_submits_when_submit_on_ctrl_enter_is_false() {
 
         initialize_app(&mut app);
 
-        // Default must be false (guards existing Enter-submits behaviour).
-        let default_value =
-            AISettings::handle(&app).read(&app, |settings, _| *settings.submit_on_ctrl_enter);
-        assert!(!default_value, "submit_on_ctrl_enter must default to false");
-
-        // Explicitly confirm false so the test doesn't rely on the global default.
         AISettings::handle(&app).update(&mut app, |settings, ctx| {
             settings
                 .submit_on_ctrl_enter
@@ -8350,16 +7777,7 @@ fn enter_submits_when_submit_on_ctrl_enter_is_false() {
             input.input_enter(ctx);
         });
 
-        assert_eq!(
-            submitted.borrow().len(),
-            1,
-            "Enter should submit once when submit_on_ctrl_enter=false"
-        );
-        assert_eq!(
-            submitted.borrow()[0],
-            "hello",
-            "submitted text should match buffer contents"
-        );
+        assert!(submitted.borrow().is_empty());
     });
 }
 
@@ -8415,7 +7833,7 @@ fn ctrl_enter_preserves_buffer_when_submit_on_ctrl_enter_is_false() {
 }
 
 #[test]
-fn enter_inserts_newline_when_submit_on_ctrl_enter_is_true() {
+fn enter_does_not_submit_when_submit_on_ctrl_enter_is_true() {
     use std::cell::RefCell;
     use std::rc::Rc;
 
@@ -8458,14 +7876,6 @@ fn enter_inserts_newline_when_submit_on_ctrl_enter_is_true() {
             submitted.borrow().is_empty(),
             "Enter must NOT submit when submit_on_ctrl_enter=true"
         );
-
-        input.read(&app, |input, ctx| {
-            let text = input.buffer_text(ctx);
-            assert!(
-                text.contains('\n'),
-                "Enter should insert a newline when submit_on_ctrl_enter=true; got: {text:?}"
-            );
-        });
     });
 }
 
