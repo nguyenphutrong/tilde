@@ -170,14 +170,6 @@ fn initialize_app_with_history(app: &mut App, conversations: Vec<AgentConversati
     // QueuedQueryModel subscribes to history events; register after the
     // history model is in place.
     app.add_singleton_model(QueuedQueryModel::new);
-    // Pill bar model subscribes to history events; register after the
-    // history model is in place.
-    app.add_singleton_model(|ctx| {
-        crate::ai::blocklist::agent_view::orchestration_pill_bar_model::OrchestrationPillBarModel::new(
-            Default::default(),
-            ctx,
-        )
-    });
     app.add_singleton_model(|_| CLIAgentSessionsModel::new());
     app.add_singleton_model(OrchestrationEventService::new);
     app.add_singleton_model(LocalAgentTaskSyncModel::new);
@@ -1368,12 +1360,8 @@ fn failed_viewer_child_session_stays_unavailable_without_retrying_same_session()
 /// in `app/src/ai/blocklist/history_model_tests.rs`. `agent_display_name_from_id`
 /// resolution for restored children is covered by
 /// `participant_for_restored_child_run_id_resolves_to_agent_name` in
-/// `app/src/ai/blocklist/block/view_impl/orchestration_tests.rs`. The pill
-/// bar data-layer coverage is in
-/// `pill_bar_data_layer_finds_restored_children_before_pane_creation` in
-/// `app/src/ai/blocklist/agent_view/orchestration_pill_bar_tests.rs`. This
-/// test ties those three boundaries together at the PaneGroup integration
-/// layer.
+/// `app/src/ai/blocklist/block/view_impl/orchestration_tests.rs`. This test ties those boundaries
+/// together at the PaneGroup integration layer.
 #[test]
 fn test_pane_group_restore_loop_keeps_orchestration_topology_and_materializes_child_pane() {
     let _agent_view = FeatureFlag::AgentView.override_enabled(true);
@@ -1452,8 +1440,7 @@ fn test_pane_group_restore_loop_keeps_orchestration_topology_and_materializes_ch
         pane_group.read(&app, |panes, ctx| {
             let history = BlocklistAIHistoryModel::as_ref(ctx);
 
-            // (a) Topology — direct children index and the transitive walker
-            // used by `OrchestrationPillBar::pill_specs` must both find the
+            // (a) Topology — direct children index and the transitive walker must both find the
             // child immediately, even though the hidden child pane has not
             // been created yet.
             assert_eq!(
