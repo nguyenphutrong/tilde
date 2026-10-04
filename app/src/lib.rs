@@ -236,6 +236,7 @@ use crate::user_config::WarpConfig;
 use crate::util::bindings::is_binding_cross_platform;
 use crate::vim_registers::VimRegisters;
 use crate::warp_managed_paths_watcher::{WarpManagedPathsWatcher, ensure_warp_watch_roots_exist};
+use crate::workflows::local_workflows::LocalWorkflows;
 use crate::workspace::{ActiveSession, PaneViewLocator, ToastStack, Workspace, WorkspaceAction};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
@@ -998,6 +999,7 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(WarpManagedPathsWatcher::new);
 
     ctx.add_singleton_model(WarpConfig::new);
+    ctx.add_singleton_model(LocalWorkflows::new);
     ctx.add_singleton_model(|_ctx| SettingsManager::default());
 
     let user_defaults_on_startup = settings::init(startup_toml_parse_error, ctx);
