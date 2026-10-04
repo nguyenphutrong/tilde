@@ -26,7 +26,7 @@ use super::model::{AIBlockModel, AIBlockModelImpl, AIBlockOutputStatus};
 use super::view_impl::common::{
     AutoExecuteButtonProps, ButtonProps, ForceRefreshButtonProps, LOAD_OUTPUT_MESSAGE,
     MaybeShimmeringText, WAITING_FOR_USER_INPUT_MESSAGE, WarpingIndicatorProps, WarpingProps,
-    render_switch_control_to_user_button, render_warping_indicator, render_warping_indicator_base,
+    render_warping_indicator, render_warping_indicator_base,
 };
 use crate::BlocklistAIHistoryModel;
 use crate::ai::agent::conversation::AIConversationId;
@@ -50,7 +50,6 @@ use crate::ai::blocklist::{
 use crate::ai::llms::LLMPreferences;
 use crate::settings::{InputModeSettings, InputSettings};
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
-use crate::terminal::input::SET_INPUT_MODE_TERMINAL_ACTION_NAME;
 use crate::terminal::input::buffer_model::{InputBufferModel, InputBufferUpdateEvent};
 use crate::terminal::input::message_bar::common::render_wrapping_standard_message_bar;
 use crate::terminal::input::slash_command_model::SlashCommandModel;
@@ -76,7 +75,6 @@ struct StateHandles {
     autoexecute_button: MouseStateHandle,
     queue_next_prompt_button: MouseStateHandle,
     stop_button: MouseStateHandle,
-    take_over_button: MouseStateHandle,
     hide_cli_responses_button: MouseStateHandle,
     /// Tracks hover/press state for the inline `Check now` affordance rendered next to
     /// `Last seen by agent ...` while the agent is polling a long-running command.
@@ -99,7 +97,6 @@ pub struct BlocklistAIStatusBar {
     autoexecute_keystroke: Option<Keystroke>,
     queue_next_prompt_keystroke: Option<Keystroke>,
     stop_keystroke: Option<Keystroke>,
-    set_terminal_input_keystroke: Option<Keystroke>,
     hide_cli_responses_keystroke: Option<Keystroke>,
 
     // Whether the summarization cancellation confirmation dialog is open.
@@ -261,8 +258,6 @@ impl BlocklistAIStatusBar {
             keybinding_name_to_keystroke(TOGGLE_AUTOEXECUTE_MODE_KEYBINDING, ctx);
         let queue_next_prompt_keystroke =
             keybinding_name_to_keystroke(TOGGLE_QUEUE_NEXT_PROMPT_KEYBINDING, ctx);
-        let set_terminal_input_keystroke =
-            keybinding_name_to_keystroke(SET_INPUT_MODE_TERMINAL_ACTION_NAME, ctx);
         let hide_cli_responses_keystroke =
             keybinding_name_to_keystroke(TOGGLE_HIDE_CLI_RESPONSES_KEYBINDING, ctx);
         ctx.subscribe_to_model(&KeybindingChangedNotifier::handle(ctx), |me, _, _, ctx| {
@@ -271,8 +266,6 @@ impl BlocklistAIStatusBar {
                 keybinding_name_to_keystroke(TOGGLE_AUTOEXECUTE_MODE_KEYBINDING, ctx);
             me.queue_next_prompt_keystroke =
                 keybinding_name_to_keystroke(TOGGLE_QUEUE_NEXT_PROMPT_KEYBINDING, ctx);
-            me.set_terminal_input_keystroke =
-                keybinding_name_to_keystroke(SET_INPUT_MODE_TERMINAL_ACTION_NAME, ctx);
             ctx.notify();
         });
 
@@ -349,7 +342,6 @@ impl BlocklistAIStatusBar {
             autoexecute_keystroke,
             queue_next_prompt_keystroke,
             stop_keystroke,
-            set_terminal_input_keystroke,
             hide_cli_responses_keystroke,
             summarization_cancel_dialog,
             latest_response_stream_id: None,
@@ -809,11 +801,6 @@ impl BlocklistAIStatusBar {
                     keystroke: self.stop_keystroke.as_ref(),
                     is_active: false,
                 }),
-                take_over_lrc_control_button: is_agent_in_control.then_some(ButtonProps {
-                    button_handle: &self.state_handles.take_over_button,
-                    keystroke: self.set_terminal_input_keystroke.as_ref(),
-                    is_active: false,
-                }),
                 hide_responses_button: is_agent_in_control.then_some((
                     ButtonProps {
                         button_handle: &self.state_handles.hide_cli_responses_button,
@@ -1086,16 +1073,7 @@ impl View for BlocklistAIStatusBar {
                             ),
                             non_shimmering_text: None,
                             non_shimmering_suffix: None,
-                            buttons: Some(render_switch_control_to_user_button(
-                                "Exit",
-                                "Exit agent input",
-                                ButtonProps {
-                                    button_handle: &self.state_handles.take_over_button,
-                                    keystroke: self.set_terminal_input_keystroke.as_ref(),
-                                    is_active: false,
-                                },
-                                appearance,
-                            )),
+                            buttons: None,
                             is_passive_code_diff: false,
                             secondary_element: None,
                         },

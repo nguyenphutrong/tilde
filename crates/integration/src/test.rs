@@ -2273,7 +2273,7 @@ pub fn test_shell_reinitializing() -> Builder {
                             hostname: "local:host".to_owned(),
                             ..Default::default()
                         });
-                        let input_visible = view.is_input_box_visible(&model, ctx);
+                        let input_visible = view.is_input_box_visible(&model);
 
                         async_assert!(input_visible, "Input box should be visible")
                     })

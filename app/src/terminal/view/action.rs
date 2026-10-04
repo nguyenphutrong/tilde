@@ -297,10 +297,6 @@ pub enum TerminalAction {
     /// it if possible.
     SelectAIAttachedBlock(BlockIndex),
     DragAndDropFiles(Vec<String>),
-    /// Sets the input mode to Agent Mode
-    SetInputModeAgent,
-    /// Sets the input mode to Terminal Mode
-    SetInputModeTerminal,
 
     HyperlinkClick(HyperlinkUrl),
     AttemptLoginGatedFeature,
@@ -416,9 +412,6 @@ pub enum TerminalAction {
     CycleNextOrchestrationChildAgent,
     /// Toggle PTY recording for this session.
     ToggleSessionRecording,
-    /// Toggle the rich input editor for composing a prompt to send to a CLI agent.
-    /// Triggered by Ctrl-G when a CLI agent is detected, or from the footer button.
-    ToggleCLIAgentRichInput,
 
     /// Allow the blocked clipboard operation by adjusting the OSC 52 clipboard access setting.
     Osc52AllowBlockedClipboardOperation,
@@ -609,8 +602,7 @@ impl fmt::Debug for TerminalAction {
             ExecuteRewindFromInlineMenu { .. } => write!(f, "ExecuteRewindFromInlineMenu"),
             SelectAIAttachedBlock(_) => write!(f, "SelectAIAttachedBlock"),
             DragAndDropFiles(_) => write!(f, "DragAndDropFiles"),
-            SetInputModeAgent => write!(f, "SetInputModeAgent"),
-            SetInputModeTerminal => write!(f, "SetInputModeTerminal"),
+
             HyperlinkClick(hyperlink_url) => write!(f, "HyperlinkClick({hyperlink_url:?})"),
             AttemptLoginGatedFeature => write!(f, "AttemptLoginGatedFeature"),
             StartFileDropTarget => write!(f, "StartFileDropTarget"),
@@ -679,7 +671,7 @@ impl fmt::Debug for TerminalAction {
             }
             CycleNextOrchestrationChildAgent => write!(f, "CycleNextOrchestrationChildAgent"),
             ToggleSessionRecording => write!(f, "ToggleSessionRecording"),
-            ToggleCLIAgentRichInput => write!(f, "ToggleCLIAgentRichInput"),
+
             Osc52AllowBlockedClipboardOperation => {
                 write!(f, "Osc52AllowBlockedClipboardOperation")
             }

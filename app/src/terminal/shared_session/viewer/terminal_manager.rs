@@ -1107,37 +1107,6 @@ impl TerminalManager {
                     apply_auto_approve_agent_actions_update(&weak_view_handle, auto_approve, &active_remote_update, ctx);
                 }
 
-                if model
-                    .lock()
-                    .block_list()
-                    .active_block()
-                    .is_active_and_long_running()
-                {
-                    if let Some(interaction) =
-                        context_update.long_running_command_agent_interaction.clone()
-                    {
-                        if let Some(view) = weak_view_handle.upgrade(ctx) {
-                            view.update(ctx, |view, ctx| {
-                                view.apply_long_running_command_agent_interaction(interaction, ctx);
-                            });
-                        }
-                    } else if let Some(interaction_state) =
-                        context_update.long_running_command_agent_interaction_state
-                    {
-                        // TODO (roland): this is kept around for backward compatibility. Remove after 6 weeks (around Jul 23, 2026) 
-                        // once clients have updated to use context_update.long_running_command_agent_interaction above.
-                        if let Some(view) = weak_view_handle.upgrade(ctx) {
-                            view.update(ctx, |view, ctx| {
-                                view.apply_long_running_command_agent_interaction_state(
-                                    interaction_state,
-                                    None,
-                                    ctx,
-                                );
-                            });
-                        }
-                    }
-                }
-
                 if let Some(ref cli_agent_session) = context_update.cli_agent_session {
                     apply_cli_agent_state_update(
                         &weak_view_handle,
@@ -1598,11 +1567,11 @@ impl TerminalManager {
                 block_id,
                 operations,
             } => {
-                let should_send_input_update = view.read(ctx, |view, ctx| {
+                let should_send_input_update = view.read(ctx, |view, _| {
                     let model = model.lock();
                     model.block_list().active_block_id() == block_id
                         && model.shared_session_status().is_executor()
-                        && view.should_publish_shared_session_input_editor_update(&model, ctx)
+                        && view.should_publish_shared_session_input_editor_update(&model)
                 });
                 if should_send_input_update {
                     Self::update_current_network(&current_network, ctx, |network, _| {

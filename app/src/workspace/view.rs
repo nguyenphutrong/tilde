@@ -8848,8 +8848,8 @@ impl Workspace {
                 .as_ref(app)
                 .active_session_view(app),
         ) {
-            (Some(terminal_model), Some(terminal_view)) => terminal_view.read(app, |view, ctx| {
-                view.is_input_box_visible(&terminal_model.lock(), ctx)
+            (Some(terminal_model), Some(terminal_view)) => terminal_view.read(app, |view, _| {
+                view.is_input_box_visible(&terminal_model.lock())
             }),
             _ => false,
         }

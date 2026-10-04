@@ -147,6 +147,12 @@ REMOVED_SOURCE_SYMBOLS = {
         "GetRelevantFilesController", "get_relevant_files_controller",
         "StartAgentConversation", "StartAgentExecutor", "StartAgentRequest",
         "conversation_details_panel", "ToggleConversationDetailsPanel",
+        "handle_ai_history_model_event", "render_owner_for_ai_history_event",
+        "last_observed_conversation_status", "read_image_files_from_paths",
+        "apply_shared_session_agent_interaction_state", "tag_into_active_block",
+    ),
+    "app/src/terminal/view/action.rs": (
+        "SetInputModeAgent", "SetInputModeTerminal", "ToggleCLIAgentRichInput",
     ),
     "app/src/pane_group/mod.rs": ("transitively_share_existing_local_children",),
     "app/src/terminal/view/pane_impl.rs": (

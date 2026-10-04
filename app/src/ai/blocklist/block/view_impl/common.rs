@@ -156,7 +156,6 @@ pub struct WarpingProps<'a, V> {
     pub shimmering_text_handle: &'a ShimmeringTextStateHandle,
     pub summarization_start_time: Option<instant::Instant>,
     pub hide_responses_button: Option<(ButtonProps<'a>, bool)>,
-    pub take_over_lrc_control_button: Option<ButtonProps<'a>>,
     pub auto_execute_button: Option<AutoExecuteButtonProps<'a>>,
     pub queue_next_prompt_button: Option<ButtonProps<'a>>,
     pub stop_button: Option<ButtonProps<'a>>,
@@ -425,16 +424,6 @@ pub fn render_warping_indicator<V: View>(
         buttons_row.add_child(render_hide_responses_button(
             hide_responses_button_props,
             should_hide_responses,
-            appearance,
-        ));
-    }
-
-    if let Some(take_over_button_props) = props.take_over_lrc_control_button {
-        has_buttons = true;
-        buttons_row.add_child(render_switch_control_to_user_button(
-            "Take over",
-            "Take over control of the command",
-            take_over_button_props,
             appearance,
         ));
     }
@@ -785,38 +774,6 @@ fn render_hide_responses_button(
         false,
         |ctx| {
             ctx.dispatch_typed_action(BlocklistAIStatusBarAction::ToggleHideResponses);
-        },
-    )
-}
-
-pub fn render_switch_control_to_user_button(
-    text: &'static str,
-    tooltip: &'static str,
-    props: ButtonProps,
-    appearance: &Appearance,
-) -> Box<dyn Element> {
-    let theme = appearance.theme();
-    let text = Container::new(
-        Text::new(
-            text,
-            appearance.ui_font_family(),
-            get_keybinding_font_size(appearance),
-        )
-        .with_color(theme.foreground().into())
-        .finish(),
-    )
-    .finish();
-
-    render_warping_indicator_button(
-        props.button_handle.clone(),
-        appearance,
-        text,
-        props.keystroke,
-        tooltip.to_string(),
-        props.is_active,
-        false,
-        |ctx| {
-            ctx.dispatch_typed_action(TerminalAction::SetInputModeTerminal);
         },
     )
 }
