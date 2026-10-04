@@ -568,3 +568,27 @@ shared account-policy wire fields remain. Workspace packages fall 74 to 73 and l
 All 52 selected input-model, slash-command, toolbar and statusline tests passed, alongside format,
 GUI all-target Clippy, 14 guard tests and both packaging-script syntax checks. The residue inventory
 shrinks from 164 to 161. Native macOS/Windows execution remains unverified.
+
+Combined verification after voice removal: all-target integration/TUI checking and the Linux GUI
+build passed. The terminal/editor/WarpUI/persistence library selection passed all 1,411 tests, with
+nine skips. The broad app selection (`terminal::`, `pane_group::`, `workspace::`, `settings::`,
+`workflows::`, `changelog::`, `autoupdate::`, and the local Ctrl-C editor regression) ran 1,379 tests:
+1,346 passed and 33 failed. Failures cover child-agent restoration, slash-command hints, shared-viewer
+queues, cloud continuation/launch, CLI rich input/status, agent bindings/menu expectations, and
+sharing-dependent workspace tests. They are not baseline-proven, and this suite is not green.
+
+A fresh-profile GUI smoke exposed a tab-bar lookup of the removed AI-history singleton. Horizontal
+tabs no longer render agent/cloud indicators or conversation tooltips; shell titles, errors,
+unsaved-file indicators, synchronized input and local tab controls remain. A static guard rejects
+the removed lookup. The first keystroke also exposed an AI-history lookup used only for an obsolete
+keymap flag; both the flag and lookup are removed. Vertical-tab CLI/agent consumers remain separate
+removal work.
+
+The corrected Linux GUI build passed a fresh-HOME Bash/Xvfb smoke: a command produced output,
+Ctrl-Shift-K removed it, and the next command ran normally. Clearing during `sleep 8` preserved the
+process: it printed `PROCESS_SURVIVED_CLEAR`, wrote a completion marker, and accepted another command
+that printed `LOCAL_AFTER_PROCESS_OK`. The final screenshot was inspected. The supervised process
+had zero restarts and its logs contained no panic or unregistered-singleton error. This verifies
+the default horizontal-tab local shell path, not vertical tabs or retired AI surfaces.
+All 19 selected tab, Clear Blocks, Ctrl-C and input-visibility regressions passed, alongside 15 guard
+tests, residue checking, format and warning-allowing GUI all-target Clippy.
