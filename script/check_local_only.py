@@ -59,6 +59,12 @@ REMOVED_TELEMETRY_SYMBOLS = re.compile(
     r"flush_telemetry_events|flush_persisted_events_to_rudder|persist_telemetry_events)\b"
     r"|\btelemetry_context\s*\("
 )
+REMOVED_SOURCE_SYMBOLS = {
+    "app/src/app_state.rs": ("ServerId",),
+    "app/src/workspace/view.rs": ("team_uid_for_window", "notify_terminal_focus_change"),
+    "app/src/terminal/view.rs": ("update_focused_terminal_info", "mcp_execution_path"),
+    "app/src/pane_group/mod.rs": ("transitively_share_existing_local_children",),
+}
 
 
 def removed_dependency(name):
@@ -99,6 +105,9 @@ def inventory(root, paths):
             ".agents/setup", ".agents/resume", ".agents/Procfile", ".amp/services.yaml",
         }:
             content = path.read_text(errors="replace")
+            for symbol in REMOVED_SOURCE_SYMBOLS.get(relative, ()):
+                if re.search(rf"\b{symbol}\b", content):
+                    forbidden.add(f"{relative}: removed {symbol}")
             if relative.startswith("app/src/") and REMOVED_TELEMETRY_SYMBOLS.search(content):
                 forbidden.add(f"{relative}: removed telemetry transport")
             for line in content.splitlines():

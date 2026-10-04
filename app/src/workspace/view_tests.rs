@@ -274,6 +274,29 @@ fn restored_workspace(
     workspace
 }
 
+#[test]
+fn test_window_snapshot_preserves_opaque_team_metadata() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let workspace = mock_workspace(&mut app);
+        let mut snapshot = workspace.read(&app, |workspace, ctx| {
+            workspace.snapshot(workspace.window_id, false, ctx)
+        });
+        assert_eq!(snapshot.team_uid, None);
+        snapshot.team_uid = Some("invalid-legacy-team-id".to_owned());
+        let restored = restored_workspace(&mut app, snapshot);
+        restored.read(&app, |workspace, ctx| {
+            assert_eq!(
+                workspace
+                    .snapshot(workspace.window_id, false, ctx)
+                    .team_uid
+                    .as_deref(),
+                Some("invalid-legacy-team-id"),
+            );
+        });
+    });
+}
+
 fn transferred_tab_workspace(
     app: &mut App,
     vertical_tabs_panel_open: bool,

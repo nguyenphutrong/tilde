@@ -28,7 +28,7 @@ use crate::persistence::{
     BlockCompleted, ModelEvent, PersistedDataScope, PersistenceScope, StartedCommandMetadata,
     model, schema,
 };
-use crate::server::ids::{ClientId, ServerId};
+use crate::server::ids::ClientId;
 use crate::tab::SelectedTabColor;
 use crate::terminal::ShellLaunchData;
 use crate::terminal::model::block::SerializedBlock;
@@ -390,13 +390,13 @@ fn test_sqlite_round_trips_vertical_tabs_panel_open() {
 }
 
 #[test]
-fn test_sqlite_round_trips_window_team_uid() {
+fn test_sqlite_round_trips_opaque_window_team_uid() {
     let tempdir = tempfile::tempdir().expect("tempdir should be created");
     let database_path = tempdir.path().join("warp.sqlite");
     let mut conn = setup_database(&database_path).expect("database should initialize");
-    let team_uid = ServerId::from(123);
+    let team_uid = "invalid-legacy-team-id".to_owned();
     let mut assigned_window = test_terminal_window_snapshot(false);
-    assigned_window.team_uid = Some(team_uid);
+    assigned_window.team_uid = Some(team_uid.clone());
 
     let app_state = AppState {
         windows: vec![assigned_window, test_terminal_window_snapshot(true)],

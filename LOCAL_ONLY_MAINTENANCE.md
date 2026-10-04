@@ -447,3 +447,12 @@ other startup consumers remain separate removal work; this change alone does not
 startup or network silence.
 The header/shared-viewer selection ran nine tests: eight passed, while the untouched AI queued-command
 test `command_execution_request_failed_clears_queued_command_in_flight` failed its in-flight assertion.
+
+Local pane construction and focus no longer subscribe to transitive AI sharing or publish agent
+focus state. Shell bootstrap no longer starts pending shares, updates MCP PATH, indexes code, or
+restores AI-block launch data. Local shell command/function/builtin loading and PTY focus remain.
+Viewport autoscroll uses terminal behavior; remote-block classification uses the actual session,
+not organization regexes. Window team metadata is kept as an opaque string on the restored window,
+never parsed or resolved against an account; new windows leave it unset. SQLite schema is unchanged.
+The focused snapshot, local/remote classification, focus, and scrolling selection passed 27 tests;
+the local-only guard suite passed 13 tests. Native Windows/macOS runtime behavior remains unverified.
