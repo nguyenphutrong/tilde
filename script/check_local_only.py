@@ -47,6 +47,16 @@ REMOVED_SOURCES = (
     "app/src/terminal/input/skills/view.rs",
     "app/src/terminal/input/slash_commands/view.rs",
     "app/src/terminal/input/slash_commands/cloud_mode_v2_view.rs",
+    "app/src/server/telemetry/context.rs",
+    "app/src/server/telemetry/rudder_message.rs",
+    "app/src/server/telemetry/mod_tests.rs",
+    "app/src/server/telemetry_ext.rs",
+    "app/src/server/telemetry_ext_tests.rs",
+)
+REMOVED_TELEMETRY_SYMBOLS = re.compile(
+    r"\b(?:TelemetryApi|send_telemetry_sync_from_\w+|to_rudder_batch_message|"
+    r"flush_telemetry_events|flush_persisted_events_to_rudder|persist_telemetry_events)\b"
+    r"|\btelemetry_context\s*\("
 )
 
 
@@ -88,6 +98,8 @@ def inventory(root, paths):
             ".agents/setup", ".agents/resume", ".agents/Procfile", ".amp/services.yaml",
         }:
             content = path.read_text(errors="replace")
+            if relative.startswith("app/src/") and REMOVED_TELEMETRY_SYMBOLS.search(content):
+                forbidden.add(f"{relative}: removed telemetry transport")
             for line in content.splitlines():
                 if ENDPOINT.search(line):
                     digest = hashlib.sha256(line.strip().encode()).hexdigest()

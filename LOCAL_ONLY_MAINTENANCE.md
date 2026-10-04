@@ -431,3 +431,10 @@ opaque: saving a session preserves their raw strings by UUID in the same SQLite 
 without parsing or restoring AI state. New panes leave those columns NULL. A regression reverses
 window order with deliberately invalid legacy values to detect row-ID mixups or data loss.
 The local editor initialization is restored; GUI startup still requires a fresh smoke check.
+
+Rudder HTTP transport, serialized context/messages, disk persistence/replay, and synchronous send
+macros are removed, including auth, experiment, updater, and memory-monitor callsites. Shared-session
+payloads carry no telemetry context. The GitHub updater and relaunch remain; Windows installer
+diagnostics retain local warning logs. Memory pressure still requires two consecutive high samples
+and emits one local warning. Guards reject the deleted files and transport symbols. Queue-only
+events, redaction, privacy settings, and other cloud networking remain; this is not network silence.

@@ -106,9 +106,7 @@ use crate::resource_center::{
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ObjectUid, SyncId};
 use crate::server::server_api::{ServerApi, ServerApiProvider};
-use crate::server::telemetry::{
-    AnonymousUserSignupEntrypoint, PaletteSource, SharingDialogSource, TelemetryEvent,
-};
+use crate::server::telemetry::{PaletteSource, SharingDialogSource, TelemetryEvent};
 use crate::session_management::SessionNavigationData;
 use crate::settings::{AISettings, DefaultSessionMode, PaneSettings};
 use crate::settings_view::SettingsSection;
@@ -661,9 +659,6 @@ pub enum Event {
         message: String,
         flavor: ToastFlavor,
         pane_id: Option<PaneId>,
-    },
-    SignupAnonymousUser {
-        entrypoint: AnonymousUserSignupEntrypoint,
     },
     OpenThemeChooser,
     InvalidatedActiveConversation,
