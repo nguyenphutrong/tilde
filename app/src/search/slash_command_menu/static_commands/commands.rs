@@ -74,17 +74,6 @@ pub const VIEW_LOGS: StaticCommand = StaticCommand {
     argument: None,
 };
 
-/// Starts the headless TUI voice-input session.
-pub const VOICE: StaticCommand = StaticCommand {
-    name: "/voice",
-    description: "Start voice input (Ctrl-S)",
-    kind: SlashCommandKind::Voice,
-    supported_surfaces: SlashCommandSurfaces::TuiOnly,
-    availability: Availability::AI_ENABLED.union(Availability::NOT_CLOUD_AGENT),
-    auto_enter_ai_mode: false,
-    argument: None,
-};
-
 pub const API_KEYS: StaticCommand = StaticCommand {
     name: "/api-keys",
     description: "View and manage API keys",
@@ -820,7 +809,6 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
         TEAM,
         STATUS,
         VIEW_LOGS,
-        VOICE,
     ];
 
     if FeatureFlag::LocalDockerSandbox.is_enabled() {

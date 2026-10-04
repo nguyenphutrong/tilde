@@ -59,6 +59,7 @@ pub enum AgentToolbarItemKind {
 
     // Both
     FileExplorer,
+    // Decode legacy arrays without discarding the other saved toolbar items.
     VoiceInput,
     // Renamed from ImageAttach; alias preserves existing user toolbar configs.
     #[serde(alias = "ImageAttach")]
@@ -146,7 +147,7 @@ impl AgentToolbarItemKind {
     /// handles runtime conditions that depend on user settings or workspace state.
     pub fn is_available(&self, app: &warpui::AppContext) -> bool {
         match self {
-            Self::ModelSelector | Self::NLDToggle => false,
+            Self::ModelSelector | Self::NLDToggle | Self::VoiceInput => false,
             // Matches the gating on every other project explorer entry point, so the chip
             // cannot open a tool view the rest of the app hides. See
             // `Workspace::compute_left_panel_views` and the `SHOW_PROJECT_EXPLORER`
@@ -191,7 +192,6 @@ impl AgentToolbarItemKind {
         {
             items.push(Self::ShareSession);
         }
-        items.push(Self::VoiceInput);
         items.push(Self::FileAttach);
         items
     }
@@ -203,7 +203,6 @@ impl AgentToolbarItemKind {
             .map(Self::ContextChip)
             .collect();
         items.extend([
-            Self::VoiceInput,
             Self::FileAttach,
             Self::ContextWindowUsage,
             // Opt-in only: deliberately absent from `default_left`/`default_right`.
@@ -224,7 +223,6 @@ impl AgentToolbarItemKind {
     pub fn cli_default_left() -> Vec<Self> {
         let mut items = vec![
             Self::FileAttach,
-            Self::VoiceInput,
             Self::ContextChip(ContextChipKind::GitDiffStats),
         ];
         if FeatureFlag::CreatingSharedSessions.is_enabled()
@@ -258,7 +256,6 @@ impl AgentToolbarItemKind {
             Self::FileExplorer,
             Self::RichInput,
             Self::FileAttach,
-            Self::VoiceInput,
             Self::Settings,
         ]);
         if FeatureFlag::CreatingSharedSessions.is_enabled()
