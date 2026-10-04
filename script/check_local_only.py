@@ -19,6 +19,7 @@ REMOVED = {
     "serve-wasm", "managed_secrets_wasm",
     "minidumper", "crash-handler",
     "input_classifier", "natural_language_detection",
+    "app-installation-detection",
 }
 RESIDUE = {
     "ai", "ai_types", "mcp",
@@ -37,6 +38,7 @@ ENDPOINT = re.compile(
 )
 SOURCE_SUFFIXES = {".rs", ".toml", ".sh", ".ps1", ".yml", ".yaml", ".json"}
 REMOVED_SOURCES = (
+    "crates/app-installation-detection/",
     "app/src/settings/cloud_preferences_syncer.rs",
     "app/src/settings/cloud_preferences_syncer_tests.rs",
     "app/src/server/cloud_objects/fake_object_client.rs",
@@ -65,6 +67,7 @@ REMOVED_TELEMETRY_SYMBOLS = re.compile(
     r"|\btelemetry_context\s*\("
 )
 REMOVED_SOURCE_SYMBOLS = {
+    "app/src/lib.rs": ("app_installation_detection",),
     "app/src/app_state.rs": ("ServerId",),
     "app/src/settings/mod.rs": ("cloud_preferences_syncer",),
     "app/src/settings/privacy.rs": ("CloudPreferencesSyncer", "maybe_sync_with_warp_drive_prefs"),

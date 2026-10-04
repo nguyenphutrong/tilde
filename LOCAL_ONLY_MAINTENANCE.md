@@ -488,3 +488,8 @@ reload, write inhibition, and native-store migration remain, without any schema 
 Legacy profile import and auth/privacy server APIs remain separate removal debt.
 All 30 TOML preference tests, 14 guard tests, format and GUI all-target Clippy passed. App profile
 runtime tests are deferred to the final combined suite; their sources compile in all-target Clippy.
+
+The native installation-detection crate, Warp-origin CORS route and dependency edges are removed.
+Local HTTP profiling and the separate terminal-control server remain. Six lockfile packages are
+removed; no browser-facing compatibility settings or stored data are erased. The dependency/source
+guard covers reintroduction, and all 14 guard tests, format and GUI all-target Clippy passed.

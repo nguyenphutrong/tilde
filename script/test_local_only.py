@@ -100,7 +100,7 @@ class LocalOnlyGuardTests(unittest.TestCase):
         self.assertEqual(forbidden, ["Cargo.lock: managed_secrets_wasm"])
 
     def test_rejects_removed_classifiers_in_manifests_and_lockfile(self):
-        for name in ["input_classifier", "natural_language_detection"]:
+        for name in ["input_classifier", "natural_language_detection", "app-installation-detection"]:
             with self.subTest(name=name):
                 _, forbidden = self.scan(
                     f'[dependencies]\nrenamed = {{ package="{name}", version="1" }}\n',
