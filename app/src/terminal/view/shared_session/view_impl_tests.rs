@@ -122,7 +122,7 @@ fn test_on_ambient_agent_execution_ended_enables_followup_input_for_editable_non
             ));
             assert!(view.conversation_ended_tombstone_view_id.is_none());
             assert_eq!(view.pending_cloud_followup_task_id, Some(task_id));
-            assert!(view.is_input_box_visible(&model, ctx));
+            assert!(view.is_input_box_visible(&model));
             assert_eq!(
                 view.input()
                     .as_ref(ctx)
@@ -657,7 +657,7 @@ fn test_on_session_share_ended_skips_cloud_continuation_for_user_share_with_task
             );
             assert!(view.conversation_ended_tombstone_view_id.is_none());
             assert_eq!(view.pending_cloud_followup_task_id, None);
-            assert!(view.is_input_box_visible(&model, ctx));
+            assert!(view.is_input_box_visible(&model));
             assert_eq!(
                 view.input()
                     .as_ref(ctx)
@@ -973,7 +973,7 @@ fn test_restored_oz_edit_access_non_owner_finished_view_uses_followup_input_with
                     model.shared_session_status(),
                     SharedSessionStatus::NotShared
                 ));
-                assert!(view.is_input_box_visible(&model, ctx));
+                assert!(view.is_input_box_visible(&model));
             }
             assert_eq!(
                 view.input()
@@ -1075,7 +1075,7 @@ fn test_on_session_share_ended_shows_tombstone_for_github_action_ambient_session
             );
             assert!(view.conversation_ended_tombstone_view_id.is_some());
             assert_eq!(view.pending_cloud_followup_task_id, None);
-            assert!(!view.is_input_box_visible(&model, ctx));
+            assert!(view.is_input_box_visible(&model));
             assert_eq!(
                 view.input()
                     .as_ref(ctx)
@@ -1132,7 +1132,7 @@ fn test_on_session_share_ended_hides_input_for_no_cta_tombstone() {
                 initial_block_height_items + 2
             );
             assert!(view.conversation_ended_tombstone_view_id.is_some());
-            assert!(!view.is_input_box_visible(&model, ctx));
+            assert!(view.is_input_box_visible(&model));
             assert_eq!(
                 view.input()
                     .as_ref(ctx)
@@ -1191,7 +1191,7 @@ fn test_on_session_share_ended_does_not_insert_tombstone_for_owned_ambient_sessi
                 InteractionState::Selectable
             );
             let model = view.model.lock();
-            assert!(view.should_publish_shared_session_input_editor_update(&model, ctx));
+            assert!(view.should_publish_shared_session_input_editor_update(&model));
         });
     });
 }
@@ -1390,7 +1390,7 @@ fn test_on_ambient_agent_execution_ended_shows_tombstone_for_github_action_ambie
             );
             assert!(view.conversation_ended_tombstone_view_id.is_some());
             assert_eq!(view.pending_cloud_followup_task_id, None);
-            assert!(!view.is_input_box_visible(&model, ctx));
+            assert!(view.is_input_box_visible(&model));
             assert_eq!(
                 view.input()
                     .as_ref(ctx)
@@ -1495,7 +1495,7 @@ fn test_restored_owned_tombstone_hides_input_until_continue() {
             assert!(view.conversation_ended_tombstone_view_id.is_some());
             {
                 let model = view.model.lock();
-                assert!(!view.is_input_box_visible(&model, ctx));
+                assert!(view.is_input_box_visible(&model));
             }
 
             view.start_cloud_followup_from_tombstone(task_id, ctx);
@@ -1503,7 +1503,7 @@ fn test_restored_owned_tombstone_hides_input_until_continue() {
             assert_eq!(view.pending_cloud_followup_task_id, Some(task_id));
             {
                 let model = view.model.lock();
-                assert!(view.is_input_box_visible(&model, ctx));
+                assert!(view.is_input_box_visible(&model));
             }
             assert_eq!(
                 view.input()
@@ -1550,7 +1550,7 @@ fn test_prepare_for_live_session_reattach_restores_interactive_input() {
             {
                 let model = view.model.lock();
                 assert!(model.is_read_only());
-                assert!(!view.is_input_box_visible(&model, ctx));
+                assert!(!view.is_input_box_visible(&model));
             }
 
             view.prepare_for_live_session_reattach(ctx);
@@ -1562,7 +1562,7 @@ fn test_prepare_for_live_session_reattach_restores_interactive_input() {
             {
                 let model = view.model.lock();
                 assert!(!model.is_read_only());
-                assert!(view.is_input_box_visible(&model, ctx));
+                assert!(view.is_input_box_visible(&model));
             }
             assert_eq!(
                 view.input()
@@ -1673,7 +1673,7 @@ fn test_deep_linked_ambient_continuation_refreshes_when_task_data_arrives() {
                     model.shared_session_status(),
                     SharedSessionStatus::FinishedViewer
                 ));
-                assert!(!view.is_input_box_visible(&model, ctx));
+                assert!(!view.is_input_box_visible(&model));
             }
         });
 
@@ -1694,7 +1694,7 @@ fn test_deep_linked_ambient_continuation_refreshes_when_task_data_arrives() {
                     model.shared_session_status(),
                     SharedSessionStatus::NotShared
                 ));
-                assert!(view.is_input_box_visible(&model, ctx));
+                assert!(view.is_input_box_visible(&model));
             }
             assert_eq!(
                 view.input()
@@ -1993,7 +1993,7 @@ fn test_non_owned_tombstone_is_removed_for_followup_and_reinserted_after_complet
                     model.shared_session_status(),
                     SharedSessionStatus::NotShared
                 ));
-                assert!(view.is_input_box_visible(&model, ctx));
+                assert!(view.is_input_box_visible(&model));
                 assert_eq!(
                     model.block_list().block_heights().items().len(),
                     initial_block_height_items

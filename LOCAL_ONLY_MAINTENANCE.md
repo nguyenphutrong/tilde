@@ -542,3 +542,13 @@ integration PID access and Windows OpenConsole shutdown remain. The regression s
 share event with its feature flag enabled and verifies NotShared with an empty shared-view list.
 That regression, format, 14 guard tests, residue checking and GUI all-target Clippy passed. Viewer
 protocol/model consumers remain; Windows shutdown is preserved in source but not runtime-tested.
+
+Terminal history events no longer render or transfer AI blocks, track conversation status, or
+control terminal input visibility. Retired agent-mode bindings and CLI image clipboard/drop
+interception are removed. Local paste retains CR normalization and bracketed-paste bytes; dropped
+image paths use ordinary shell escaping. Read-only and alternate-screen terminals still hide input,
+and stale agent control cannot reveal input during a running command. No persisted data is changed.
+Format, 14 guard tests, residue checking and GUI all-target Clippy passed. The initial find/copy/local
+input selection passed all 40 tests; the expanded selection passed 48/49, including all new local
+input and retired-history regressions. The previously recorded late-arriving cloud-continuation
+failure remains; the expanded suite is not green. GUI rendering remains unverified.
