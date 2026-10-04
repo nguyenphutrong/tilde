@@ -526,3 +526,11 @@ bundled workflows and search remain. A regression constructs the real browser wi
 and checks local command content, category navigation and search reset. All 26 selected workflow
 tests, format, 14 guard tests, the residue check and GUI all-target Clippy passed. Visual verification
 remains deferred until the outstanding eager AI details/sharing consumers are removed.
+
+The conversation details panel, its eager construction, actions, render wrappers and refresh hooks
+are removed from terminal and web workspaces. Independent ambient task resolution remains; no DB
+schema or persisted conversation data changes. Format, 14 guard tests, the residue check and GUI
+all-target Clippy passed. The pane/shared-session selection ran 96 tests: 91 passed and five failed
+in child-pane restoration and late-arriving cloud-continuation updates. These failures have not been
+baseline-proven; the suite is not green. Removed cloud subscriptions are not restored to satisfy
+retired behavior. Local PTY sharing and history-rendering consumers remain startup removal work.

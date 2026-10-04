@@ -138,7 +138,7 @@ impl TerminalView {
                 return None;
             }
 
-            self.ambient_agent_task_id_for_details_panel_from_model(&model, ctx)
+            self.ambient_agent_task_id_from_model(&model, ctx)
         };
         let Some(task_id) = task_id else {
             return conversation_failed_before_task_creation(
@@ -168,8 +168,7 @@ impl TerminalView {
             return true;
         }
 
-        let Some(task_id) = self.ambient_agent_task_id_for_details_panel_from_model(model, ctx)
-        else {
+        let Some(task_id) = self.ambient_agent_task_id_from_model(model, ctx) else {
             return false;
         };
 
@@ -182,7 +181,7 @@ impl TerminalView {
         &self,
         ctx: &AppContext,
     ) -> Option<AmbientAgentTaskId> {
-        let task_id = self.ambient_agent_task_id_for_details_panel(ctx)?;
+        let task_id = self.ambient_agent_task_id(ctx)?;
 
         AgentConversationsModel::as_ref(ctx)
             .get_task_data(&task_id)
@@ -766,12 +765,6 @@ impl TerminalView {
         // if there's an active conversation, or fall back to the terminal_title (pwd).
         self.update_pane_configuration(ctx);
 
-        if FeatureFlag::CloudMode.is_enabled()
-            && matches!(source_type, SessionSourceType::AmbientAgent { .. })
-        {
-            self.maybe_auto_open_conversation_details_panel(ctx);
-        }
-
         send_telemetry_from_ctx!(
             TelemetryEvent::JoinedSharedSession {
                 session_id,
@@ -788,7 +781,7 @@ impl TerminalView {
     /// Clear the presence manager and handle any UI necessary on shared session end.
     /// Applies to both sharer and viewer when the session sharing ends.
     pub fn on_session_share_ended(&mut self, ctx: &mut ViewContext<Self>) {
-        let viewed_ambient_task_id = self.ambient_agent_task_id_for_details_panel(ctx);
+        let viewed_ambient_task_id = self.ambient_agent_task_id(ctx);
         let handoff_continuation_state = self.cloud_conversation_continuation_ui_state(ctx);
         let should_insert_legacy_tombstone = {
             let model = self.model.lock();
@@ -860,12 +853,11 @@ impl TerminalView {
     }
 
     fn handle_non_running_ambient_agent_task(&mut self, ctx: &mut ViewContext<Self>) {
-        if let Some(task_id) = self.ambient_agent_task_id_for_details_panel(ctx) {
+        if let Some(task_id) = self.ambient_agent_task_id(ctx) {
             AgentConversationsModel::handle(ctx).update(ctx, |model, ctx| {
                 model.mark_task_execution_ended(task_id, ctx);
             });
         }
-        self.refresh_conversation_details_panel_if_open(ctx);
         let has_live_shared_session = {
             let status = self.model.lock().shared_session_status().clone();
             status.is_active_viewer() || status.is_active_sharer()
@@ -889,7 +881,7 @@ impl TerminalView {
                 self.insert_conversation_ended_tombstone_with_cta(cta, ctx);
             }
             CloudConversationContinuationUiState::FollowupInput => {
-                if let Some(task_id) = self.ambient_agent_task_id_for_details_panel(ctx) {
+                if let Some(task_id) = self.ambient_agent_task_id(ctx) {
                     self.enable_cloud_followup_input_after_conversation_end(task_id, ctx);
                 }
             }
@@ -1723,7 +1715,7 @@ impl TerminalView {
         if self.conversation_ended_tombstone_view_id.is_some() {
             self.remove_conversation_ended_tombstone(ctx);
         }
-        let task_id = self.ambient_agent_task_id_for_details_panel(ctx);
+        let task_id = self.ambient_agent_task_id(ctx);
         let terminal_view_id = self.id();
 
         let tombstone_view_handle = ctx.add_typed_action_view(|ctx| {
@@ -1770,7 +1762,7 @@ impl TerminalView {
                 self.insert_conversation_ended_tombstone_with_cta(cta, ctx);
             }
             Some(CloudConversationContinuationUiState::FollowupInput) => {
-                if let Some(task_id) = self.ambient_agent_task_id_for_details_panel(ctx) {
+                if let Some(task_id) = self.ambient_agent_task_id(ctx) {
                     self.enable_cloud_followup_input_after_conversation_end(task_id, ctx);
                 } else {
                     self.insert_conversation_ended_tombstone_with_cta(None, ctx);
