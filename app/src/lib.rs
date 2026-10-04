@@ -1282,10 +1282,7 @@ pub(crate) fn initialize_app(
     #[cfg(not(target_family = "wasm"))]
     if launch_mode.should_start_local_http_server() {
         ctx.add_singleton_model(move |ctx| {
-            let routers = vec![
-                app_installation_detection::make_router(),
-                profiling::make_router(),
-            ];
+            let routers = vec![profiling::make_router()];
             http_server::HttpServer::new(routers, ctx)
         });
     }
