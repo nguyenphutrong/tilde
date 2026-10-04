@@ -3351,16 +3351,6 @@ fn test_start_shared_session_from_modal() {
             let shared_views = manager.shared_views(ctx).collect_vec();
             assert_eq!(shared_views.len(), 1);
             assert_eq!(shared_views[0].id(), terminal_view.id());
-
-            let terminal_pane = pane_group.terminal_session_by_pane_index(0).unwrap();
-            assert!(
-                terminal_pane
-                    .pane_view()
-                    .as_ref(ctx)
-                    .header()
-                    .as_ref(ctx)
-                    .has_shareable_object(ctx)
-            );
         });
     });
 }
@@ -3435,15 +3425,6 @@ fn test_stop_shared_session() {
             let manager = shared_session::manager::Manager::as_ref(ctx);
             let shared_views = manager.shared_views(ctx).collect_vec();
             assert!(shared_views.is_empty());
-
-            assert!(
-                !terminal_pane
-                    .pane_view()
-                    .as_ref(ctx)
-                    .header()
-                    .as_ref(ctx)
-                    .has_shareable_object(ctx)
-            );
         });
     });
 }

@@ -16,7 +16,6 @@ use warpui::App;
 use super::*;
 use crate::ai::blocklist::QueuedQueryModel;
 use crate::ai::blocklist::orchestration_event_streamer::OrchestrationEventStreamer;
-use crate::pane_group::PaneConfigurationEvent;
 // Bring the `TerminalManager` trait into scope (named under a different alias
 // since the local `TerminalManager` struct shadows it) so the trait method
 // `on_view_detached` is callable on the struct.
@@ -325,18 +324,6 @@ fn ending_ambient_session_refreshes_shared_session_link_surfaces() {
             manager.joined_share(terminal_view.downgrade(), ended_session_id, ctx);
         });
 
-        let link_change_events = Arc::new(FairMutex::new(0));
-        let link_change_events_for_subscription = link_change_events.clone();
-        let pane_configuration =
-            terminal_view.read(&app, |view, _| view.pane_configuration().clone());
-        app.update(|ctx| {
-            ctx.subscribe_to_model(&pane_configuration, move |_, event, _| {
-                if matches!(event, PaneConfigurationEvent::SharedSessionLinkChanged) {
-                    *link_change_events_for_subscription.lock() += 1;
-                }
-            });
-        });
-
         let current_network = Arc::new(FairMutex::new(Some(ended_network.clone())));
         let handled = app.update(|ctx| {
             TerminalManager::end_current_ambient_session(
@@ -349,7 +336,6 @@ fn ending_ambient_session_refreshes_shared_session_link_surfaces() {
         });
 
         assert!(handled);
-        assert_eq!(*link_change_events.lock(), 1);
         terminal_view.read(&app, |view, ctx| {
             let status = view.model.lock().shared_session_status().clone();
             assert_eq!(

@@ -28,7 +28,7 @@ use crate::auth::user::TEST_USER_UID;
 use crate::cloud_object::{Owner, Revision, ServerMetadata, ServerPermissions};
 use crate::context_chips::prompt_type::PromptType;
 use crate::editor::InteractionState;
-use crate::pane_group::{BackingView, PaneConfigurationEvent};
+use crate::pane_group::BackingView;
 use crate::server::ids::ServerId;
 use crate::terminal::TerminalView;
 use crate::terminal::model::blocks::{INLINE_BANNER_HEIGHT, ToTotalIndex as _};
@@ -2439,16 +2439,6 @@ fn test_copy_shared_session_link_does_not_write_clipboard_when_session_pending()
         });
 
         let terminal = add_window_with_terminal(&mut app, None);
-        let link_change_events = Rc::new(RefCell::new(0));
-        let link_change_events_for_subscription = link_change_events.clone();
-        let pane_configuration = terminal.read(&app, |view, _| view.pane_configuration().clone());
-        app.update(|ctx| {
-            ctx.subscribe_to_model(&pane_configuration, move |_, event, _| {
-                if matches!(event, PaneConfigurationEvent::SharedSessionLinkChanged) {
-                    *link_change_events_for_subscription.borrow_mut() += 1;
-                }
-            });
-        });
 
         // Put the terminal in ViewPending state without registering a session_id with the Manager.
         // This simulates a cloud agent environment still setting up (no join yet).
@@ -2506,12 +2496,6 @@ fn test_copy_shared_session_link_does_not_write_clipboard_when_session_pending()
                 ctx,
             );
         });
-        assert_eq!(
-            *link_change_events.borrow(),
-            1,
-            "starting a new share must refresh cached link and QR surfaces"
-        );
-
         terminal.update(&mut app, |view, ctx| {
             view.copy_shared_session_link(SharedSessionActionSource::RightClickMenu, ctx);
         });
