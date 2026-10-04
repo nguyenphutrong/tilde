@@ -37,6 +37,8 @@ ENDPOINT = re.compile(
 )
 SOURCE_SUFFIXES = {".rs", ".toml", ".sh", ".ps1", ".yml", ".yaml", ".json"}
 REMOVED_SOURCES = (
+    "app/src/terminal/view/init_project/",
+    "app/src/terminal/view/inline_banner/agent_mode_setup.rs",
     "app/src/pane_group/pane/view/header/sharing.rs",
     "app/src/ai/blocklist/agent_view/zero_state_block.rs",
     "app/src/ai/blocklist/agent_view/zero_state_block_tests.rs",
@@ -61,8 +63,16 @@ REMOVED_TELEMETRY_SYMBOLS = re.compile(
 )
 REMOVED_SOURCE_SYMBOLS = {
     "app/src/app_state.rs": ("ServerId",),
-    "app/src/workspace/view.rs": ("team_uid_for_window", "notify_terminal_focus_change"),
-    "app/src/terminal/view.rs": ("update_focused_terminal_info", "mcp_execution_path"),
+    "app/src/workspace/view.rs": (
+        "team_uid_for_window", "notify_terminal_focus_change", "CloudPreferencesSettings",
+        "TELEMETRY_FLAG", "SETTINGS_SYNC_FLAG", "AI_RULES_FLAG", "FILE_BASED_MCP_FLAG",
+        "IS_CODEBASE_INDEXING_ENABLED", "IS_AUTOINDEXING_ENABLED",
+    ),
+    "app/src/terminal/view.rs": (
+        "update_focused_terminal_info", "mcp_execution_path", "PersistedWorkspace",
+        "InitProjectModel", "maybe_set_pending_repo_init_path", "start_lsp_server_in_active_pwd",
+        "needs_git_status_for_agent_context", "needs_pr_info_for_agent_context",
+    ),
     "app/src/pane_group/mod.rs": ("transitively_share_existing_local_children",),
 }
 

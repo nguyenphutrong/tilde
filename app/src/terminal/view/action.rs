@@ -42,7 +42,6 @@ use crate::terminal::model::selection::{SelectAction, SelectionDirection};
 use crate::terminal::model::terminal_model::{BlockIndex, WithinModel};
 use crate::terminal::shared_session::SharedSessionActionSource;
 use crate::terminal::view::RichContentSecretTooltipInfo;
-use crate::terminal::view::inline_banner::AgentModeSetupSpeedbumpBannerAction;
 use crate::workflows::workflow::Workflow;
 
 /// This represents whether entering a subshell for a particular command should become automatic in
@@ -314,7 +313,6 @@ pub enum TerminalAction {
     ClearMarkedText,
     HideTelemetryBannerPermanently,
     ShowInitializationBlock,
-    GenerateCodebaseIndex,
     /// This is for debugging, dev only for now
     LoadAgentModeConversation,
     ShowWarpifySettings,
@@ -327,17 +325,14 @@ pub enum TerminalAction {
     OpenAttachmentLightbox {
         index: usize,
     },
-    WriteCodebaseIndex,
     ToggleAutoexecuteMode,
     ToggleQueueNextPrompt,
     CodebaseIndexSpeedbumpBanner(CodebaseIndexSpeedbumpBannerAction),
-    AgentModeSetupSpeedbumpBanner(AgentModeSetupSpeedbumpBannerAction),
     ResumeConversation,
     ForkConversationFromLastKnownGoodState,
     ToggleCodeReviewPane {
         entrypoint: CodeReviewPaneEntrypoint,
     },
-    InitProject,
     SummarizeConversation,
     IndexProjectSpeedbump,
     AddProjectAtCurrentDirectory,
@@ -351,8 +346,6 @@ pub enum TerminalAction {
     OpenFilesPalette {
         source: PaletteSource,
     },
-    /// Start a Language Server for the current working directory (if supported)
-    StartLspServer,
     /// Start the guided Warp Environment setup flow (inserts the inline setup block).
     SetupCloudEnvironment(Vec<String>),
     /// Start the guided Warp Environment setup flow immediately (no inline setup block).
@@ -634,28 +627,22 @@ impl fmt::Debug for TerminalAction {
             ClearMarkedText => write!(f, "ClearMarkedText"),
             HideTelemetryBannerPermanently => write!(f, "HideTelemetryBannerPermanently"),
             ShowInitializationBlock => write!(f, "ShowInitializationBlock"),
-            GenerateCodebaseIndex => write!(f, "GenerateIndexForRepo"),
             LoadAgentModeConversation => write!(f, "LoadAgentModeConversation"),
             ShowWarpifySettings => write!(f, "ShowWarpifySettings"),
             DeleteAttachment { index } => write!(f, "DeleteAttachment({index:?})"),
             OpenAttachmentLightbox { index } => {
                 write!(f, "OpenAttachmentLightbox({index:?})")
             }
-            WriteCodebaseIndex => write!(f, "PersistCodebaseIndex"),
             ToggleAutoexecuteMode => write!(f, "ToggleAutoexecuteMode"),
             ToggleQueueNextPrompt => write!(f, "ToggleQueueNextPrompt"),
             CodebaseIndexSpeedbumpBanner(action) => {
                 write!(f, "CodebaseIndexSpeedbumpBanner({action:?})")
-            }
-            AgentModeSetupSpeedbumpBanner(action) => {
-                write!(f, "AgentModeSetupSpeedbumpBanner({action:?})")
             }
             ResumeConversation => write!(f, "ResumeConversation"),
             ForkConversationFromLastKnownGoodState => {
                 write!(f, "ForkConversationFromLastKnownGoodState")
             }
             ToggleCodeReviewPane { .. } => write!(f, "ToggleCodeReviewPane"),
-            InitProject => write!(f, "InitProject"),
             IndexProjectSpeedbump => write!(f, "IndexProject"),
             AddProjectAtCurrentDirectory => write!(f, "AddProjectAtCurrentDirectory"),
             OpenProjectRulesPane => write!(f, "OpenProjectRulesPane"),
@@ -664,7 +651,6 @@ impl fmt::Debug for TerminalAction {
             OpenConversationsPalette => write!(f, "OpenConversationsPalette"),
             PickRepoToOpen => write!(f, "PickRepoToOpen"),
             OpenFilesPalette { .. } => write!(f, "OpenFilesPalette"),
-            StartLspServer => write!(f, "StartLspServer"),
             SetupCloudEnvironment(_) => write!(f, "SetupCloudEnvironment"),
             SetupCloudEnvironmentAndStart(_) => write!(f, "SetupCloudEnvironmentAndStart"),
             TriggerEnvironmentSetupSelection(_) => write!(f, "TriggerEnvironmentSetupSelection"),

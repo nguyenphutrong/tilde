@@ -275,6 +275,49 @@ fn restored_workspace(
 }
 
 #[test]
+fn keymap_preserves_local_toggles_without_cloud_flags() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let workspace = mock_workspace(&mut app);
+        AISettings::handle(&app).update(&mut app, |settings, ctx| {
+            settings.memory_enabled.set_value(true, ctx).unwrap();
+        });
+        InputSettings::handle(&app).update(&mut app, |settings, ctx| {
+            settings
+                .completions_open_while_typing
+                .set_value(false, ctx)
+                .unwrap();
+        });
+        workspace.read(&app, |workspace, ctx| {
+            let context = workspace.keymap_context(ctx);
+            assert!(
+                !context
+                    .set
+                    .contains(flags::COMPLETIONS_OPEN_WHILE_TYPING_CONTEXT_FLAG)
+            );
+            assert!(!context.set.contains(flags::AI_RULES_FLAG));
+            assert!(!context.set.contains(flags::SETTINGS_SYNC_FLAG));
+            assert!(!context.set.contains(flags::TELEMETRY_FLAG));
+        });
+        InputSettings::handle(&app).update(&mut app, |settings, ctx| {
+            settings
+                .completions_open_while_typing
+                .set_value(true, ctx)
+                .unwrap();
+        });
+        workspace.read(&app, |workspace, ctx| {
+            let context = workspace.keymap_context(ctx);
+            assert!(
+                context
+                    .set
+                    .contains(flags::COMPLETIONS_OPEN_WHILE_TYPING_CONTEXT_FLAG)
+            );
+            assert!(!context.set.contains(flags::AI_RULES_FLAG));
+        });
+    });
+}
+
+#[test]
 fn test_window_snapshot_preserves_opaque_team_metadata() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);

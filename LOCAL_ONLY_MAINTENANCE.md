@@ -456,3 +456,16 @@ not organization regexes. Window team metadata is kept as an opaque string on th
 never parsed or resolved against an account; new windows leave it unset. SQLite schema is unchanged.
 The focused snapshot, local/remote classification, focus, and scrolling selection passed 27 tests;
 the local-only guard suite passed 13 tests. Native Windows/macOS runtime behavior remains unverified.
+
+Repository navigation no longer records AI workspace navigation, starts agent LSPs/indexing, or
+shows project-setup banners. The `/init` flow, setup views, pending-init callbacks and actions are
+deleted. Opening a folder still executes shell-escaped `cd`; Git prompt subscriptions depend only
+on configured local prompt chips. The real filesystem-backed Git model is registered at startup.
+Repository changes and tab activation no longer eagerly create hidden Code Review views; explicit
+legacy review actions remain removal debt. No stored project rules, settings, or DB rows are erased.
+Workspace keymap no longer reads account policies or enables telemetry, sync, AI rules/MCP,
+indexing, agent-notification/title, or agent-submission flags. Local terminal toggles remain.
+The focused local Git/keymap/context-chip/workspace selection passed 190 tests; format, 13 guard
+tests, GUI all-target Clippy, integration/TUI checks and Linux GUI build passed. Fresh-profile Xvfb
+startup remains blocked by `GetRelevantFilesController::new` accessing the removed
+`CodebaseIndexManager`; no successful GUI rendering is claimed for this increment.

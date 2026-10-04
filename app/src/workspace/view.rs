@@ -256,7 +256,6 @@ use crate::server::telemetry::{
     NotificationsTurnedOnSource, PaletteSource, TabRenameEvent, TierLimitHitEvent,
 };
 use crate::session_management::{SessionNavigationData, SessionSource, TabNavigationData};
-use crate::settings::cloud_preferences::CloudPreferencesSettings;
 use crate::settings::{
     AISettings, AccessibilitySettings, AliasExpansionSettings, AppEditorSettings,
     BlockVisibilitySettings, ChangelogSettings, CodeSettings, CodeSettingsChangedEvent,
@@ -401,7 +400,6 @@ use crate::workspace::view::left_panel::{
 use crate::workspace::view::right_panel::{RightPanelEvent, RightPanelView};
 use crate::workspace::{ForkFromExchange, ForkedConversationDestination};
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::workspaces::workspace::AdminEnablementSetting;
 use crate::{
     BlocklistAIHistoryModel, GlobalResourceHandles, TelemetryEvent, autoupdate,
     send_telemetry_from_ctx,
@@ -10683,7 +10681,7 @@ impl Workspace {
         });
         self.add_tab_with_pane_layout(
             PanesLayout::SingleTerminal(Box::new(NewTerminalOptions {
-                initial_directory: Some(path_buf.clone()),
+                initial_directory: Some(path_buf),
                 hide_homepage: true,
                 ..Default::default()
             })),
@@ -10691,13 +10689,6 @@ impl Workspace {
             None,
             ctx,
         );
-        self.active_tab_pane_group().update(ctx, |tab, ctx| {
-            if let Some(active_terminal) = tab.active_session_view(ctx) {
-                active_terminal.update(ctx, |terminal, _| {
-                    terminal.maybe_set_pending_repo_init_path(path_buf);
-                });
-            }
-        });
     }
 
     /// Navigate to an existing AI conversation, focusing on its terminal view, if it's open anywhere.
@@ -12290,7 +12281,7 @@ impl Workspace {
 
                 if let Some(terminal_view) = active_terminal_view {
                     terminal_view.update(ctx, |terminal_view, ctx| {
-                        terminal_view.open_repo_folder(path.to_string(), false, ctx);
+                        terminal_view.open_repo_folder(path.to_string(), ctx);
                     });
                 }
             }
@@ -12836,11 +12827,6 @@ impl Workspace {
             }
             pane_group::Event::RepoChanged => {
                 self.refresh_working_directories_for_pane_group(&pane_group, ctx);
-                // Code review panel setup is handled by the RepositoriesChanged
-                // event emitted from refresh_working_directories, which triggers
-                // ensure_code_review_view_exists on the right panel. Calling
-                // setup_code_review_panel here would race with refresh and
-                // re-create models that were just dropped.
 
                 if FeatureFlag::DirectoryTabColors.is_enabled()
                     && let Some(tab) = self
@@ -17723,7 +17709,6 @@ impl Workspace {
     }
 
     fn add_toggle_setting_context_flags(&self, app: &AppContext, context: &mut Context) {
-        let privacy_settings = PrivacySettings::as_ref(app);
         let editor_settings = AppEditorSettings::as_ref(app);
         let semantic_selection_settings = SemanticSelection::as_ref(app);
         let selection_settings = SelectionSettings::as_ref(app);
@@ -17828,14 +17813,6 @@ impl Workspace {
         if session_settings.notifications.is_long_running_enabled {
             context.set.insert(flags::LONG_RUNNING_NOTIFICATIONS_FLAG);
         }
-        if session_settings
-            .notifications
-            .is_agent_task_completed_enabled
-        {
-            context
-                .set
-                .insert(flags::AGENT_TASK_COMPLETED_NOTIFICATIONS_FLAG);
-        }
         if session_settings.notifications.is_needs_attention_enabled {
             context
                 .set
@@ -17867,15 +17844,6 @@ impl Workspace {
             context.set.insert(flags::SYNTAX_HIGHLIGHTING_FLAG);
         }
 
-        if privacy_settings.is_telemetry_enabled {
-            context.set.insert(flags::TELEMETRY_FLAG);
-        }
-
-        let cloud_preferences_settings = CloudPreferencesSettings::as_ref(app);
-        if *cloud_preferences_settings.settings_sync_enabled.value() {
-            context.set.insert(flags::SETTINGS_SYNC_FLAG);
-        }
-
         if *block_list_settings
             .show_jump_to_bottom_of_block_button
             .value()
@@ -17891,19 +17859,6 @@ impl Workspace {
 
         if *safe_mode_settings.safe_mode_enabled.value() {
             context.set.insert(flags::SAFE_MODE_FLAG);
-        }
-        if !privacy_settings.is_telemetry_force_enabled()
-            && matches!(
-                UserWorkspaces::as_ref(app).get_cloud_conversation_storage_enablement_setting(),
-                AdminEnablementSetting::RespectUserSetting
-            )
-        {
-            context
-                .set
-                .insert(flags::CLOUD_CONVERSATION_STORAGE_EDITABLE_FLAG);
-        }
-        if privacy_settings.is_cloud_conversation_storage_enabled {
-            context.set.insert(flags::CLOUD_CONVERSATION_STORAGE_FLAG);
         }
 
         if editor_settings.cursor_blink.value() == &CursorBlink::Enabled {
@@ -17937,12 +17892,6 @@ impl Workspace {
                 .insert(flags::LEFT_PANEL_VISIBILITY_ACROSS_TABS_FLAG);
         }
 
-        if *font_settings.match_ai_font_to_terminal_font {
-            context
-                .set
-                .insert(flags::MATCH_AI_FONT_TO_TERMINAL_FONT_FLAG);
-        }
-
         if *font_settings.match_notebook_to_monospace_font_size {
             context
                 .set
@@ -17974,12 +17923,6 @@ impl Workspace {
         if *tab_settings.show_code_review_diff_stats.value() {
             context.set.insert(flags::SHOW_CODE_REVIEW_DIFF_STATS_FLAG);
         }
-        if *general_settings
-            .auto_open_code_review_pane_on_first_agent_change
-            .value()
-        {
-            context.set.insert(flags::AUTO_OPEN_CODE_REVIEW_PANE_FLAG);
-        }
         if *tab_settings.use_vertical_tabs.value() {
             context.set.insert(flags::USE_VERTICAL_TABS_FLAG);
         }
@@ -17993,14 +17936,6 @@ impl Workspace {
             context
                 .set
                 .insert(flags::SHOW_VERTICAL_TAB_PANEL_IN_RESTORED_WINDOWS_FLAG);
-        }
-        if *tab_settings
-            .use_latest_user_prompt_as_conversation_title_in_tab_names
-            .value()
-        {
-            context
-                .set
-                .insert(flags::USE_LATEST_USER_PROMPT_AS_CONVERSATION_TITLE_IN_TAB_NAMES_FLAG);
         }
         if tab_settings
             .workspace_decoration_visibility
@@ -18022,14 +17957,6 @@ impl Workspace {
 
         if *code_settings.code_as_default_editor.value() {
             context.set.insert(flags::CODE_AS_DEFAULT_EDITOR);
-        }
-
-        if *code_settings.codebase_context_enabled.value() {
-            context.set.insert(flags::IS_CODEBASE_INDEXING_ENABLED);
-        }
-
-        if *code_settings.auto_indexing_enabled.value() {
-            context.set.insert(flags::IS_AUTOINDEXING_ENABLED);
         }
 
         if *input_settings.show_hint_text.value() {
@@ -18078,115 +18005,6 @@ impl Workspace {
             context.set.insert(flags::PREFER_LOW_POWER_GPU_FLAG);
         }
 
-        let ai_settings = AISettings::as_ref(app);
-        if ai_settings.is_prompt_suggestions_enabled(app) {
-            context.set.insert(flags::PROMPT_SUGGESTIONS_FLAG);
-        }
-        if ai_settings.is_code_suggestions_enabled(app) {
-            context.set.insert(flags::CODE_SUGGESTIONS_FLAG);
-        }
-
-        if ai_settings.is_shared_block_title_generation_enabled(app) {
-            context
-                .set
-                .insert(flags::SHARED_BLOCK_TITLE_GENERATION_FLAG);
-        }
-
-        if *ai_settings.git_operations_autogen_enabled_internal.value() {
-            context.set.insert(flags::GIT_OPERATIONS_AUTOGEN_FLAG);
-        }
-        if *ai_settings.include_agent_commands_in_history.value() {
-            context
-                .set
-                .insert(flags::INCLUDE_AGENT_COMMANDS_IN_HISTORY_FLAG);
-        }
-
-        if *ai_settings.auto_approve_bypasses_command_denylist.value() {
-            context
-                .set
-                .insert(flags::AUTO_APPROVE_BYPASSES_COMMAND_DENYLIST_FLAG);
-        }
-
-        if *ai_settings.memory_enabled.value() {
-            context.set.insert(flags::AI_RULES_FLAG);
-        }
-        if *ai_settings.rule_suggestions_enabled_internal.value() {
-            context.set.insert(flags::SUGGESTED_RULES_FLAG);
-        }
-        if *ai_settings.file_based_mcp_enabled.value() {
-            context.set.insert(flags::FILE_BASED_MCP_FLAG);
-        }
-        if *ai_settings.can_use_warp_credits_for_fallback.value() {
-            context.set.insert(flags::WARP_CREDIT_FALLBACK_FLAG);
-        }
-        if *ai_settings.should_render_cli_agent_footer.value() {
-            context.set.insert(flags::CLI_AGENT_FOOTER_ENABLED);
-        }
-        if *ai_settings.auto_toggle_rich_input.value() {
-            context.set.insert(flags::AUTO_TOGGLE_RICH_INPUT_FLAG);
-        }
-        if *ai_settings.auto_open_rich_input_on_cli_agent_start.value() {
-            context
-                .set
-                .insert(flags::AUTO_OPEN_RICH_INPUT_ON_CLI_AGENT_START_FLAG);
-        }
-        if *ai_settings.auto_dismiss_rich_input_after_submit.value() {
-            context
-                .set
-                .insert(flags::AUTO_DISMISS_RICH_INPUT_AFTER_SUBMIT_FLAG);
-        }
-        match ai_settings.thinking_display_mode {
-            crate::settings::ThinkingDisplayMode::ShowAndCollapse => {
-                context
-                    .set
-                    .insert(flags::THINKING_DISPLAY_SHOW_AND_COLLAPSE);
-            }
-            crate::settings::ThinkingDisplayMode::AlwaysShow => {
-                context.set.insert(flags::THINKING_DISPLAY_ALWAYS_SHOW);
-            }
-            crate::settings::ThinkingDisplayMode::NeverShow => {
-                context.set.insert(flags::THINKING_DISPLAY_NEVER_SHOW);
-            }
-        }
-
-        match ai_settings.orchestration_message_display_mode {
-            crate::settings::OrchestrationMessageDisplayMode::ShowAndCollapse => {
-                context
-                    .set
-                    .insert(flags::ORCHESTRATION_MESSAGE_DISPLAY_SHOW_AND_COLLAPSE);
-            }
-            crate::settings::OrchestrationMessageDisplayMode::AlwaysShow => {
-                context
-                    .set
-                    .insert(flags::ORCHESTRATION_MESSAGE_DISPLAY_ALWAYS_SHOW);
-            }
-            crate::settings::OrchestrationMessageDisplayMode::AlwaysCollapse => {
-                context
-                    .set
-                    .insert(flags::ORCHESTRATION_MESSAGE_DISPLAY_ALWAYS_COLLAPSE);
-            }
-        }
-
-        match ai_settings.default_prompt_submission_mode {
-            crate::settings::PromptSubmissionMode::Interrupt => {
-                context.set.insert(flags::PROMPT_SUBMISSION_INTERRUPT);
-            }
-            crate::settings::PromptSubmissionMode::Queue => {
-                context.set.insert(flags::PROMPT_SUBMISSION_QUEUE);
-            }
-        }
-
-        match ai_settings.long_running_command_submission_mode {
-            crate::settings::LongRunningCommandSubmissionMode::SendImmediately => {
-                context.set.insert(flags::LRC_SUBMISSION_SEND_IMMEDIATELY);
-            }
-            crate::settings::LongRunningCommandSubmissionMode::QueueUntilCommandCompletes => {
-                context
-                    .set
-                    .insert(flags::LRC_SUBMISSION_QUEUE_UNTIL_COMMAND_COMPLETES);
-            }
-        }
-
         if input_settings.is_terminal_input_message_bar_enabled() {
             context
                 .set
@@ -18197,14 +18015,6 @@ impl Workspace {
             context.set.insert(flags::SLASH_COMMANDS_IN_TERMINAL_FLAG);
         }
 
-        if *input_settings
-            .outline_codebase_symbols_for_at_context_menu
-            .value()
-        {
-            context
-                .set
-                .insert(flags::OUTLINE_CODEBASE_SYMBOLS_FOR_AT_CONTEXT_MENU_FLAG);
-        }
         if *command_search_settings
             .show_global_workflows_in_universal_search
             .value()

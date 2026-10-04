@@ -202,6 +202,8 @@ use crate::app_state::AppState;
 use crate::autoupdate::{AutoupdateState, RelaunchModel};
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::persistence::CloudModel;
+#[cfg(feature = "local_fs")]
+use crate::code_review::git_repo_model::GitRepoModels;
 use crate::default_terminal::DefaultTerminal;
 use crate::drive::CloudObjectTypeAndId;
 pub use crate::global_resource_handles::{GlobalResourceHandles, GlobalResourceHandlesProvider};
@@ -1209,6 +1211,7 @@ pub(crate) fn initialize_app(
         }
 
         ctx.add_singleton_model(|ctx| RepoMetadataModel::new(ctx));
+        ctx.add_singleton_model(|_| GitRepoModels::new());
     }
 
     ctx.add_singleton_model(move |_| History::new(command_history));
