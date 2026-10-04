@@ -69,6 +69,7 @@ REMOVED_SOURCES = (
     "app/src/terminal/input/skills/view.rs",
     "app/src/terminal/input/slash_commands/view.rs",
     "app/src/terminal/input/slash_commands/cloud_mode_v2_view.rs",
+    "app/src/terminal/shared_session/sharer/",
     "app/src/server/telemetry/context.rs",
     "app/src/server/telemetry/rudder_message.rs",
     "app/src/server/telemetry/mod_tests.rs",
@@ -131,6 +132,11 @@ REMOVED_SOURCE_SYMBOLS = {
     ),
     "app/src/workspace/view/wasm_view.rs": ("ConversationDetailsPanel", "AgentConversationsModel"),
     "app/src/terminal/view/init.rs": ("ToggleConversationDetailsPanel",),
+    "app/src/terminal/local_tty/terminal_manager.rs": ("session_sharer",),
+    "app/src/terminal/local_tty/terminal_view_adaptor.rs": (
+        "session_sharer", "wire_up_terminal_view_session_sharing", "start_sharing_session",
+        "BlocklistAIHistoryModel", "LLMPreferences", "CLIAgentSessionsModel", "NetworkStatus",
+    ),
     "app/src/terminal/view.rs": (
         "update_focused_terminal_info", "mcp_execution_path", "PersistedWorkspace",
         "InitProjectModel", "maybe_set_pending_repo_init_path", "start_lsp_server_in_active_pwd",
