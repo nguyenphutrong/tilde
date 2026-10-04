@@ -332,12 +332,6 @@ impl AgentViewState {
             AgentViewState::Inactive => false,
         }
     }
-
-    /// Returns the save position ID for the zero state block, if active.
-    pub fn zero_state_position_id(&self) -> Option<String> {
-        self.active_conversation_id()
-            .map(|id| format!("agent_view_zero_state_{}", id))
-    }
 }
 
 const EXIT_CONFIRMATION_MESSAGE_ID: &str = "exit_confirmation_message";

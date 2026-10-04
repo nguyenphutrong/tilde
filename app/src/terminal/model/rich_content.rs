@@ -6,7 +6,6 @@ pub enum RichContentType {
     EnterAgentView,
     WarpifySuccessBlock,
     InlineAgentViewHeader,
-    AgentViewZeroState,
 }
 
 impl RichContentType {

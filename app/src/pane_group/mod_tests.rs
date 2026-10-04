@@ -1087,10 +1087,6 @@ fn test_restored_remote_hidden_child_pane_pending_when_task_data_unavailable() {
                 .expect("pending child pane has a terminal view");
             let view = terminal_view.as_ref(ctx);
             assert!(view.ambient_agent_view_model().is_none());
-            assert!(
-                !view.has_agent_view_zero_state_for_test(),
-                "pending child must not expose the cloud composition zero state",
-            );
             assert_eq!(
                 view.active_conversation_id(ctx),
                 Some(child_conversation_id)
@@ -1202,10 +1198,6 @@ fn test_restored_viewer_hidden_child_pane_terminal_loads_transcript() {
             assert!(
                 view.ambient_agent_view_model().is_none(),
                 "passive viewer transcripts must not retain a configuring cloud-agent model",
-            );
-            assert!(
-                !view.has_agent_view_zero_state_for_test(),
-                "viewer child placeholders must not insert new-cloud composition zero state",
             );
             let model = view.model.lock();
             assert!(model.is_conversation_transcript_viewer());

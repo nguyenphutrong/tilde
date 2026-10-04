@@ -9,7 +9,6 @@ use string_offset::{ByteOffset, CharOffset};
 pub use warp_completer::completer::SuggestionTypeName;
 pub use warp_completer::util::parse_current_commands_and_tokens;
 pub use warp_completer::{ParsedTokenData, ParsedTokensSnapshot};
-use warp_core::features::FeatureFlag;
 use warpui::{SingletonEntity, ViewContext};
 
 use super::Input;
@@ -60,55 +59,12 @@ impl Input {
         *InputSettings::as_ref(ctx).error_underlining.value()
     }
 
-    /// Applies background highlighting to slash command and skill command prefixes that should be
-    /// syntax highlighted.
-    fn apply_slash_command_prefix_highlighting(
-        &mut self,
-        buffer_text: &str,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
-        let highlighted_prefix_len = self
-            .slash_command_model
-            .as_ref(ctx)
-            .state()
-            .command_prefix_highlight_len(buffer_text);
-
-        let Some(highlighted_prefix_len) = highlighted_prefix_len else {
-            return false;
-        };
-
-        let theme = Appearance::as_ref(ctx).theme();
-        let color = theme.ansi_fg_magenta();
-        self.editor.update(ctx, |editor, ctx| {
-            editor.update_buffer_styles(
-                vec![CharOffset::from(0)..CharOffset::from(highlighted_prefix_len)],
-                TextStyleOperation::default().set_syntax_color(color),
-                ctx,
-            )
-        });
-        true
-    }
-
     /// Computes information about the currently-entered command in a background
     /// task and then uses it to decorate the input, specifically applying
     /// styles for syntax highlighting and error underlining.
     /// Includes a short-circuit that lets us clear formatting and return without parsing the input.
     pub fn run_input_background_jobs(&mut self, ctx: &mut ViewContext<Self>) {
-        // We don't show input command decorations in AI mode, but we keep slash command prefix highlighting.
         let buffer_text = self.editor.as_ref(ctx).buffer_text(ctx);
-        if self.ai_input_model.as_ref(ctx).is_ai_input_enabled()
-            || (FeatureFlag::AgentView.is_enabled()
-                && self
-                    .slash_command_model
-                    .as_ref(ctx)
-                    .state()
-                    .is_detected_command_or_skill())
-        {
-            self.clear_decorations(ctx);
-            self.apply_slash_command_prefix_highlighting(&buffer_text, ctx);
-            return;
-        }
-
         let Some(completion_context) = self.completion_session_context(ctx) else {
             return;
         };

@@ -12,7 +12,6 @@ use super::common::{
 use super::{Input, InputDropTargetData};
 use crate::appearance::Appearance;
 use crate::context_chips::spacing;
-use crate::features::FeatureFlag;
 use crate::settings::{AppEditorSettings, InputModeSettings};
 use crate::terminal::block_list_settings::BlockListSettings;
 use crate::terminal::block_list_viewport::InputMode;
@@ -120,100 +119,28 @@ impl Input {
         };
 
         let mut column = Flex::column();
-        let is_slash_commands = self.suggestions_mode_model.as_ref(app).is_slash_commands();
-        let is_skill_menu = self.suggestions_mode_model.as_ref(app).is_skill_menu();
         let is_inline_history_menu = self
             .suggestions_mode_model
             .as_ref(app)
             .is_inline_history_menu();
-        let is_repos_menu = self.suggestions_mode_model.as_ref(app).is_repos_menu();
         let hide_menu = self
             .inline_terminal_menu_positioner
             .as_ref(app)
             .should_hide_inline_menu_for_pane_size(app);
-        match input_mode {
-            InputMode::PinnedToBottom => {
-                column.add_children(
-                    [
-                        if hide_menu {
-                            None
-                        } else if is_slash_commands {
-                            Some(ChildView::new(&self.inline_slash_commands_view).finish())
-                        } else if FeatureFlag::ListSkills.is_enabled() && is_skill_menu {
-                            Some(ChildView::new(&self.inline_skill_selector_view).finish())
-                        } else if is_inline_history_menu {
-                            Some(ChildView::new(&self.inline_history_menu_view).finish())
-                        } else if is_repos_menu {
-                            Some(ChildView::new(&self.inline_repos_menu_view).finish())
-                        } else {
-                            None
-                        },
-                        Some(input),
-                    ]
-                    .into_iter()
-                    .flatten(),
-                );
-            }
-            InputMode::PinnedToTop => {
-                column.add_children(
-                    [
-                        Some(input),
-                        if hide_menu {
-                            None
-                        } else if is_slash_commands {
-                            Some(ChildView::new(&self.inline_slash_commands_view).finish())
-                        } else if FeatureFlag::ListSkills.is_enabled() && is_skill_menu {
-                            Some(ChildView::new(&self.inline_skill_selector_view).finish())
-                        } else if is_inline_history_menu {
-                            Some(ChildView::new(&self.inline_history_menu_view).finish())
-                        } else if is_repos_menu {
-                            Some(ChildView::new(&self.inline_repos_menu_view).finish())
-                        } else {
-                            None
-                        },
-                    ]
-                    .into_iter()
-                    .flatten(),
-                );
-            }
-            InputMode::Waterfall => {
-                let should_render_below = self
-                    .inline_terminal_menu_positioner
-                    .as_ref(app)
-                    .should_render_inline_menu_below_input();
-
-                if !hide_menu {
-                    if is_slash_commands && !should_render_below {
-                        column.add_child(ChildView::new(&self.inline_slash_commands_view).finish());
-                    } else if FeatureFlag::ListSkills.is_enabled()
-                        && is_skill_menu
-                        && !should_render_below
-                    {
-                        column.add_child(ChildView::new(&self.inline_skill_selector_view).finish());
-                    } else if is_inline_history_menu && !should_render_below {
-                        column.add_child(ChildView::new(&self.inline_history_menu_view).finish());
-                    } else if is_repos_menu && !should_render_below {
-                        column.add_child(ChildView::new(&self.inline_repos_menu_view).finish());
-                    }
-                }
-
-                column.add_child(input);
-
-                if !hide_menu {
-                    if is_slash_commands && should_render_below {
-                        column.add_child(ChildView::new(&self.inline_slash_commands_view).finish());
-                    } else if FeatureFlag::ListSkills.is_enabled()
-                        && is_skill_menu
-                        && should_render_below
-                    {
-                        column.add_child(ChildView::new(&self.inline_skill_selector_view).finish());
-                    } else if is_inline_history_menu && should_render_below {
-                        column.add_child(ChildView::new(&self.inline_history_menu_view).finish());
-                    } else if is_repos_menu && should_render_below {
-                        column.add_child(ChildView::new(&self.inline_repos_menu_view).finish());
-                    }
-                }
-            }
+        let below = match input_mode {
+            InputMode::PinnedToBottom => false,
+            InputMode::PinnedToTop => true,
+            InputMode::Waterfall => self
+                .inline_terminal_menu_positioner
+                .as_ref(app)
+                .should_render_inline_menu_below_input(),
+        };
+        if is_inline_history_menu && !hide_menu && !below {
+            column.add_child(ChildView::new(&self.inline_history_menu_view).finish());
+        }
+        column.add_child(input);
+        if is_inline_history_menu && !hide_menu && below {
+            column.add_child(ChildView::new(&self.inline_history_menu_view).finish());
         }
 
         SavePosition::new(column.finish(), &self.save_position_id()).finish()

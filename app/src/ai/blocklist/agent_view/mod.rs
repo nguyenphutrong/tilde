@@ -11,7 +11,6 @@ pub(crate) mod orchestration_avatar;
 pub(crate) mod orchestration_conversation_links;
 pub mod orchestration_pill_bar;
 pub mod shortcuts;
-mod zero_state_block;
 
 use std::sync::LazyLock;
 
@@ -28,7 +27,6 @@ use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
 use warpui::fonts::Properties;
 use warpui::keymap::Keystroke;
-pub use zero_state_block::*;
 
 use crate::terminal::model::TerminalModel;
 use crate::view_components::action_button::ActionButtonTheme;

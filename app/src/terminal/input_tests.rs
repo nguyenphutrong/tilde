@@ -87,7 +87,6 @@ use crate::terminal::event::{
     UserBlockCompleted,
 };
 use crate::terminal::general_settings::UserDefaultShellUnsupportedBannerState;
-use crate::terminal::input::slash_commands::SlashCommandsEvent;
 use crate::terminal::keys::TerminalKeybindings;
 use crate::terminal::local_shell::LocalShellState;
 use crate::terminal::local_tty::shell::ShellStarter;
@@ -3683,117 +3682,6 @@ fn test_completions_while_typing_doesnt_hide_autosuggestion() {
 }
 
 #[test]
-fn test_agent_mode_is_preserved_while_typing_slash_command() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(
-            &mut app, None, /* history_file_commands */
-            None,
-        )
-        .await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        input.update(&mut app, |input, ctx| {
-            input.set_input_mode_agent(false, ctx);
-            assert!(input.ai_input_model.as_ref(ctx).is_ai_input_enabled());
-        });
-
-        // Open slash commands menu by typing "/"
-        input.update(&mut app, |input, ctx| {
-            input.user_insert("/", ctx);
-        });
-
-        // Verify slash commands menu is open and agent mode is forced
-        input.read(&app, |input, ctx| {
-            assert!(matches!(
-                input.suggestions_mode_model.as_ref(ctx).mode(),
-                InputSuggestionsMode::SlashCommands
-            ));
-            // Should be in agent mode now
-            assert!(input.ai_input_model.as_ref(ctx).is_ai_input_enabled());
-        });
-
-        // Add a command with a space
-        input.update(&mut app, |input, ctx| {
-            input.user_insert("plan ", ctx);
-        });
-
-        // Verify menu is closed and we're still in agent mode
-        input.read(&app, |input, ctx| {
-            assert!(matches!(
-                input.suggestions_mode_model.as_ref(ctx).mode(),
-                InputSuggestionsMode::Closed
-            ));
-            assert!(input.ai_input_model.as_ref(ctx).is_ai_input_enabled());
-        });
-    });
-}
-
-#[test]
-fn test_plan_slash_command_argument_with_slash_does_not_disable_slash_command_parsing() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(
-            &mut app, None, /* history_file_commands */
-            None,
-        )
-        .await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        input.update(&mut app, |input, ctx| {
-            input.set_input_mode_agent(false, ctx);
-            input.user_insert("/plan investigate app/src/main.rs", ctx);
-        });
-
-        input.read(&app, |input, ctx| {
-            assert!(
-                !input.slash_command_model.as_ref(ctx).is_disabled(),
-                "slash command parsing should not be disabled when the argument contains '/'"
-            );
-        });
-    });
-}
-
-#[test]
-fn test_open_slash_command_triggers_completions_on_space() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let session_id: SessionId = 1.into();
-        let session_info = SessionInfo::new_for_test().with_id(session_id);
-        let terminal = add_window_with_bootstrapped_terminal(
-            &mut app,
-            None, /* history_file_commands */
-            Some(session_info),
-        )
-        .await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        simulate_directory_for_completion(session_id, &terminal, &mut app, "/tmp");
-
-        input.update(&mut app, |input, ctx| {
-            input.set_input_mode_agent(false, ctx);
-        });
-
-        input.update(&mut app, |input, ctx| {
-            input.user_insert("/", ctx);
-            input.user_insert("open-file ", ctx);
-        });
-
-        input.read(&app, |input, ctx| {
-            assert_eq!(input.buffer_text(ctx), "/open-file ");
-            assert!(!matches!(
-                input.suggestions_mode_model.as_ref(ctx).mode(),
-                InputSuggestionsMode::SlashCommands
-            ));
-            assert!(input.completions_abort_handle.is_some());
-        });
-    });
-}
-
-#[test]
 fn test_open_slash_command_does_not_autofill_single_file_completion() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
@@ -3848,46 +3736,7 @@ fn test_open_slash_command_does_not_autofill_single_file_completion() {
 }
 
 #[test]
-fn test_open_slash_command_triggers_completions_when_selected() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let session_id: SessionId = 1.into();
-        let session_info = SessionInfo::new_for_test().with_id(session_id);
-        let terminal = add_window_with_bootstrapped_terminal(
-            &mut app,
-            None, /* history_file_commands */
-            Some(session_info),
-        )
-        .await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        simulate_directory_for_completion(session_id, &terminal, &mut app, "/tmp");
-
-        input.update(&mut app, |input, ctx| {
-            input.set_input_mode_agent(false, ctx);
-            input.user_insert("/", ctx);
-            input.handle_slash_commands_menu_event(
-                &SlashCommandsEvent::SelectedStaticCommand {
-                    id: COMMAND_REGISTRY
-                        .get_command_id_with_name(commands::EDIT.name)
-                        .copied()
-                        .expect("open command should exist"),
-                    cmd_or_ctrl_enter: false,
-                },
-                ctx,
-            );
-        });
-
-        input.read(&app, |input, ctx| {
-            assert_eq!(input.buffer_text(ctx), "/open-file ");
-            assert!(input.completions_abort_handle.is_some());
-        });
-    });
-}
-
-#[test]
-fn test_open_slash_command_requires_path() {
+fn local_open_without_path_opens_files_palette() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
@@ -3898,49 +3747,30 @@ fn test_open_slash_command_requires_path() {
         .await;
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
 
-        input.update(&mut app, |input, ctx| {
-            input.set_input_mode_agent(false, ctx);
-            input.editor.update(ctx, |editor, ctx| {
-                editor.set_buffer_text("/open-file ", ctx)
+        let palette_requests = Rc::new(RefCell::new(0));
+        let observed = palette_requests.clone();
+        app.update(|ctx| {
+            ctx.subscribe_to_view(&input, move |_, event, _| {
+                if matches!(event, Event::OpenFilesPalette { .. }) {
+                    *observed.borrow_mut() += 1;
+                }
             });
         });
-
-        input.update(&mut app, |input, ctx| {
-            input.input_enter(ctx);
-        });
-    });
-}
-
-#[test]
-fn test_changelog_slash_command_clears_buffer_on_success() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(
-            &mut app, None, /* history_file_commands */
-            None,
-        )
-        .await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        input.update(&mut app, |input, ctx| {
-            input.set_input_mode_agent(false, ctx);
-            input.editor.update(ctx, |editor, ctx| {
-                editor.set_buffer_text(commands::CHANGELOG.name, ctx)
+        for command in ["/open-file ", "/open"] {
+            input.update(&mut app, |input, ctx| {
+                input
+                    .editor
+                    .update(ctx, |editor, ctx| editor.set_buffer_text(command, ctx));
+                input.input_enter(ctx);
+                assert!(input.buffer_text(ctx).is_empty());
             });
-        });
-
-        input.update(&mut app, |input, ctx| {
-            input.input_enter(ctx);
-        });
-
-        input.read(&app, |input, ctx| {
-            assert_eq!(input.buffer_text(ctx), "");
-        });
+        }
+        assert_eq!(*palette_requests.borrow(), 2);
     });
 }
+
 #[test]
-fn test_open_slash_command_opens_files_palette_when_entered_from_slash_menu() {
+fn slash_command_text_does_not_open_an_agent_menu() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
@@ -3952,21 +3782,14 @@ fn test_open_slash_command_opens_files_palette_when_entered_from_slash_menu() {
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
 
         input.update(&mut app, |input, ctx| {
-            input.set_input_mode_agent(false, ctx);
-            input.user_insert("/", ctx);
-            input.user_insert("open-file", ctx);
-        });
-
-        input.read(&app, |input, ctx| {
-            assert_eq!(input.buffer_text(ctx), "/open-file");
-        });
-
-        input.update(&mut app, |input, ctx| {
-            input.input_enter(ctx);
+            input.user_insert("/plan investigate app/src/main.rs", ctx);
+            assert_eq!(input.buffer_text(ctx), "/plan investigate app/src/main.rs");
+            assert!(input.suggestions_mode_model.as_ref(ctx).is_closed());
+            assert!(!input.maybe_open_local_file(ctx));
+            assert_eq!(input.input_type(ctx), InputType::Shell);
         });
     });
 }
-
 #[cfg(feature = "local_fs")]
 #[test]
 fn test_open_slash_command_clears_buffer_on_success() {
@@ -4097,232 +3920,6 @@ fn test_shell_lock_respected_when_slash_command_typed() {
             let ai_model = input.ai_input_model.as_ref(ctx);
             assert!(!ai_model.is_ai_input_enabled());
             assert!(ai_model.is_input_type_locked());
-        });
-    });
-}
-
-#[test]
-fn test_new_conversation_keybinding_requires_double_press_in_non_empty_agent_view() {
-    App::test((), |mut app| async move {
-        let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        let conversation_id = terminal.update(&mut app, |view, ctx| {
-            view.agent_view_controller().update(ctx, |controller, ctx| {
-                controller
-                    .try_enter_agent_view(
-                        None,
-                        AgentViewEntryOrigin::Input {
-                            was_prompt_autodetected: false,
-                        },
-                        ctx,
-                    )
-                    .expect("Should be able to enter agent view")
-            })
-        });
-
-        terminal.update(&mut app, |view, ctx| {
-            view.ai_controller().update(ctx, |controller, ctx| {
-                controller.send_user_query_in_conversation(
-                    "hello".to_owned(),
-                    conversation_id,
-                    None,
-                    ctx,
-                );
-            });
-        });
-
-        let is_non_empty = BlocklistAIHistoryModel::handle(&app).read(&app, |history, _| {
-            history
-                .conversation(&conversation_id)
-                .is_some_and(|conversation| !conversation.is_empty())
-        });
-        assert!(is_non_empty);
-
-        input.update(&mut app, |input, ctx| {
-            input.user_insert("draft", ctx);
-            input.handle_action(
-                &InputAction::TriggerSlashCommandFromKeybinding(commands::AGENT.name),
-                ctx,
-            );
-        });
-
-        terminal.read(&app, |view, ctx| {
-            assert_eq!(
-                view.agent_view_controller()
-                    .as_ref(ctx)
-                    .agent_view_state()
-                    .active_conversation_id(),
-                Some(conversation_id),
-            );
-        });
-        input.read(&app, |input, ctx| {
-            assert_eq!(input.buffer_text(ctx), "draft");
-        });
-
-        input.update(&mut app, |input, ctx| {
-            input.handle_action(
-                &InputAction::TriggerSlashCommandFromKeybinding(commands::AGENT.name),
-                ctx,
-            );
-        });
-
-        terminal.read(&app, |view, ctx| {
-            let active_conversation_id = view
-                .agent_view_controller()
-                .as_ref(ctx)
-                .agent_view_state()
-                .active_conversation_id()
-                .expect("agent view should still be active");
-            assert_ne!(active_conversation_id, conversation_id);
-        });
-    });
-}
-
-#[test]
-fn test_new_conversation_keybinding_does_not_require_confirmation_in_empty_agent_view() {
-    App::test((), |mut app| async move {
-        let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        let conversation_id = terminal.update(&mut app, |view, ctx| {
-            view.agent_view_controller().update(ctx, |controller, ctx| {
-                controller
-                    .try_enter_agent_view(
-                        None,
-                        AgentViewEntryOrigin::Input {
-                            was_prompt_autodetected: false,
-                        },
-                        ctx,
-                    )
-                    .expect("Should be able to enter agent view")
-            })
-        });
-
-        let is_empty = BlocklistAIHistoryModel::handle(&app).read(&app, |history, _| {
-            history
-                .conversation(&conversation_id)
-                .is_some_and(|conversation| conversation.is_empty())
-        });
-        assert!(is_empty);
-
-        input.update(&mut app, |input, ctx| {
-            input.user_insert("draft", ctx);
-            input.handle_action(
-                &InputAction::TriggerSlashCommandFromKeybinding(commands::AGENT.name),
-                ctx,
-            );
-        });
-
-        terminal.read(&app, |view, ctx| {
-            let active_conversation_id = view
-                .agent_view_controller()
-                .as_ref(ctx)
-                .agent_view_state()
-                .active_conversation_id()
-                .expect("agent view should still be active");
-            assert_ne!(active_conversation_id, conversation_id);
-        });
-    });
-}
-
-#[test]
-fn test_new_conversation_input_trigger_remains_single_step_in_non_empty_agent_view() {
-    App::test((), |mut app| async move {
-        let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        let conversation_id = terminal.update(&mut app, |view, ctx| {
-            view.agent_view_controller().update(ctx, |controller, ctx| {
-                controller
-                    .try_enter_agent_view(
-                        None,
-                        AgentViewEntryOrigin::Input {
-                            was_prompt_autodetected: false,
-                        },
-                        ctx,
-                    )
-                    .expect("Should be able to enter agent view")
-            })
-        });
-
-        terminal.update(&mut app, |view, ctx| {
-            view.ai_controller().update(ctx, |controller, ctx| {
-                controller.send_user_query_in_conversation(
-                    "hello".to_owned(),
-                    conversation_id,
-                    None,
-                    ctx,
-                );
-            });
-        });
-
-        let command = COMMAND_REGISTRY
-            .get_command_with_name(commands::NEW.name)
-            .expect("/new command should exist");
-        input.update(&mut app, |input, ctx| {
-            let handled = input.execute_slash_command(
-                command,
-                None,
-                SlashCommandTrigger::input(),
-                /*is_queued_prompt*/ false,
-                None,
-                None,
-                ctx,
-            );
-            assert!(handled);
-        });
-
-        terminal.read(&app, |view, ctx| {
-            let active_conversation_id = view
-                .agent_view_controller()
-                .as_ref(ctx)
-                .agent_view_state()
-                .active_conversation_id()
-                .expect("agent view should still be active");
-            assert_ne!(active_conversation_id, conversation_id);
-        });
-    });
-}
-
-#[test]
-fn test_create_docker_sandbox_slash_command_executes_and_clears_buffer() {
-    App::test((), |mut app| async move {
-        let _docker_sandbox_flag = FeatureFlag::LocalDockerSandbox.override_enabled(true);
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(
-            &mut app, None, /* history_file_commands */
-            None,
-        )
-        .await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        input.update(&mut app, |input, ctx| {
-            input.user_insert("draft text", ctx);
-            let handled = input.execute_slash_command(
-                &commands::CREATE_DOCKER_SANDBOX,
-                None,
-                SlashCommandTrigger::input(),
-                /*is_queued_prompt*/ false,
-                None,
-                None,
-                ctx,
-            );
-            assert!(handled);
-        });
-
-        input.read(&app, |input, ctx| {
-            assert!(input.buffer_text(ctx).is_empty());
         });
     });
 }

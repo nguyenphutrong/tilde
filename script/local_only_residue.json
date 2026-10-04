@@ -81,8 +81,6 @@
   "endpoint:app/resources/tab_configs/new_tab_config_template.toml:e26f0978f439af28cfce896927e0ff8047b7f8a5dd6910a60d7c3525f50d69a9": 1,
   "endpoint:app/src/ai/ambient_agents/task_tests.rs:2fd6439fa176e319f054a9db7c87c69744d0f7c1e610754bb772ef79aac2eade": 1,
   "endpoint:app/src/ai/ambient_agents/task_tests.rs:56b8753dba5d0bc665b73d2651f7fe4c350332650491658f0d1680dd38bf67b0": 1,
-  "endpoint:app/src/ai/blocklist/agent_view/zero_state_block.rs:392e93570c4291185526792e8baaa95ec553c615d860187b236f4adb36ee321c": 1,
-  "endpoint:app/src/ai/blocklist/agent_view/zero_state_block.rs:6f60faa22b2ae9c53f0a0b92e55e26affc9a427fc7440338f8ba212baacc13a9": 1,
   "endpoint:app/src/ai/blocklist/block.rs:6d53a0462c7865b3a6ba19d1b0d0bada622d01bef72467746897c67d7c0fb2ae": 1,
   "endpoint:app/src/ai/blocklist/block/cli.rs:71ea5a0007a9e432b8179b2179cef962f96d3b26b08760f2a16dddc0bac27c53": 1,
   "endpoint:app/src/ai/cloud_environments/mod.rs:3aa32b0f8eb31652a1e8299439b85f7d9326e9fe0f409b4a6fdb5ceb3e8bc3f0": 1,

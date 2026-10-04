@@ -36,6 +36,18 @@ ENDPOINT = re.compile(
     re.IGNORECASE,
 )
 SOURCE_SUFFIXES = {".rs", ".toml", ".sh", ".ps1", ".yml", ".yaml", ".json"}
+REMOVED_SOURCES = (
+    "app/src/ai/blocklist/agent_view/zero_state_block.rs",
+    "app/src/ai/blocklist/agent_view/zero_state_block_tests.rs",
+    "app/src/terminal/input/plans/",
+    "app/src/terminal/input/user_query/",
+    "app/src/terminal/input/rewind/",
+    "app/src/terminal/input/repos/",
+    "app/src/terminal/input/skills/data_source.rs",
+    "app/src/terminal/input/skills/view.rs",
+    "app/src/terminal/input/slash_commands/view.rs",
+    "app/src/terminal/input/slash_commands/cloud_mode_v2_view.rs",
+)
 
 
 def removed_dependency(name):
@@ -62,6 +74,8 @@ def inventory(root, paths):
         path = root / relative
         if not path.is_file():
             continue
+        if relative.startswith(REMOVED_SOURCES):
+            forbidden.add(f"{relative}: removed source")
         if path.name == "Cargo.toml":
             for name in dependencies(tomllib.loads(path.read_text())):
                 if removed_dependency(name):
@@ -96,7 +110,7 @@ def main():
     ).decode().split("\0")
     actual, forbidden = inventory(ROOT, sorted(set(filter(None, paths))))
     if forbidden:
-        print("Removed dependencies returned:\n" + "\n".join(forbidden), file=sys.stderr)
+        print("Removed components returned:\n" + "\n".join(forbidden), file=sys.stderr)
         return 1
     if args.inventory:
         print(json.dumps(actual, indent=2, sort_keys=True))

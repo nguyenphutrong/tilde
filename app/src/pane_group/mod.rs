@@ -62,9 +62,6 @@ use crate::ai::blocklist::inline_action::code_diff_view::CodeDiffView;
 use crate::ai::blocklist::suggested_agent_mode_workflow_modal::SuggestedAgentModeWorkflowAndId;
 use crate::ai::blocklist::{BlocklistAIHistoryModel, InputConfig, SerializedBlockListItem};
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel, AIDocumentVersion};
-use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
-use crate::ai::llms::LLMId;
-use crate::ai::restored_conversations::RestoredAgentConversations;
 #[cfg(feature = "local_fs")]
 use crate::app_state::CodePaneSnapShot;
 use crate::app_state::{
@@ -885,8 +882,6 @@ pub struct PaneGroup {
     shared_session_role_change_modal: ViewHandle<RoleChangeModal>,
     /// Model that tracks the currently active file.
     active_file_model: ModelHandle<ActiveFileModel>,
-    /// If there is an open summarization cancel dialog, the terminal pane ID where summarization is active.
-    terminal_with_open_summarization_dialog: Option<TerminalPaneId>,
 
     /// Pane with an open environment setup mode selector modal (rendered at tab level).
     pane_with_open_environment_setup_mode_selector: Option<PaneId>,
@@ -1636,45 +1631,6 @@ impl PaneGroup {
                     .map(PathBuf::from)
                     .filter(|path| path.is_dir());
 
-                // Filter conversation IDs to only include those that have task messages
-                // and are not entirely passive (ignored suggestions).
-                // This prevents showing the "Previous session" banner when there's nothing to restore
-                // and avoids restoring passive code diffs that the user never acted on.
-                let filtered_conversation_ids: Vec<AIConversationId> = terminal_snapshot
-                    .conversation_ids_to_restore
-                    .iter()
-                    .filter(|&conversation_id| {
-                        RestoredAgentConversations::handle(ctx).update(ctx, |store, _| {
-                            store
-                                .get_conversation(conversation_id)
-                                .is_some_and(|persisted_conv| {
-                                    // Filter conversations that contain no tasks.
-                                    if persisted_conv.all_tasks().next().is_none() {
-                                        return false;
-                                    }
-
-                                    // Filter conversations that are entirely passive.
-                                    !persisted_conv.is_entirely_passive()
-                                })
-                        })
-                    })
-                    .copied()
-                    .collect();
-
-                let conversation_restoration = {
-                    let conversations = RestoredAgentConversations::handle(ctx)
-                        .update(ctx, |store, _| {
-                            store.take_conversations(&filtered_conversation_ids)
-                        });
-                    vec1::Vec1::try_from_vec(conversations)
-                        .ok()
-                        .map(
-                            |conversations| ConversationRestorationInNewPaneType::Startup {
-                                conversations,
-                                active_conversation_id: terminal_snapshot.active_conversation_id,
-                            },
-                        )
-                };
                 let (terminal_view, terminal_manager) = PaneGroup::create_session(
                     startup_directory,
                     HashMap::new(),
@@ -1682,16 +1638,14 @@ impl PaneGroup {
                     IsSharedSessionCreator::No,
                     resources,
                     block_list,
-                    conversation_restoration,
+                    None,
                     user_default_shell_unsupported_banner_model_handle,
                     view_size,
                     model_event_sender.clone(),
                     chosen_shell,
-                    terminal_snapshot.input_config,
+                    None,
                     ctx,
                 );
-
-                let terminal_view_id = terminal_view.id();
 
                 let pane_data = TerminalPane::new(
                     uuid.0,
@@ -1704,42 +1658,6 @@ impl PaneGroup {
                 let terminal_pane_id = pane_data.terminal_pane_id();
                 let pane_id = terminal_pane_id.into();
                 pane_contents.insert(pane_id, Box::new(pane_data));
-
-                if let Some(llm_override) = &terminal_snapshot.llm_model_override
-                    && let Ok(llm_id) = serde_json::from_str::<LLMId>(llm_override)
-                {
-                    log::info!("Selecting base agent model {llm_id} (from terminal snapshot)");
-                    crate::ai::llms::LLMPreferences::handle(ctx).update(ctx, |llm_prefs, ctx| {
-                        llm_prefs.update_preferred_agent_mode_llm(&llm_id, terminal_view_id, ctx);
-                    });
-                }
-
-                if let Some(active_profile_sync_id) = &terminal_snapshot.active_profile_id {
-                    log::info!(
-                        "Attempting to restore active_profile '{active_profile_sync_id}' for terminal {terminal_view_id:?}"
-                    );
-
-                    let profiles_model = AIExecutionProfilesModel::as_ref(ctx);
-
-                    if let Some(profile_id) =
-                        profiles_model.get_profile_id_by_sync_id(active_profile_sync_id, ctx)
-                    {
-                        AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                            profiles_model.set_active_profile(
-                                terminal_view_id,
-                                profile_id.clone(),
-                                ctx,
-                            );
-                        });
-                        log::info!(
-                            "Restored active profile {profile_id:?} for terminal {terminal_view_id:?}"
-                        );
-                    } else {
-                        log::warn!(
-                            "Failed to restore active profile for terminal {terminal_view_id:?}"
-                        );
-                    }
-                }
 
                 let focus = InitialFocus {
                     focused_pane: leaf.is_focused.then_some(pane_id),
@@ -2134,11 +2052,6 @@ impl PaneGroup {
                             is_active: visible_leaf_is_active_session,
                             is_read_only: false,
                             shell_launch_data: None,
-                            input_config: Some(InputConfig::default()),
-                            llm_model_override: None,
-                            active_profile_id: None,
-                            conversation_ids_to_restore: Vec::new(),
-                            active_conversation_id: None,
                         })
                     }
                 };
@@ -3139,7 +3052,6 @@ impl PaneGroup {
             terminal_with_shared_session_role_change_modal_open: None,
             shared_session_role_change_modal,
             active_file_model,
-            terminal_with_open_summarization_dialog: None,
             pane_with_open_environment_setup_mode_selector: None,
             right_panel_open: false,
             left_panel_open: false,
@@ -4477,65 +4389,7 @@ impl PaneGroup {
     /// Definitively close the pane. This does not go through the undo close check where we might hide the pane instead of
     /// discarding it.
     fn discard_pane(&mut self, pane_id: PaneId, ctx: &mut ViewContext<Self>) {
-        // Skip ownership transfer for child agent panes (their view
-        // canonically owns the conversation).
-        if !self.is_child_agent_pane(pane_id) {
-            self.transfer_child_agent_conversations_to_parents_on_close(pane_id, ctx);
-        }
-
-        if let Some(terminal_view) = self.terminal_view_from_pane_id(pane_id, ctx) {
-            let terminal_view_id = terminal_view.id();
-
-            // Discard any child agent panes parented by this terminal view.
-            self.remove_child_agent_panes(terminal_view_id, ctx);
-
-            // Preserve conversations from terminal views before cleaning up the pane
-            BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, _| {
-                history_model.mark_conversations_historical_for_terminal_surface(terminal_view_id);
-            });
-        }
-
         self.cleanup_closed_pane(pane_id, ctx);
-    }
-
-    /// Best-effort: re-bind each live child agent conversation on the
-    /// closing view to the pane that owns its parent. Defensive plumbing
-    /// for paths where the parent's view actually contains the child;
-    /// no-ops otherwise.
-    fn transfer_child_agent_conversations_to_parents_on_close(
-        &mut self,
-        pane_id: PaneId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let Some(terminal_view) = self.terminal_view_from_pane_id(pane_id, ctx) else {
-            return;
-        };
-        let closing_view_id = terminal_view.id();
-
-        let history_handle = BlocklistAIHistoryModel::handle(ctx);
-        let transfers: Vec<(AIConversationId, EntityId)> = history_handle
-            .as_ref(ctx)
-            .all_live_conversations_for_terminal_surface(closing_view_id)
-            .filter_map(|conversation| {
-                let parent_id = conversation.parent_conversation_id()?;
-                let parent_owner = history_handle
-                    .as_ref(ctx)
-                    .terminal_surface_id_for_conversation(&parent_id)?;
-                if parent_owner == closing_view_id {
-                    return None;
-                }
-                Some((conversation.id(), parent_owner))
-            })
-            .collect();
-
-        if transfers.is_empty() {
-            return;
-        }
-        history_handle.update(ctx, |history_model, ctx| {
-            for (child_id, parent_owner) in transfers {
-                history_model.set_active_conversation_id(child_id, parent_owner, ctx);
-            }
-        });
     }
 
     /// If this pane was the active session and or focused pane, focuses the previous session and pane.
@@ -4578,64 +4432,6 @@ impl PaneGroup {
     /// Returns true if the given pane is a child agent pane tracked in `child_agent_panes`.
     fn is_child_agent_pane(&self, pane_id: PaneId) -> bool {
         self.child_agent_panes.values().any(|&id| id == pane_id)
-    }
-
-    /// Collects the child agent pane IDs whose conversations are parented by
-    /// a conversation on the given terminal view.
-    fn child_pane_ids_for_parent(
-        &self,
-        parent_terminal_view_id: EntityId,
-        ctx: &AppContext,
-    ) -> Vec<(AIConversationId, PaneId)> {
-        let history_model = BlocklistAIHistoryModel::as_ref(ctx);
-        self.child_agent_panes
-            .iter()
-            .filter(|(conv_id, _)| {
-                history_model
-                    .conversation(conv_id)
-                    .and_then(|c| c.parent_conversation_id())
-                    .and_then(|parent_id| {
-                        history_model.terminal_surface_id_for_conversation(&parent_id)
-                    })
-                    .is_some_and(|tv_id| tv_id == parent_terminal_view_id)
-            })
-            .map(|(conv_id, pane_id)| (*conv_id, *pane_id))
-            .collect()
-    }
-
-    /// Removes and discards all child agent panes whose parent conversation
-    /// lives on the given terminal view.  Used by both `close_pane` and
-    /// `discard_pane` to ensure children are cleaned up regardless of which
-    /// path removes the parent.
-    fn remove_child_agent_panes(
-        &mut self,
-        parent_terminal_view_id: EntityId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let children = self.child_pane_ids_for_parent(parent_terminal_view_id, ctx);
-        for (conv_id, child_pane_id) in children {
-            self.child_agent_panes.remove(&conv_id);
-            self.failed_viewer_child_sessions.remove(&conv_id);
-            self.pending_child_hydrations
-                .retain(|_, child_id| *child_id != conv_id);
-            self.panes.remove_hidden_pane(child_pane_id);
-            self.discard_pane(child_pane_id, ctx);
-        }
-        // Drop any pending parent seed for the view being removed, aborting
-        // its retry timer so it can't fire after the pane is gone.
-        let parent_task_ids_to_remove: Vec<AmbientAgentTaskId> = self
-            .pending_parent_child_seeds
-            .iter()
-            .filter(|(_, seed)| {
-                BlocklistAIHistoryModel::as_ref(ctx)
-                    .terminal_surface_id_for_conversation(&seed.parent_conversation_id)
-                    .is_some_and(|tv_id| tv_id == parent_terminal_view_id)
-            })
-            .map(|(parent_task_id, _)| *parent_task_id)
-            .collect();
-        for parent_task_id in parent_task_ids_to_remove {
-            self.remove_pending_parent_child_seed(parent_task_id);
-        }
     }
 
     /// Permanently discards the pane backing a child agent conversation.
@@ -4749,16 +4545,6 @@ impl PaneGroup {
             ctx.emit(Event::TerminalViewStateChanged);
             ctx.emit(Event::AppStateChanged);
             return;
-        }
-
-        // Best-effort: re-bind any child conversations on this view back
-        // to the pane that owns their parent so the pill bar keeps
-        // working after this pane closes.
-        self.transfer_child_agent_conversations_to_parents_on_close(pane_id, ctx);
-
-        // If this is a parent with child agents, discard the children first.
-        if let Some(terminal_view) = self.terminal_view_from_pane_id(pane_id, ctx) {
-            self.remove_child_agent_panes(terminal_view.id(), ctx);
         }
 
         if FeatureFlag::UndoClosedPanes.is_enabled() {
@@ -8255,16 +8041,6 @@ impl View for PaneGroup {
             .is_some()
         {
             stack.add_child(ChildView::new(&self.shared_session_role_change_modal).finish());
-        }
-
-        // Render the summarization cancel dialog at tab level when open.
-        if let Some(terminal_pane_id) = self.terminal_with_open_summarization_dialog
-            && let Some(terminal_view) = self.terminal_view_from_pane_id(terminal_pane_id, app)
-            && let Some(dialog_handle) = terminal_view.read(app, |view, ctx| {
-                view.summarization_cancel_dialog_handle(ctx)
-            })
-        {
-            stack.add_child(ChildView::new(&dialog_handle).finish());
         }
 
         // Render environment setup mode selector at tab level when open.

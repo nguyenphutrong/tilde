@@ -1223,6 +1223,7 @@ pub(crate) fn initialize_app(
     pane_group::init(ctx);
     terminal::init(ctx);
     input::init(ctx);
+    editor::init(ctx);
     menu::init(ctx);
     tips::tip_view::init(ctx);
     launch_configs::init(ctx);

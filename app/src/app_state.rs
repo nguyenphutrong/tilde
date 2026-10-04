@@ -7,10 +7,9 @@ use serde::{Deserialize, Serialize};
 use warpui::platform::FullscreenState;
 use warpui::{AppContext, SingletonEntity as _};
 
-use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_conversations_model::AgentManagementFilters;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
-use crate::ai::blocklist::{InputConfig, SerializedBlockListItem};
+use crate::ai::blocklist::SerializedBlockListItem;
 use crate::code::editor_management::CodeSource;
 use crate::drive::OpenWarpDriveObjectSettings;
 use crate::root_view::quake_mode_window_id;
@@ -204,13 +203,6 @@ pub struct TerminalPaneSnapshot {
     pub shell_launch_data: Option<ShellLaunchData>,
     pub is_active: bool,
     pub is_read_only: bool,
-    pub input_config: Option<InputConfig>,
-    pub llm_model_override: Option<String>,
-    pub active_profile_id: Option<SyncId>,
-    pub conversation_ids_to_restore: Vec<AIConversationId>,
-    /// The active conversation ID if the agent view was open in fullscreen mode.
-    /// When `Some`, the agent view should be restored to fullscreen for this conversation.
-    pub active_conversation_id: Option<AIConversationId>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
