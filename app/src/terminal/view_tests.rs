@@ -6418,6 +6418,74 @@ fn test_fish_vim_banner_off() {
 }
 
 #[test]
+fn git_subscriptions_follow_local_prompt_not_ai_input() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+        terminal.update(&mut app, |view, ctx| {
+            view.current_repo_path = Some(LocalOrRemotePath::Local("/repo".into()));
+            view.ai_input_model.update(ctx, |input, ctx| {
+                input.set_input_config(
+                    InputConfig {
+                        input_type: InputType::AI,
+                        is_locked: false,
+                    },
+                    true,
+                    None,
+                    ctx,
+                );
+            });
+            assert!(view.ai_input_model.as_ref(ctx).is_ai_input_enabled());
+
+            Prompt::handle(ctx).update(ctx, |prompt, ctx| {
+                prompt
+                    .update(
+                        [ContextChipKind::Time12],
+                        false,
+                        WarpPromptSeparator::None,
+                        ctx,
+                    )
+                    .unwrap();
+            });
+            assert!(!view.should_subscribe_to_git_status(ctx));
+            assert!(!view.needs_pr_info(ctx));
+
+            Prompt::handle(ctx).update(ctx, |prompt, ctx| {
+                prompt
+                    .update(
+                        [ContextChipKind::GitDiffStats],
+                        false,
+                        WarpPromptSeparator::None,
+                        ctx,
+                    )
+                    .unwrap();
+            });
+            assert!(view.should_subscribe_to_git_status(ctx));
+            assert!(!view.needs_pr_info(ctx));
+
+            Prompt::handle(ctx).update(ctx, |prompt, ctx| {
+                prompt
+                    .update(
+                        [ContextChipKind::GithubPullRequest],
+                        false,
+                        WarpPromptSeparator::None,
+                        ctx,
+                    )
+                    .unwrap();
+            });
+            assert!(view.should_subscribe_to_git_status(ctx));
+            assert!(view.needs_pr_info(ctx));
+
+            SessionSettings::handle(ctx).update(ctx, |settings, ctx| {
+                settings.honor_ps1.set_value(true, ctx).unwrap();
+            });
+            assert!(!view.should_subscribe_to_git_status(ctx));
+            assert!(!view.needs_pr_info(ctx));
+        });
+    });
+}
+
+#[test]
 fn test_prompt_context_menu_items_for_ps1() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);

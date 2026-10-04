@@ -492,10 +492,6 @@ impl RightPanelView {
                     self.close_code_review_view(*pane_group_id, old_path, ctx);
                 }
 
-                if let Some(path) = &new_selected {
-                    self.ensure_code_review_view_exists(path, ctx);
-                }
-
                 ctx.notify();
             }
             WorkingDirectoriesEvent::FocusedRepoChanged {
@@ -550,15 +546,6 @@ impl RightPanelView {
             // the first repo, instead of preserving the previous tab's repo.
             state.selected_repo_path = saved_selection;
             state.set_available_repos(active_repositories, ctx);
-        }
-
-        let selected = self
-            .code_review_state
-            .as_ref()
-            .and_then(|s| s.selected_repo_path.clone());
-
-        if let Some(selected) = &selected {
-            self.ensure_code_review_view_exists(selected, ctx);
         }
 
         let is_maximized = self.is_maximized(ctx);

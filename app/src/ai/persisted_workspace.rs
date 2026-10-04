@@ -758,14 +758,6 @@ impl PersistedWorkspace {
             .dedup_by(|a, b| a.path == b.path)
     }
 
-    #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
-    pub fn navigated_to_path(&mut self, directory: &PathBuf) {
-        if let Some(workspace) = self.workspaces.get_mut(directory) {
-            workspace.metadata.navigated_ts = Some(Utc::now());
-            self.persist_metadata_for_index(directory);
-        }
-    }
-
     fn handle_index_metadata_event(&mut self, root_path: &PathBuf, event: WorkspaceMetadataEvent) {
         match event {
             WorkspaceMetadataEvent::Queried => {
