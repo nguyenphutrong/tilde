@@ -19,14 +19,14 @@ REMOVED = {
     "serve-wasm", "managed_secrets_wasm",
     "minidumper", "crash-handler",
     "input_classifier", "natural_language_detection",
-    "app-installation-detection",
+    "app-installation-detection", "voice_input",
 }
 RESIDUE = {
     "ai", "ai_types", "mcp",
     "cloud_objects", "cloud_object_client", "cloud_object_models",
     "cloud_object_persistence", "firebase", "warp_graphql", "warp_graphql_schema",
     "warp_server_auth", "warp_server_client", "warp_multi_agent_api",
-    "warp_multi_agent_client", "remote_server", "computer_use", "voice_input",
+    "warp_multi_agent_client", "remote_server", "computer_use",
     "oauth2", "cynic", "graphql-ws-client",
 }
 ENDPOINT = re.compile(
@@ -38,6 +38,12 @@ ENDPOINT = re.compile(
 )
 SOURCE_SUFFIXES = {".rs", ".toml", ".sh", ".ps1", ".yml", ".yaml", ".json"}
 REMOVED_SOURCES = (
+    "crates/voice_input/",
+    "app/src/voice/",
+    "app/src/ai/voice/",
+    "app/src/editor/view/voice.rs",
+    "app/src/settings/tui_voice.rs",
+    "app/src/settings/tui_voice_tests.rs",
     "crates/app-installation-detection/",
     "app/src/ai/get_relevant_files/",
     "app/src/ai/blocklist/action_model/execute/get_files.rs",
@@ -89,7 +95,9 @@ REMOVED_SOURCE_SYMBOLS = {
         "CloudModel", "UserWorkspaces", "load_cloud_workflows", "PersonalCloud", "TelemetryEvent",
     ),
     "app/src/ai/mod.rs": ("get_relevant_files", "conversation_details_panel"),
-    "app/src/server/server_api.rs": ("get_relevant_files", "GetRelevantFiles"),
+    "app/src/server/server_api.rs": ("get_relevant_files", "GetRelevantFiles", "transcribe", "TranscribeError"),
+    "app/src/editor/view/mod.rs": ("VoiceTranscriber", "VoiceTranscriptionOptions", "VoiceStateUpdated"),
+    "app/src/editor/view/element.rs": ("voice_input_cursor_icon", "voice_input_toggle_key_code"),
     "app/src/ai/agent/api/impl.rs": ("SearchCodebase", "RunAgents"),
     "crates/ai/src/agent/action/mod.rs": (
         "SearchCodebase", "SearchCodebaseRequest", "RunAgentsRequest", "StartAgentExecutionMode",

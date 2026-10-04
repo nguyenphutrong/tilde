@@ -49,12 +49,12 @@ caches and Git history are not erased.
 
 The standalone `serve-wasm` shared-session/Drive server and `managed_secrets_wasm` credential wrapper,
 their scripts/profiles, and the wrapper-only sealing API/test are removed. Workspace members now
-number 75 (baseline 79); lock packages number 1,424 (baseline 1,544). Native managed-secrets behavior
+number 73 (baseline 79); lock packages number 1,401 (baseline 1,544). Native managed-secrets behavior
 remains: all 31 tests pass. All-target app Clippy passes with existing warnings.
 
 `script/check_local_only.py` rejects `ort`, `ort-sys`, `candle-core`, `candle-nn`, `candle-onnx`, and
-`tokenizers`, plus `serve-wasm`, `managed_secrets_wasm`, `input_classifier`, and
-`natural_language_detection`, in manifests and lockfiles, including
+`tokenizers`, plus `serve-wasm`, `managed_secrets_wasm`, `input_classifier`,
+`natural_language_detection`, `app-installation-detection`, and `voice_input`, including
 renamed, optional, target, build and dev dependencies.
 `script/local_only_residue.json` initially records 280 occurrences: 111 dependency declarations,
 133 endpoint lines and 36 lock entries. This is a debt inventory, not approved product functionality.
@@ -556,5 +556,15 @@ failure remains; the expanded suite is not green. GUI rendering remains unverifi
 The orphan AI status bar, summarization dialog, warping controls and timers are removed. Independent
 stopped-output text and command/block Ctrl-C routing remain. A regression verifies two Ctrl-C presses
 send two ETX bytes to an ordinary local command. All 33 selected Ctrl-C/common-renderer tests,
-format, 14 guard tests, residue checking and GUI all-target Clippy passed. GUI startup still depends
-on removing the eager conversation-selection consumer; no rendered smoke success is claimed.
+format, 14 guard tests, residue checking and GUI all-target Clippy passed. No fresh rendered GUI
+smoke success is claimed at this checkpoint.
+
+Voice capture/resampling, transcription transport, editor controls/modifier interception, settings,
+quota checks, telemetry and packaging feature enablement are removed. Only toolbar/statusline enum
+variants remain for decoding old layouts; voice is unavailable and omitted from catalogs, with
+statusline normalization preserving other items and their enabled state. Native terminal bells and
+shared account-policy wire fields remain. Workspace packages fall 74 to 73 and lock packages fall
+1,418 to 1,401: 17 removed, none added. No database schema or stored rows change.
+All 52 selected input-model, slash-command, toolbar and statusline tests passed, alongside format,
+GUI all-target Clippy, 14 guard tests and both packaging-script syntax checks. The residue inventory
+shrinks from 164 to 161. Native macOS/Windows execution remains unverified.

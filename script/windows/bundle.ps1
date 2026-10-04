@@ -188,7 +188,7 @@ if ($IS_TUI) {
         'stable' { 'tui' }
         'oss' { 'tui' }
     }
-    $FEATURES = 'release_bundle,standalone,voice_input'
+    $FEATURES = 'release_bundle,standalone'
 }
 
 $BINARY_PATH = "$CARGO_TARGET_OUTPUT_DIR\$BINARY_NAME"

@@ -44,7 +44,6 @@ pub mod request_usage_model;
 pub(crate) mod restored_conversations;
 pub(crate) mod runner_display;
 pub(crate) mod skills;
-pub(crate) mod voice;
 pub use credit_availability::*;
 pub use request_usage_model::*;
 #[cfg(not(target_family = "wasm"))]

@@ -260,8 +260,7 @@ if [[ "$ARTIFACT" == "cli" || "$ARTIFACT" == "warpctrl" ]]; then
 elif [[ "$ARTIFACT" == "tui" ]]; then
   # The TUI is a separate console crate with its own per-channel bins and a
   # minimal feature set. It uses the native GNU target so the Linux clipboard
-  # backends can link against the host's Wayland/X11 libraries. Deliberately
-  # omit `voice_input` so portable bundles do not require the host ALSA runtime.
+  # backends can link against the host's Wayland/X11 libraries.
   WARP_TUI_FEATURES="release_bundle,standalone"
 elif [[ "$ARTIFACT" == "app" ]]; then
   FEATURES="$FEATURES,gui"

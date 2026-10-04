@@ -13,8 +13,6 @@ use repo_metadata::watcher::DirectoryWatcher;
 use session_sharing_protocol::common::Role;
 use smol_str::SmolStr;
 use unindent::Unindent;
-#[cfg(feature = "voice_input")]
-use voice_input::VoiceInputToggledFrom;
 use warp_completer::completer::{
     EngineFileType, Match, MatchStrategy, MatchedSuggestion, PathSeparators, Priority, Suggestion,
     SuggestionResults, SuggestionType,
@@ -314,8 +312,7 @@ pub fn initialize_app(app: &mut App) {
     app.add_singleton_model(RepoMetadataModel::new);
     app.add_singleton_model(FileSearchModel::new);
     app.add_singleton_model(RepoOutlines::new_for_test);
-    #[cfg(feature = "voice_input")]
-    app.add_singleton_model(voice_input::VoiceInput::new);
+
     app.add_singleton_model(|ctx| {
         CodebaseIndexManager::new_for_test(ServerApiProvider::as_ref(ctx).get(), ctx)
     });
@@ -6406,94 +6403,6 @@ fn test_vim_escape_with_completions() {
         editor.read(&app, |editor, ctx| {
             assert_eq!(editor.vim_mode(ctx), Some(VimMode::Normal));
         });
-    });
-}
-
-#[test]
-#[cfg(feature = "voice_input")]
-fn test_voice_input_toggle_preserves_lock_state() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let terminal = add_window_with_bootstrapped_terminal(
-            &mut app, None, /* history_file_commands */
-            None,
-        )
-        .await;
-        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-
-        // Start in shell mode with input locked
-        input.update(&mut app, |input, ctx| {
-            input.ai_input_model().update(ctx, |ai_input, ctx| {
-                ai_input.set_input_config(
-                    InputConfig {
-                        input_type: InputType::Shell,
-                        is_locked: true,
-                    },
-                    true, /* is_input_buffer_empty */
-                    None,
-                    ctx,
-                );
-            });
-        });
-
-        // Verify we're in locked shell mode
-        let initial_config = input.read(&app, |input, _| {
-            app.read_model(input.ai_input_model(), |ai_input, _| {
-                ai_input.input_config()
-            })
-        });
-        assert_eq!(initial_config.input_type, InputType::Shell);
-        assert!(initial_config.is_locked);
-
-        // Toggle voice input (should switch to AI mode but preserve lock state)
-        input.update(&mut app, |input, ctx| {
-            input.toggle_voice_input(&VoiceInputToggledFrom::Button, ctx);
-        });
-
-        // Verify we're now in AI mode but still locked
-        let after_voice_config = input.read(&app, |input, _| {
-            app.read_model(input.ai_input_model(), |ai_input, _| {
-                ai_input.input_config()
-            })
-        });
-        assert_eq!(after_voice_config.input_type, InputType::AI);
-        assert!(
-            after_voice_config.is_locked,
-            "Input mode lock state should be preserved when toggling voice input"
-        );
-
-        // Test the reverse: start unlocked and ensure it stays unlocked
-        input.update(&mut app, |input, ctx| {
-            input.ai_input_model().update(ctx, |ai_input, ctx| {
-                ai_input.set_input_config(
-                    InputConfig {
-                        input_type: InputType::Shell,
-                        is_locked: false, // Unlocked (auto-detection enabled)
-                    },
-                    true, /* is_input_buffer_empty */
-                    None,
-                    ctx,
-                );
-            });
-        });
-
-        // Toggle voice input again
-        input.update(&mut app, |input, ctx| {
-            input.toggle_voice_input(&VoiceInputToggledFrom::Button, ctx);
-        });
-
-        // Verify we're in AI mode but still unlocked
-        let final_config = input.read(&app, |input, _| {
-            app.read_model(input.ai_input_model(), |ai_input, _| {
-                ai_input.input_config()
-            })
-        });
-        assert_eq!(final_config.input_type, InputType::AI);
-        assert!(
-            !final_config.is_locked,
-            "Input mode should remain unlocked (auto-detection) when toggling voice input"
-        );
     });
 }
 
