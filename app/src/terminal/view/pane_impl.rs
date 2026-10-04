@@ -12,7 +12,7 @@ use warpui::{
 };
 
 use super::ambient_agent::is_cloud_agent_pre_first_exchange;
-use super::{Event, PaneConfiguration, TerminalAction, TerminalViewState, Viewer};
+use super::{Event, PaneConfiguration, TerminalAction, TerminalViewState};
 use crate::ai::agent::conversation::{
     AIConversation, ConversationStatus, ServerAIConversationMetadata,
 };
@@ -29,20 +29,9 @@ use crate::pane_group::pane::view::header::components::{
 use crate::pane_group::pane::view::header::render_pane_header_draggable;
 use crate::pane_group::pane::{PaneStack, view};
 use crate::pane_group::{BackingView, SplitPaneState, TOGGLE_MAXIMIZE_PANE_BINDING_NAME};
-use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
-use crate::terminal::shared_session::render_util::shared_session_indicator_color;
 use crate::terminal::{TerminalManager, TerminalView};
-use crate::ui_components::agent_icon::terminal_view_agent_icon_variant;
-use crate::ui_components::icon_with_status::render_icon_with_status;
 use crate::ui_components::{blended_colors, icons};
 use crate::util::bindings::keybinding_name_to_display_string;
-use crate::workspace::tab_settings::TabSettings;
-
-/// Total size of the agent icon-with-status component rendered in the pane header.
-/// Sub-components (circle, badge, cloud) are derived inside `render_icon_with_status`.
-/// Sized so the component fits comfortably within `PANE_HEADER_HEIGHT` (34px) with a
-/// few pixels of vertical buffer.
-const PANE_HEADER_AGENT_SIZE: f32 = 26.;
 
 impl TerminalView {
     /// Returns a reference to the focus handle if one has been set.
@@ -99,43 +88,12 @@ impl TerminalView {
             });
     }
 
-    /// Set the pane title from agent chrome when available, falling back to the regular terminal title.
+    /// Set the pane title from the terminal.
     pub(super) fn update_pane_configuration(&mut self, ctx: &mut ViewContext<Self>) {
-        let is_ambient_agent = self.is_ambient_agent_session(ctx);
-        let selected_conversation_title = self.selected_conversation_display_title(ctx);
-        let selected_cli_agent_title = self.selected_cli_agent_title_for_chrome(ctx);
-
-        // Prefer CLI agent session text before the terminal title,
-        // matching the vertical-tab behavior in terminal_primary_line_data().
-        let new_pane_title = if let Some(cli_agent_title) = selected_cli_agent_title {
-            self.is_using_conversation_for_pane_header_title = false;
-            cli_agent_title
-        } else if self.is_long_running_and_user_controlled() && !self.terminal_title.is_empty() {
-            self.is_using_conversation_for_pane_header_title = false;
-            self.terminal_title.clone()
-        } else {
-            match selected_conversation_title {
-                Some(conversation_title) => {
-                    self.is_using_conversation_for_pane_header_title = true;
-                    conversation_title
-                }
-                None => {
-                    if is_ambient_agent {
-                        default_agent_conversation_title(is_ambient_agent)
-                    } else {
-                        self.terminal_title.clone()
-                    }
-                }
-            }
-        };
         self.pane_configuration.update(ctx, |pane_config, ctx| {
-            pane_config.set_title(new_pane_title, ctx);
-            if FeatureFlag::AgentView.is_enabled() {
-                pane_config.refresh_pane_header_overflow_menu_items(ctx);
-            }
+            pane_config.set_title(self.terminal_title.clone(), ctx);
             pane_config.notify_header_content_changed(ctx);
         });
-        self.update_agent_view_pane_header(ctx);
     }
 
     pub(super) fn update_agent_view_pane_header(&mut self, ctx: &mut ViewContext<Self>) {
@@ -196,80 +154,13 @@ impl TerminalView {
 
     fn render_header_title(
         &self,
-        is_fullscreen_agent_view: bool,
         header_ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        // V2 swap-panes semantics: every conversation in the orchestration
-        // tree (orchestrator + each child) gets the orchestration pill bar
-        // rendered above the agent view header, so the pane title here
-        // falls back to the regular conversation title. Breadcrumbs used
-        // to render here for split-off child views, but the swap-panes
-        // refactor removed the split-off code path — the pill bar is now
-        // shown on every view, so a breadcrumb row alongside it would
-        // double-render the same navigation affordance.
-
         let appearance = Appearance::as_ref(app);
         let pane_config = self.pane_configuration.as_ref(app);
         let title = pane_config.title().to_owned();
-        let clip_config = if self.is_using_conversation_for_pane_header_title {
-            ClipConfig::ellipsis()
-        } else {
-            ClipConfig::start()
-        };
-
-        let should_render_ambient_agent_indicator = self.is_cloud_agent_session(app);
-        let theme = appearance.theme();
-        let render_agent_circle = |variant| {
-            render_icon_with_status(
-                variant,
-                PANE_HEADER_AGENT_SIZE,
-                0.,
-                theme,
-                theme.background(),
-            )
-        };
-        let pane_indicator = if should_render_ambient_agent_indicator {
-            // Shared/viewed ambient session: route through the shared helper so the pane header
-            // renders the same brand-color circle + cloud lobe + status as the vertical tab.
-            terminal_view_agent_icon_variant(self, app).map(render_agent_circle)
-        } else if let Some(shared_session) = self.shared_session.as_ref() {
-            if let Some(Viewer {
-                sharer: Some(sharer),
-                ..
-            }) = shared_session.kind().as_viewer()
-            {
-                Some(
-                    Container::new(ChildView::new(&sharer.avatar).finish())
-                        .with_margin_right(4.)
-                        .finish(),
-                )
-            } else {
-                Some(
-                    ConstrainedBox::new(
-                        icons::Icon::Sharing
-                            .to_warpui_icon(shared_session_indicator_color(appearance).into())
-                            .finish(),
-                    )
-                    .with_height(appearance.ui_font_size())
-                    .with_width(appearance.ui_font_size())
-                    .finish(),
-                )
-            }
-        } else if self.is_using_conversation_for_pane_header_title
-            || (self.is_long_running()
-                && self
-                    .ai_context_model
-                    .as_ref(app)
-                    .selected_conversation(app)
-                    .is_some())
-        {
-            // Conversation-bound terminal: same shared helper — produces an OzAgent variant for
-            // local conversations and a CLIAgent variant for the (rare) CLI-backed terminal.
-            terminal_view_agent_icon_variant(self, app).map(render_agent_circle)
-        } else {
-            self.render_terminal_mode_indicator(app)
-        };
+        let pane_indicator = self.render_terminal_mode_indicator(app);
 
         let is_pane_dragging = header_ctx.draggable_state.is_dragging();
         let mut center_row = Flex::row()
@@ -279,25 +170,13 @@ impl TerminalView {
         if let Some(indicator) = pane_indicator {
             center_row.add_child(Container::new(indicator).with_margin_right(4.).finish());
         }
-        let title_text = render_pane_header_title_text(title, appearance, clip_config);
+        let title_text = render_pane_header_title_text(title, appearance, ClipConfig::start());
         if is_pane_dragging {
             // During drag, all children must be non-flex to avoid panics
             // from infinite constraints on flex children.
             center_row.add_child(title_text);
         } else {
-            let title_element =
-                if is_fullscreen_agent_view && self.is_using_conversation_for_pane_header_title {
-                    Shrinkable::new(
-                        1.0,
-                        ConstrainedBox::new(title_text)
-                            .with_max_width(400.0)
-                            .finish(),
-                    )
-                    .finish()
-                } else {
-                    Shrinkable::new(1.0, title_text).finish()
-                };
-            center_row.add_child(title_element);
+            center_row.add_child(Shrinkable::new(1.0, title_text).finish());
         }
 
         center_row.finish()
@@ -344,11 +223,8 @@ impl TerminalView {
         header_ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let is_fullscreen_agent_view = FeatureFlag::AgentView.is_enabled()
-            && self.agent_view_controller.as_ref(app).is_fullscreen();
-
         let left = self.maybe_render_header_back_button(app);
-        let center = self.render_header_title(is_fullscreen_agent_view, header_ctx, app);
+        let center = self.render_header_title(header_ctx, app);
         let (right, min_actions_width) = self.render_header_actions(header_ctx, app);
 
         let header = render_three_column_header(
@@ -682,21 +558,6 @@ impl TerminalView {
     ) -> Option<String> {
         self.selected_conversation_for_user_facing_chrome(ctx)
             .and_then(AIConversation::latest_user_query)
-    }
-
-    fn selected_cli_agent_title_for_chrome(&self, ctx: &AppContext) -> Option<String> {
-        let session = CLIAgentSessionsModel::as_ref(ctx)
-            .session(self.view_id)
-            .filter(|session| session.listener.is_some())?;
-
-        if *TabSettings::as_ref(ctx).use_latest_user_prompt_as_conversation_title_in_tab_names {
-            session
-                .session_context
-                .latest_user_prompt()
-                .or_else(|| session.session_context.title_like_text())
-        } else {
-            session.session_context.title_like_text()
-        }
     }
 }
 

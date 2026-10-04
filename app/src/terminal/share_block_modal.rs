@@ -1349,7 +1349,6 @@ impl SingleBlock {
                 RespectDisplayedOutput::No,
                 &model.image_id_to_metadata,
                 None,
-                false, // hide_cursor_cell
                 ctx,
                 app,
             );
@@ -1406,7 +1405,6 @@ impl SingleBlock {
                 RespectDisplayedOutput::No,
                 &model.image_id_to_metadata,
                 None,
-                false, // hide_cursor_cell
                 ctx,
                 app,
             );

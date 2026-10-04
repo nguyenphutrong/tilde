@@ -3,10 +3,22 @@ import tempfile
 from pathlib import Path
 import unittest
 
-from check_local_only import REMOVED_SOURCES, REMOVED_SOURCE_SYMBOLS, inventory
+from check_local_only import ROOT, REMOVED_SOURCES, REMOVED_SOURCE_SYMBOLS, inventory
 
 
 class LocalOnlyGuardTests(unittest.TestCase):
+    def test_local_command_lifecycle_does_not_access_cli_agent_sessions(self):
+        source = (ROOT / "app/src/terminal/view.rs").read_text()
+        for start, end in [
+            ("ModelEvent::BlockCompleted(", "ModelEvent::VisibleBootstrapBlock"),
+            ("ModelEvent::AfterBlockStarted {", "ModelEvent::AfterBlockCompleted("),
+            ("InputEvent::Escape =>", "InputEvent::InputStateChanged"),
+        ]:
+            with self.subTest(handler=start):
+                handler = source.split(start, 1)[1].split(end, 1)[0]
+                self.assertNotIn("CLIAgentSessionsModel", handler)
+                self.assertNotIn("cli_agent", handler)
+
     def test_rejects_removed_startup_consumers(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

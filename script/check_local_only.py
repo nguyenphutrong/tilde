@@ -72,8 +72,24 @@ REMOVED_SOURCE_SYMBOLS = {
         "update_focused_terminal_info", "mcp_execution_path", "PersistedWorkspace",
         "InitProjectModel", "maybe_set_pending_repo_init_path", "start_lsp_server_in_active_pwd",
         "needs_git_status_for_agent_context", "needs_pr_info_for_agent_context",
+        "should_hide_cli_agent_cursor_cell", "with_hide_cursor_cell",
+        "is_using_conversation_for_pane_header_title", "active_session_remote_host",
+        "register_codex_listener_without_session_start_event", "handle_cli_agent_notification",
     ),
     "app/src/pane_group/mod.rs": ("transitively_share_existing_local_children",),
+    "app/src/terminal/view/pane_impl.rs": (
+        "CLIAgentSessionsModel", "selected_cli_agent_title_for_chrome",
+        "is_using_conversation_for_pane_header_title", "terminal_view_agent_icon_variant",
+        "shared_session_indicator_color", "PANE_HEADER_AGENT_SIZE",
+    ),
+    "app/src/context_chips/display.rs": ("terminal_view_id",),
+    "app/src/context_chips/display_chip.rs": (
+        "terminal_view_id", "CLIAgentSessionsModel", "is_cli_agent_session_active",
+    ),
+    **{f"app/src/terminal/{path}.rs": ("hide_cursor_cell", "with_hide_cursor_cell") for path in (
+        "grid_renderer", "blockgrid_renderer", "blockgrid_element", "block_list_element",
+        "alt_screen/alt_screen_element", "share_block_modal",
+    )},
 }
 
 

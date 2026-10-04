@@ -1825,7 +1825,7 @@ fn is_passive_conversation_does_not_re_derive_from_history_after_construction() 
 }
 
 #[test]
-fn updated_conversation_metadata_refreshes_selected_conversation_pane_title() {
+fn pane_title_uses_terminal_title_despite_legacy_conversation() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         let _agent_view = FeatureFlag::AgentView.override_enabled(false);
@@ -1857,11 +1857,9 @@ fn updated_conversation_metadata_refreshes_selected_conversation_pane_title() {
                     ctx,
                 );
             });
+            view.terminal_title = "local shell".to_string();
             view.update_pane_configuration(ctx);
-            assert_eq!(
-                view.pane_configuration.as_ref(ctx).title(),
-                "Original title"
-            );
+            assert_eq!(view.pane_configuration.as_ref(ctx).title(), "local shell");
 
             BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
                 history.apply_conversation_title(conversation_id, "Renamed title".to_string(), ctx)
@@ -1876,7 +1874,10 @@ fn updated_conversation_metadata_refreshes_selected_conversation_pane_title() {
                 ctx,
             );
 
-            assert_eq!(view.pane_configuration.as_ref(ctx).title(), "Renamed title");
+            assert_eq!(view.pane_configuration.as_ref(ctx).title(), "local shell");
+            view.terminal_title.clear();
+            view.update_pane_configuration(ctx);
+            assert_eq!(view.pane_configuration.as_ref(ctx).title(), "");
         });
     })
 }
@@ -2665,7 +2666,7 @@ fn command_first_word_and_suffix_handles_alias_without_args() {
 }
 
 #[test]
-fn escape_pops_nested_cloud_agent_view_with_long_running_command() {
+fn escape_does_not_switch_legacy_cloud_panes() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         let _agent_view = FeatureFlag::AgentView.override_enabled(true);
@@ -2727,7 +2728,7 @@ fn escape_pops_nested_cloud_agent_view_with_long_running_command() {
 
         assert_eq!(
             app.read_model(&pane_stack, |stack, _| stack.active_view().id()),
-            parent_terminal.id()
+            cloud_terminal.id()
         );
     })
 }
@@ -7366,6 +7367,29 @@ fn open_cli_agent_rich_input_for_agent_with_window_id(
         assert!(view.has_active_cli_agent_input_session(ctx));
     });
     (window_id, terminal)
+}
+
+#[test]
+fn escape_emits_local_event_without_touching_legacy_cli_input() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let _rich_input = FeatureFlag::CLIAgentRichInput.override_enabled(true);
+        let terminal = open_cli_agent_rich_input_for_agent(&mut app, CLIAgent::Claude);
+        let escape_count = Rc::new(RefCell::new(0));
+        let observed = escape_count.clone();
+        app.update(|ctx| {
+            ctx.subscribe_to_view(&terminal, move |_, event, _| {
+                if matches!(event, Event::Escape) {
+                    *observed.borrow_mut() += 1;
+                }
+            });
+        });
+        terminal.update(&mut app, |view, ctx| {
+            view.handle_input_event(&InputEvent::Escape, ctx);
+            assert!(view.has_active_cli_agent_input_session(ctx));
+        });
+        assert_eq!(*escape_count.borrow(), 1);
+    });
 }
 
 /// Verifies that Ctrl-G closes CLI agent rich input when dispatched from the

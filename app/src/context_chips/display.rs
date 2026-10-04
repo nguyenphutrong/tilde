@@ -7,8 +7,8 @@ use warpui::elements::{
     MainAxisSize, ParentElement, Wrap,
 };
 use warpui::{
-    AppContext, Entity, EntityId, FocusContext, ModelHandle, SingletonEntity, TypedActionView,
-    View, ViewContext, ViewHandle,
+    AppContext, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle,
 };
 
 use super::display_chip::{DisplayChip, DisplayChipConfig, PromptDisplayChipEvent};
@@ -47,7 +47,6 @@ impl RowBuilder {
 pub struct PromptDisplay {
     prompt: ModelHandle<PromptType>,
     display_chips: Vec<ViewHandle<DisplayChip>>,
-    terminal_view_id: EntityId,
     menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
     session_context: Option<SessionContext>,
     current_repo_path: Option<PathBuf>,
@@ -81,7 +80,6 @@ impl PromptDisplay {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         prompt: ModelHandle<PromptType>,
-        terminal_view_id: EntityId,
         menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
         session_context: Option<SessionContext>,
         current_repo_path: Option<PathBuf>,
@@ -94,7 +92,6 @@ impl PromptDisplay {
         Self {
             prompt,
             display_chips: vec![],
-            terminal_view_id,
             menu_positioning_provider,
             session_context,
             current_repo_path,
@@ -166,7 +163,6 @@ impl PromptDisplay {
                     chip_result.clone(),
                     next_chip_kind,
                     DisplayChipConfig {
-                        terminal_view_id: self.terminal_view_id,
                         menu_positioning_provider: self.menu_positioning_provider.clone(),
                         session_context: self.session_context.clone(),
                         current_repo_path: self.current_repo_path.clone(),

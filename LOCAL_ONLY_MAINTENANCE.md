@@ -469,3 +469,14 @@ The focused local Git/keymap/context-chip/workspace selection passed 190 tests; 
 tests, GUI all-target Clippy, integration/TUI checks and Linux GUI build passed. Fresh-profile Xvfb
 startup remains blocked by `GetRelevantFilesController::new` accessing the removed
 `CodebaseIndexManager`; no successful GUI rendering is claimed for this increment.
+
+Pane titles now follow the terminal title, including an empty title, rather than legacy conversation
+or CLI-agent metadata. Pane agent/sharing badges and prompt-chip CLI suppression are removed.
+Cursor visibility follows escape-sequence/output state in both ligature paths and alt-screen,
+without CLI rich-input overrides. Shell command completion no longer clears CLI-agent sessions;
+Escape emits the local dismissal event without closing rich input or navigating cloud panes.
+Static guards cover these paths and reject the pre-change command-completion implementation.
+Explicit legacy agent controls and eager AI startup controllers still remain removal work.
+The prompt-chip/grid/alt-screen/Escape/title selection passed 122 tests; 14 guard tests, format,
+GUI all-target Clippy and integration/TUI checks passed. Rendering remains blocked by the known
+startup controller dependency; no new visual result is claimed.
