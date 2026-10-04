@@ -534,3 +534,11 @@ all-target Clippy passed. The pane/shared-session selection ran 96 tests: 91 pas
 in child-pane restoration and late-arriving cloud-continuation updates. These failures have not been
 baseline-proven; the suite is not green. Removed cloud subscriptions are not restored to satisfy
 retired behavior. Local PTY sharing and history-rendering consumers remain startup removal work.
+
+Local PTY managers no longer construct or retain a sharer, replay conversations to viewers, or
+subscribe to prompt/input/LLM/presence/network broadcasts. The sharer WebSocket implementation and
+its exclusive tests are deleted. PTY ownership, local prompt construction, restoration separators,
+integration PID access and Windows OpenConsole shutdown remain. The regression sends the legacy
+share event with its feature flag enabled and verifies NotShared with an empty shared-view list.
+That regression, format, 14 guard tests, residue checking and GUI all-target Clippy passed. Viewer
+protocol/model consumers remain; Windows shutdown is preserved in source but not runtime-tested.
