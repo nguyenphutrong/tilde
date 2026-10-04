@@ -29,16 +29,12 @@ use warpui::{
 use super::WorkflowSource;
 use super::workflow::Workflow;
 use crate::appearance::Appearance;
-use crate::cloud_object::model::persistence::CloudModel;
 use crate::editor::Event as EditorEvent;
-use crate::send_telemetry_from_ctx;
-use crate::server::telemetry::TelemetryEvent;
 use crate::themes::theme::{self, Blend, WarpTheme};
 use crate::user_config::{WarpConfig, WarpConfigUpdateEvent};
 use crate::util::bindings::CustomAction;
 use crate::voltron::{VoltronFeatureViewMeta, VoltronMetadata};
 use crate::workflows::WorkflowType;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const SCROLLBAR_WIDTH: ScrollbarWidth = ScrollbarWidth::Auto;
 const DESCRIPTION_MARGIN: f32 = 24.;
@@ -83,10 +79,9 @@ pub enum WorkflowsViewAction {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum WorkflowViewType {
     All,
-    LocalPersonal, // represents both local + personal cloud
+    LocalPersonal,
     Project,
     Category { category_index: usize },
-    Team,
 }
 
 /// A Workflow's tag, or `Untagged` if the Workflow is not tagged at all.
@@ -152,7 +147,6 @@ impl WorkflowViewType {
             WorkflowViewType::All => "All",
             WorkflowViewType::LocalPersonal => "My Workflows",
             WorkflowViewType::Project => "Repository Workflows",
-            WorkflowViewType::Team => "Team Workflows",
             WorkflowViewType::Category { category_index, .. } => &category_names[*category_index],
         }
     }
@@ -168,7 +162,6 @@ impl WorkflowViewType {
             WorkflowViewType::All => "Showing all workflows".into(),
             WorkflowViewType::LocalPersonal => "Showing my workflows".into(),
             WorkflowViewType::Project => "Showing project workflows".into(),
-            WorkflowViewType::Team => "Showing team workflows".into(),
         };
 
         AccessibilityContent::new_without_help(a11y_content, WarpA11yRole::UserAction)
@@ -266,11 +259,6 @@ struct ScrollableListState {
 
 type CategorizedWorkflows = HashMap<WorkflowTag, Vec<Arc<WorkflowType>>>;
 
-#[derive(Default)]
-struct LinkMouseStateHandles {
-    documentation_link_handle: MouseStateHandle,
-}
-
 pub struct CategoriesView {
     handle: WeakViewHandle<Self>,
     workflow_list_state: ScrollableListState,
@@ -281,7 +269,6 @@ pub struct CategoriesView {
     category_names: Vec<String>,
     selected_workflow_index: usize,
     workflows_mouse_state_handles: Vec<MouseStateHandle>,
-    link_mouse_state_handles: LinkMouseStateHandles,
     selected_workflow_type: WorkflowViewType,
     focus_state: WorkflowsFocusState,
     search_term: String,
@@ -397,12 +384,6 @@ impl CategoriesView {
             ),
         );
 
-        // Notify if there were changes to the team workflows, so we can reload
-        let user_workspaces = UserWorkspaces::handle(ctx);
-        ctx.observe(&user_workspaces, |_, _, ctx| {
-            ctx.notify();
-        });
-
         ctx.subscribe_to_model(&WarpConfig::handle(ctx), |me, _, event, ctx| {
             if let WarpConfigUpdateEvent::LocalUserWorkflows = event {
                 me.update_workflows(ctx);
@@ -417,7 +398,6 @@ impl CategoriesView {
             active_workflows: Default::default(),
             selected_workflow_index: 0,
             workflows_mouse_state_handles: Default::default(),
-            link_mouse_state_handles: Default::default(),
             selected_workflow_type: WorkflowViewType::All,
             focus_state: WorkflowsFocusState::Editor,
             category_names: Default::default(),
@@ -491,28 +471,6 @@ impl CategoriesView {
         );
     }
 
-    pub fn load_cloud_workflows(&mut self, ctx: &mut ViewContext<Self>) {
-        let user_workspaces = UserWorkspaces::as_ref(ctx);
-        let cloud_model = CloudModel::as_ref(ctx);
-
-        for space in user_workspaces.spaces_for_window(ctx.window_id(), ctx) {
-            let workflows_in_space = cloud_model.active_workflows_in_space(space, ctx);
-            let new_workflows_in_space = Self::categorize_workflows(
-                // Don't include AI workflows in Voltron.
-                workflows_in_space
-                    .into_iter()
-                    .filter(|workflow| !workflow.model().data.is_agent_mode_workflow())
-                    .map(|w| Arc::new(WorkflowType::Cloud(Box::new(w.clone())))),
-            );
-            self.workflows_by_source
-                .insert(space.into(), new_workflows_in_space);
-        }
-
-        self.selected_workflow_index = 0;
-        self.compute_active_workflows(ctx);
-        ctx.notify();
-    }
-
     /// Given an iterator of a Vector workflows, constructs a `Vector` of `Workflow` and
     /// `WorkflowSource` pairs.
     fn create_workflow_source_pair<'a>(
@@ -567,52 +525,16 @@ impl CategoriesView {
                     )
                 })
                 .unwrap_or_default(),
-            WorkflowViewType::Team => {
-                let team_uid = UserWorkspaces::as_ref(ctx)
-                    .team_for_view(ctx)
-                    .map(|team| team.uid);
-                if let Some(team_uid) = team_uid {
-                    self.workflows_by_source
-                        .get(&WorkflowSource::Team { team_uid })
-                        .map(|categorized_workflows| {
-                            Self::create_workflow_source_pair(
-                                categorized_workflows.values(),
-                                WorkflowSource::Team { team_uid },
-                            )
-                        })
-                        .unwrap_or_default()
-                } else {
-                    Default::default()
-                }
-            }
-            WorkflowViewType::LocalPersonal => {
-                let local = self.workflows_by_source.get(&WorkflowSource::Local).map(
-                    |categorized_workflows| {
-                        Self::create_workflow_source_pair(
-                            categorized_workflows.values(),
-                            WorkflowSource::Local,
-                        )
-                    },
-                );
-                let personal_cloud = self
-                    .workflows_by_source
-                    .get(&WorkflowSource::PersonalCloud)
-                    .map(|categorized_workflows| {
-                        Self::create_workflow_source_pair(
-                            categorized_workflows.values(),
-                            WorkflowSource::PersonalCloud,
-                        )
-                    });
-                // Append the two options of vectors
-                let result = local.and_then(|v1| {
-                    personal_cloud.map(|v2| {
-                        let mut joined_vec = v1;
-                        joined_vec.extend(v2);
-                        joined_vec
-                    })
-                });
-                result.unwrap_or_default()
-            }
+            WorkflowViewType::LocalPersonal => self
+                .workflows_by_source
+                .get(&WorkflowSource::Local)
+                .map(|categorized_workflows| {
+                    Self::create_workflow_source_pair(
+                        categorized_workflows.values(),
+                        WorkflowSource::Local,
+                    )
+                })
+                .unwrap_or_default(),
             WorkflowViewType::Category { category_index } => self
                 .category_names
                 .get(*category_index)
@@ -752,40 +674,11 @@ impl CategoriesView {
     }
 
     fn render_empty_list_placeholder(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let no_workflows_text =
-            CategoriesView::text_label("No matching workflows found.", appearance);
-
-        let mut workflow_documentation_link_text =
-            Flex::row().with_child(CategoriesView::text_label("Try ", appearance));
-
-        workflow_documentation_link_text.add_child(
-            appearance
-                .ui_builder()
-                .link(
-                    "creating your own workflow".into(),
-                    Some(
-                        "https://docs.warp.dev/knowledge-and-collaboration/warp-drive/workflows"
-                            .into(),
-                    ),
-                    None,
-                    self.link_mouse_state_handles
-                        .documentation_link_handle
-                        .clone(),
-                )
-                .soft_wrap(false)
-                .with_style(UiComponentStyles {
-                    font_size: Some(WORKFLOW_SUBTEXT_FONT_SIZE),
-                    ..Default::default()
-                })
-                .build()
-                .finish(),
-        );
-
-        let flex_column = Flex::column()
-            .with_children([no_workflows_text, workflow_documentation_link_text.finish()])
-            .with_cross_axis_alignment(CrossAxisAlignment::Center);
-
-        Align::new(flex_column.finish()).finish()
+        Align::new(CategoriesView::text_label(
+            "No matching workflows found.",
+            appearance,
+        ))
+        .finish()
     }
 
     fn editor_enter(&mut self, ctx: &mut ViewContext<Self>) {
@@ -917,7 +810,6 @@ impl CategoriesView {
         let workflow_types = vec![
             WorkflowViewType::All,
             WorkflowViewType::LocalPersonal,
-            WorkflowViewType::Team,
             WorkflowViewType::Project,
         ];
 
@@ -1116,8 +1008,7 @@ impl CategoriesView {
     fn increment_focused_workflow_type(&mut self, ctx: &mut ViewContext<Self>) {
         let next = match &self.selected_workflow_type {
             WorkflowViewType::All => WorkflowViewType::LocalPersonal,
-            WorkflowViewType::LocalPersonal => WorkflowViewType::Team,
-            WorkflowViewType::Team => WorkflowViewType::Project,
+            WorkflowViewType::LocalPersonal => WorkflowViewType::Project,
             WorkflowViewType::Project if self.category_names.is_empty() => {
                 WorkflowViewType::Project
             }
@@ -1140,8 +1031,7 @@ impl CategoriesView {
             let previous = match &self.selected_workflow_type {
                 WorkflowViewType::All => WorkflowViewType::All,
                 WorkflowViewType::LocalPersonal => WorkflowViewType::All,
-                WorkflowViewType::Team => WorkflowViewType::LocalPersonal,
-                WorkflowViewType::Project => WorkflowViewType::Team,
+                WorkflowViewType::Project => WorkflowViewType::LocalPersonal,
                 WorkflowViewType::Category { category_index, .. } if *category_index == 0 => {
                     WorkflowViewType::Project
                 }
@@ -1261,9 +1151,6 @@ impl VoltronFeatureViewMeta for CategoriesView {
             self.load_project_workflows(active_path, ctx);
         }
 
-        self.load_cloud_workflows(ctx);
-
-        send_telemetry_from_ctx!(TelemetryEvent::OpenWorkflowSearch, ctx);
         self.search_term = String::new();
         ctx.notify();
     }

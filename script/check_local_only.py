@@ -80,6 +80,9 @@ REMOVED_TELEMETRY_SYMBOLS = re.compile(
 )
 REMOVED_SOURCE_SYMBOLS = {
     "app/src/lib.rs": ("app_installation_detection",),
+    "app/src/workflows/categories.rs": (
+        "CloudModel", "UserWorkspaces", "load_cloud_workflows", "PersonalCloud", "TelemetryEvent",
+    ),
     "app/src/ai/mod.rs": ("get_relevant_files",),
     "app/src/server/server_api.rs": ("get_relevant_files", "GetRelevantFiles"),
     "app/src/ai/agent/api/impl.rs": ("SearchCodebase", "RunAgents"),

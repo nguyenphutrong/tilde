@@ -518,3 +518,11 @@ restoration, plan configuration and cloud-error presentation consumers remain, w
 singletons or database changes. Static guards reject the deleted sources and launch plumbing.
 Format, 14 guard tests, the residue check, GUI all-target Clippy and 124 selected API/persistence/
 block/document/orchestration tests passed. GUI startup is not yet verified at this checkpoint.
+
+Local workflow templates are registered at startup. The workflow browser no longer observes cloud
+workspaces, fetches cloud collections, emits workflow telemetry, or offers team navigation. My
+Workflows now returns local entries without requiring a personal-cloud collection. Local, project,
+bundled workflows and search remain. A regression constructs the real browser without cloud models
+and checks local command content, category navigation and search reset. All 26 selected workflow
+tests, format, 14 guard tests, the residue check and GUI all-target Clippy passed. Visual verification
+remains deferred until the outstanding eager AI details/sharing consumers are removed.
