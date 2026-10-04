@@ -9398,13 +9398,6 @@ impl View for Input {
             ctx.set.insert("PromptChipMenuOpen");
         }
 
-        if BlocklistAIHistoryModel::as_ref(app)
-            .all_live_conversations_for_terminal_surface(self.terminal_view_id)
-            .any(|conversation| conversation.initial_user_query().is_some())
-        {
-            ctx.set.insert("ActiveAIConversationHasHistory");
-        }
-
         if AppEditorSettings::as_ref(app).vim_mode_enabled() {
             ctx.set.insert("VimModeEnabled");
         }

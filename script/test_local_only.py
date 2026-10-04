@@ -19,6 +19,11 @@ class LocalOnlyGuardTests(unittest.TestCase):
                 self.assertNotIn("CLIAgentSessionsModel", handler)
                 self.assertNotIn("cli_agent", handler)
 
+    def test_local_input_keymap_does_not_access_ai_history(self):
+        source = (ROOT / "app/src/terminal/input.rs").read_text()
+        keymap = source.split("fn keymap_context(", 1)[1].split("fn render(", 1)[0]
+        self.assertNotIn("BlocklistAIHistoryModel", keymap)
+
     def test_rejects_removed_startup_consumers(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

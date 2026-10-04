@@ -91,6 +91,8 @@ REMOVED_TELEMETRY_SYMBOLS = re.compile(
 )
 REMOVED_SOURCE_SYMBOLS = {
     "app/src/lib.rs": ("app_installation_detection",),
+    "app/src/tab.rs": ("BlocklistAIHistoryModel", "agent_indicator", "is_cloud_agent_session"),
+    "app/src/terminal/input.rs": ("ActiveAIConversationHasHistory",),
     "app/src/workflows/categories.rs": (
         "CloudModel", "UserWorkspaces", "load_cloud_workflows", "PersonalCloud", "TelemetryEvent",
     ),
