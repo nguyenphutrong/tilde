@@ -82,7 +82,7 @@ use crate::persistence::model::{
     UserProfile,
 };
 use crate::server::experiments::ServerExperiment;
-use crate::server::ids::{ClientId, HashableId, ServerId, SyncId};
+use crate::server::ids::{ClientId, HashableId, SyncId};
 use crate::server::telemetry::TelemetryEvent;
 use crate::settings_view::SettingsSection;
 use crate::suggestions::ignored_suggestions_model::SuggestionType;
@@ -854,7 +854,7 @@ fn save_app_state(conn: &mut SqliteConnection, app_state: &AppState) -> Result<(
                     .agent_management_filters
                     .as_ref()
                     .and_then(|f| serde_json::to_string(f).ok()),
-                team_uid: window.team_uid.map(Into::into),
+                team_uid: window.team_uid.clone(),
             };
             diesel::insert_into(schema::windows::dsl::windows)
                 .values(new_window)
@@ -2332,9 +2332,7 @@ fn read_sqlite_data(
                     WindowSnapshot {
                         tabs: saved_tabs,
                         active_tab_index: tab_index,
-                        team_uid: window.team_uid.and_then(|persisted_team_uid| {
-                            ServerId::try_from(persisted_team_uid).ok()
-                        }),
+                        team_uid: window.team_uid,
                         quake_mode: window.quake_mode,
                         bounds,
                         universal_search_width: window.universal_search_width,

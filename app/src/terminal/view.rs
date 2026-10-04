@@ -301,7 +301,6 @@ use crate::server::telemetry::{
     WorkflowTelemetryMetadata,
 };
 use crate::session_management::{CommandContext, SessionNavigationPromptElements};
-use crate::settings::ai::FocusedTerminalInfo;
 #[cfg(feature = "local_fs")]
 use crate::settings::import::model::ImportedConfigModel;
 #[cfg(feature = "local_fs")]
@@ -358,9 +357,6 @@ use crate::terminal::links::should_directly_open_link;
 use crate::terminal::local_tty::get_shell_starter;
 #[cfg(feature = "local_tty")]
 use crate::terminal::local_tty::shell::ShellStarter;
-#[cfg(feature = "local_tty")]
-#[cfg(all(windows, feature = "local_tty"))]
-use crate::terminal::local_tty::windows::get_user_and_system_env_variable;
 use crate::terminal::model::ansi::{ClearMode, Handler};
 use crate::terminal::model::block::{
     AgentInteractionMetadata, Block, BlockId, BlockMetadata, LONG_RUNNING_BOTTOM_PADDING_LINES,
@@ -398,7 +394,6 @@ use crate::terminal::shared_session::role_change_modal::{
 };
 use crate::terminal::shared_session::{
     SharedSessionActionSource, SharedSessionScrollbackType, SharedSessionSource,
-    SharedSessionStatus,
 };
 use crate::terminal::view::init_environment::mode_selector::{
     EnvironmentSetupMode, EnvironmentSetupModeSelector, EnvironmentSetupModeSelectorEvent,
@@ -6930,34 +6925,6 @@ impl TerminalView {
             .all(|block| block.restored_block_was_local().unwrap_or(true))
     }
 
-    /// Publishes this pane and its remote-block state to [`FocusedTerminalInfo`], which
-    /// `AISettings::is_ai_disabled_due_to_remote_session_org_policy` reads.
-    ///
-    /// What is published is a fact about the pane, independent of the remote-session AI
-    /// permission; that permission is resolved against this pane's team where the decision is
-    /// made, so it can be revoked without anything here having to be republished.
-    fn update_focused_terminal_info(&mut self, ctx: &mut ViewContext<Self>) {
-        if !ctx.is_self_or_child_focused() {
-            return;
-        }
-
-        let terminal = self.view_handle.clone();
-        let contains_remote_blocks = self.any_session_contains_remote_blocks;
-        let contains_restored_remote_blocks = self.any_session_contains_restored_remote_blocks;
-        let updated =
-            FocusedTerminalInfo::handle(ctx).update(ctx, |model: &mut FocusedTerminalInfo, ctx| {
-                model.update(
-                    terminal,
-                    contains_remote_blocks,
-                    contains_restored_remote_blocks,
-                    ctx,
-                )
-            });
-        if updated {
-            ctx.notify();
-        }
-    }
-
     fn maybe_report_focus_out(&mut self, ctx: &mut ViewContext<Self>) {
         if self.should_report_focus(ctx) && self.is_focused_and_active {
             self.write_to_pty(EscCodes::FOCUS_OUT, ctx);
@@ -8129,14 +8096,7 @@ impl TerminalView {
             self.horizontal_clipped_scroll_state.clone(),
             content_element_size,
             self.input_size_at_last_frame(app).unwrap_or_default(),
-            if BlocklistAIHistoryModel::as_ref(app)
-                .active_conversation(self.view_id)
-                .is_some()
-            {
-                AutoscrollBehavior::WhenScrolledToEnd
-            } else {
-                AutoscrollBehavior::Always
-            },
+            AutoscrollBehavior::Always,
             self.inline_menu_positioner.clone(),
         )
     }
@@ -9549,88 +9509,13 @@ impl TerminalView {
     fn active_block_is_considered_remote(&self, app: &AppContext) -> bool {
         let model = self.model.lock();
         let active_block = model.block_list().active_block();
-        self.is_block_considered_remote(
-            active_block.session_id(),
-            Some(&active_block.command_to_string()),
-            app,
-        )
+        self.is_block_considered_remote(active_block.session_id(), app)
     }
 
-    /// Returns true if the block is considered remote.
-    ///
-    /// Note that we don't know for sure if a block is remote, because we can only detect
-    /// warpified remote blocks.
-    ///
-    /// For some organizations, we accept a regex list that we run against commands to
-    /// further make the determination.
-    fn is_block_considered_remote(
-        &self,
-        session_id: Option<SessionId>,
-        command: Option<&str>,
-        app: &AppContext,
-    ) -> bool {
-        let is_warpified_remote = session_id
-            .map(|id| {
-                self.sessions
-                    .as_ref(app)
-                    .get(id)
-                    .map(|session| !session.is_local())
-                    .unwrap_or_default()
-            })
-            .unwrap_or_default();
-
-        if is_warpified_remote {
-            return true;
-        }
-
-        // If there's a command present, check it against the remote-session command patterns
-        // configured by the user's organization.
-        let Some(command) = command else {
-            return false;
-        };
-
-        let user_workspaces = UserWorkspaces::as_ref(app);
-        let scope = user_workspaces.team_context(&self.view_handle, app);
-        let remote_session_regex_list = user_workspaces.get_remote_session_regex_list(&scope);
-
-        // Almost nobody has org patterns at all, so there is nothing further to check.
-        if remote_session_regex_list.is_empty() {
-            return false;
-        }
-
-        // First check if the command matches any of the regexes in the list.
-        if remote_session_regex_list
-            .iter()
-            .any(|regex| regex.is_match(command))
-        {
-            return true;
-        }
-
-        // Then check if there's an alias for the top level command that matches the regex.
-        let Some(session_id) = session_id else {
-            return false;
-        };
-        let Some(session) = self.sessions.as_ref(app).get(session_id) else {
-            return false;
-        };
-        let escape_char = session.shell_family().escape_char();
-        let Some(top_level_command) =
-            warp_completer::parsers::simple::top_level_command(command, escape_char)
-        else {
-            return false;
-        };
-        let Some(alias) = session.alias_value(top_level_command.as_str()) else {
-            return false;
-        };
-
-        if remote_session_regex_list
-            .iter()
-            .any(|regex| regex.is_match(alias))
-        {
-            return true;
-        }
-
-        false
+    fn is_block_considered_remote(&self, session_id: Option<SessionId>, app: &AppContext) -> bool {
+        session_id
+            .and_then(|id| self.sessions.as_ref(app).get(id))
+            .is_some_and(|session| !session.is_local())
     }
 
     /// Cleans up and removes the conversation associated with the given AI block.
@@ -10270,14 +10155,8 @@ impl TerminalView {
                 block_id,
                 ..
             } => {
-                let did_any_session_contains_remote_blocks =
-                    self.any_session_contains_remote_blocks;
                 self.any_session_contains_remote_blocks |=
                     self.active_block_is_considered_remote(ctx);
-                if self.any_session_contains_remote_blocks != did_any_session_contains_remote_blocks
-                {
-                    self.update_focused_terminal_info(ctx);
-                }
 
                 if *is_for_in_band_command {
                     return;
@@ -10794,36 +10673,24 @@ impl TerminalView {
                     // session restoration is enabled.
                     ctx.emit(Event::BlockCompleted {
                         block: serialized_block.clone(),
-                        is_local: !self.is_block_considered_remote(
-                            serialized_block.session_id,
-                            Some(block_completed.command.get_with(|compute| {
-                                let model = self.model.lock();
-                                compute(model.block_list())
-                            })),
-                            ctx,
-                        ),
+                        is_local: !self
+                            .is_block_considered_remote(serialized_block.session_id, ctx),
                     });
                 } else if let BlockType::Background(serialized_block) = block_type {
                     // Because background output blocks are before the active block, they need to be saved
                     // via a BlockCompleted event but don't affect focus or input.
                     ctx.emit(Event::BlockCompleted {
                         block: serialized_block.clone(),
-                        is_local: !self.is_block_considered_remote(
-                            serialized_block.session_id,
-                            None,
-                            ctx,
-                        ),
+                        is_local: !self
+                            .is_block_considered_remote(serialized_block.session_id, ctx),
                     });
                 } else if let BlockType::BootstrapVisible(serialized_block) = block_type {
                     // Re-compute the focus after the visible bootstrap block has completed.
                     self.redetermine_terminal_focus(ctx);
                     ctx.emit(Event::BlockCompleted {
                         block: serialized_block.clone(),
-                        is_local: !self.is_block_considered_remote(
-                            serialized_block.session_id,
-                            None,
-                            ctx,
-                        ),
+                        is_local: !self
+                            .is_block_considered_remote(serialized_block.session_id, ctx),
                     });
                 }
 
@@ -11172,39 +11039,8 @@ impl TerminalView {
             self.insert_vim_mode_banner(ctx);
         }
 
-        // If we were waiting to share this session once it was bootstrapped,
-        // we can now attempt to share it.
-        let pending_share = match self.model.lock().shared_session_status() {
-            SharedSessionStatus::SharePendingPreBootstrap { source } => Some(source.clone()),
-            _ => None,
-        };
-        if let Some(source) = pending_share {
-            log::info!("Terminal bootstrapped with pending shared session; attempting to share");
-            self.attempt_to_share_session(
-                SharedSessionScrollbackType::All,
-                None,
-                source,
-                false,
-                ctx,
-            );
-        }
-
         if let Some(env_var_collection) = self.pending_env_var_collection.take() {
             self.invoke_environment_variables(env_var_collection, false, ctx);
-        }
-
-        // If this is a new local session, update the PATH used for MCP command execution.
-        if let Some(path) = Self::local_session_path(&session) {
-            AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                // TODO: This logic is likely incorrect, as it's dynamically determining the path based on the most
-                // recent session, which is not directly relevant to starting the MCP server. This caused an issue
-                // on Windows where the PATH was sometimes Unix-like and other times PowerShell-like, when it should
-                // always be PowerShell-like. Also an odd data flow problem to be updating an AI User Setting
-                // based on a local session bootstrapping.
-                if let Err(e) = settings.mcp_execution_path.set_value(Some(path), ctx) {
-                    log::warn!("Failed to set MCP execution path: {e:?}");
-                }
-            })
         }
 
         // Make sure we decorate any text that is already in the input.  We
@@ -11241,13 +11077,6 @@ impl TerminalView {
 
         self.any_session_contains_restored_remote_blocks = self.contains_restored_remote_blocks();
         self.any_session_contains_remote_blocks |= self.active_block_is_considered_remote(ctx);
-        self.update_focused_terminal_info(ctx);
-
-        if let Some(working_directory) = self.active_session_path_if_local(ctx) {
-            CodebaseIndexManager::handle(ctx).update(ctx, |manager, _ctx| {
-                manager.handle_session_bootstrapped(&working_directory);
-            });
-        }
 
         // At the end of bootstrapping, set the title to the title of
         // the selected conversation. If there is no selected conversation,
@@ -11256,64 +11085,8 @@ impl TerminalView {
 
         self.ignore_next_set_title_event = true;
 
-        // Now that the session is bootstrapped, update any restored AI blocks that were
-        // created before bootstrapping with the shell launch data. This enables file link
-        // detection and the "Open in Warp" button on code blocks in restored conversations.
-        if let Some(shell_launch_data) = self.active_session.as_ref(ctx).shell_launch_data(ctx) {
-            let ai_block_handles: Vec<_> = self
-                .rich_content_views
-                .iter()
-                .filter_map(|rc| rc.ai_block_metadata())
-                .map(|metadata| metadata.ai_block_handle.clone())
-                .collect();
-            for handle in ai_block_handles {
-                handle.update(ctx, |block, ctx| {
-                    block.set_shell_launch_data(Some(shell_launch_data.clone()), ctx);
-                });
-            }
-        }
-
         self.refresh_warp_prompt(ctx);
         ctx.emit(Event::SessionBootstrapped);
-    }
-
-    // Helper function to get the PATH variable for a local session.
-    fn local_session_path(session: &Session) -> Option<String> {
-        if matches!(session.session_type(), SessionType::Local) && session.subshell_info().is_none()
-        {
-            #[cfg(all(windows, feature = "local_tty"))]
-            let path = {
-                let path_result =
-                    get_user_and_system_env_variable("PATH").map(|entry| entry.into_string());
-                let result = match path_result {
-                    Some(Ok(path_result)) => Some(path_result),
-                    None => {
-                        log::warn!("Failed to get PATH for session on Windows.");
-                        None
-                    }
-                    Some(Err(e)) => {
-                        log::warn!("Failed to convert PATH for session on Windows: `{e:?}`");
-                        None
-                    }
-                };
-                if result.is_none() {
-                    if session.shell_family() == ShellFamily::PowerShell {
-                        // This is a fallback for if the OsString cannot be converted to a String.
-                        // We cannot accept a Posix PATH on Windows.
-                        session.path().clone()
-                    } else {
-                        None
-                    }
-                } else {
-                    result
-                }
-            };
-            #[cfg(not(all(windows, feature = "local_tty")))]
-            let path = session.path().clone();
-
-            return path;
-        }
-        None
     }
 
     fn should_display_vim_banner(
@@ -15543,7 +15316,6 @@ impl TerminalView {
 
         // Since we just cleared blocks, we can just look at the state of the active block
         self.any_session_contains_remote_blocks = self.active_block_is_considered_remote(ctx);
-        self.update_focused_terminal_info(ctx);
 
         ctx.notify();
 
@@ -24395,7 +24167,6 @@ impl View for TerminalView {
 
             ctx.notify();
         }
-        self.update_focused_terminal_info(ctx);
     }
 
     fn on_blur(&mut self, blur_ctx: &BlurContext, ctx: &mut ViewContext<Self>) {

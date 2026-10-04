@@ -3,10 +3,23 @@ import tempfile
 from pathlib import Path
 import unittest
 
-from check_local_only import REMOVED_SOURCES, inventory
+from check_local_only import REMOVED_SOURCES, REMOVED_SOURCE_SYMBOLS, inventory
 
 
 class LocalOnlyGuardTests(unittest.TestCase):
+    def test_rejects_removed_startup_consumers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "Cargo.lock").write_text('[[package]]\nname="local"\nversion="1"\n')
+            for relative, symbols in REMOVED_SOURCE_SYMBOLS.items():
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                for symbol in symbols:
+                    with self.subTest(path=relative, symbol=symbol):
+                        path.write_text(symbol)
+                        _, forbidden = inventory(root, [relative])
+                        self.assertEqual(forbidden, [f"{relative}: removed {symbol}"])
+
     def test_rejects_telemetry_transport_but_keeps_local_events(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
