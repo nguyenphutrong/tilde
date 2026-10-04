@@ -501,3 +501,12 @@ No database schema or stored rows change. The API, persistence, block and execut
 passed 179 tests, including the profile tests deferred above. Format, 14 guard tests and GUI
 all-target Clippy passed with the authorized baseline warning allowance. Eager child-agent and
 orchestration consumers still require removal before GUI startup can be established.
+
+The AI controller no longer subscribes to orchestration event services, injects pending messages,
+piggybacks them on action results, or requeues them after a failed request. The CLI subagent
+controller no longer consumes history task-created/task-upgraded events; its ordinary action and
+terminal completion subscriptions remain. Static guards reject the removed subscriptions and
+handlers. This removes two startup dependencies without restoring any AI singleton or altering
+stored history. Child-agent executors and other startup consumers remain separate removal work.
+Format, all 14 guard tests, the residue check and GUI all-target Clippy passed. Controller runtime
+tests and GUI startup remain part of the combined verification; no new runtime result is claimed.

@@ -6,7 +6,7 @@ use parking_lot::FairMutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use warp_core::send_telemetry_from_ctx;
 use warp_errors::report_error;
-use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
+use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use crate::BlocklistAIHistoryModel;
 use crate::ai::agent::conversation::AIConversationId;
@@ -18,9 +18,7 @@ use crate::ai::agent::{
 };
 use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewEntryOrigin};
 use crate::ai::blocklist::context_model::block_context_from_terminal_model;
-use crate::ai::blocklist::{
-    BlocklistAIActionEvent, BlocklistAIActionModel, BlocklistAIController, BlocklistAIHistoryEvent,
-};
+use crate::ai::blocklist::{BlocklistAIActionEvent, BlocklistAIActionModel, BlocklistAIController};
 use crate::server::telemetry::{CLISubagentControlState, TelemetryEvent};
 use crate::terminal::TerminalModel;
 use crate::terminal::model::block::BlockId;
@@ -209,7 +207,6 @@ pub struct CLISubagentController {
     action_model: ModelHandle<BlocklistAIActionModel>,
     agent_view_controller: Option<ModelHandle<AgentViewController>>,
     terminal_model: Arc<FairMutex<TerminalModel>>,
-    terminal_view_id: EntityId,
     // Active or recently-active CLI subagent state, keyed by the associated block.
     active_subagents_by_block: HashMap<BlockId, ActiveCLISubagentState>,
 }
@@ -221,12 +218,8 @@ impl CLISubagentController {
         agent_view_controller: Option<ModelHandle<AgentViewController>>,
         terminal_model: Arc<FairMutex<TerminalModel>>,
         model_event_dispatcher: &ModelHandle<ModelEventDispatcher>,
-        terminal_view_id: EntityId,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        let history_model = BlocklistAIHistoryModel::handle(ctx);
-        ctx.subscribe_to_model(&history_model, Self::handle_history_model_event);
-
         ctx.subscribe_to_model(action_model, |me, _, event, ctx| match event {
             BlocklistAIActionEvent::ActionBlockedOnUserConfirmation(_) => {
                 let mut terminal_model = me.terminal_model.lock();
@@ -352,7 +345,6 @@ impl CLISubagentController {
             action_model: action_model.clone(),
             agent_view_controller,
             terminal_model,
-            terminal_view_id,
             active_subagents_by_block: HashMap::new(),
         }
     }
@@ -624,114 +616,6 @@ impl CLISubagentController {
                     ctx
                 );
             }
-        }
-    }
-
-    fn handle_history_model_event(
-        &mut self,
-        _: ModelHandle<BlocklistAIHistoryModel>,
-        event: &BlocklistAIHistoryEvent,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if event
-            .terminal_surface_id()
-            .is_some_and(|id| id != self.terminal_view_id)
-        {
-            return;
-        }
-        match event {
-            BlocklistAIHistoryEvent::CreatedSubtask {
-                task_id,
-                conversation_id,
-                ..
-            } => {
-                let history_model = BlocklistAIHistoryModel::handle(ctx);
-                let Some(cli_subagent_block_id) = history_model
-                    .as_ref(ctx)
-                    .conversation(conversation_id)
-                    .and_then(|c| c.get_task(task_id))
-                    .and_then(|task| task.cli_subagent_block_id())
-                else {
-                    return;
-                };
-
-                let mut terminal_model = self.terminal_model.lock();
-                let Some(block) = terminal_model
-                    .block_list_mut()
-                    .mut_block_from_id(&cli_subagent_block_id)
-                else {
-                    return;
-                };
-                let block_id = block.id().clone();
-                if let Err(e) = block.set_agent_interaction_mode_for_agent_monitored_command(
-                    task_id,
-                    *conversation_id,
-                ) {
-                    report_error!(
-                        anyhow::Error::new(e)
-                            .context("Could not update interaction mode to agent-monitored")
-                    );
-                    return;
-                };
-
-                let action_id = block.requested_command_action_id().cloned();
-                let agent_has_control = block.is_agent_in_control();
-                drop(terminal_model);
-
-                // When the CLI subagent is first created for a long running command,
-                // the agent now has control. Emit an UpdatedControl event so that
-                // shared-session state can reflect this initial control state.
-                ctx.emit(CLISubagentEvent::UpdatedControl {
-                    block_id: block_id.clone(),
-                    requested_command_action_id: action_id.clone(),
-                    agent_has_control,
-                });
-                self.active_subagents_by_block
-                    .entry(block_id.clone())
-                    .or_default()
-                    .task_id = Some(task_id.clone());
-
-                ctx.emit(CLISubagentEvent::SpawnedSubagent {
-                    task_id: task_id.clone(),
-                    conversation_id: *conversation_id,
-                    block_id: block_id.clone(),
-                    initial_requested_command_action_id: action_id,
-                });
-            }
-            BlocklistAIHistoryEvent::UpgradedTask {
-                optimistic_id: old_id,
-                server_id: new_id,
-                ..
-            } => {
-                let block_id =
-                    self.active_subagents_by_block
-                        .iter()
-                        .find_map(|(block_id, state)| {
-                            (state.task_id.as_ref() == Some(old_id)).then_some(block_id.clone())
-                        });
-                if let Some(block_id) = block_id {
-                    let mut terminal_model = self.terminal_model.lock();
-                    if let Some(block) =
-                        terminal_model.block_list_mut().mut_block_from_id(&block_id)
-                    {
-                        match block.upgrade_cli_subagent_task_id(new_id.clone()) {
-                            Ok(()) => {
-                                if let Some(state) =
-                                    self.active_subagents_by_block.get_mut(&block_id)
-                                {
-                                    state.task_id = Some(new_id.clone());
-                                }
-                            }
-                            Err(e) => {
-                                report_error!(e.context(
-                                    "Tried to upgrade CLISubagent task ID for non-existent block"
-                                ));
-                            }
-                        }
-                    }
-                }
-            }
-            _ => (),
         }
     }
 }

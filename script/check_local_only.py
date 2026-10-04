@@ -81,6 +81,14 @@ REMOVED_SOURCE_SYMBOLS = {
     "app/src/ai/blocklist/action_model/execute.rs": (
         "GetRelevantFilesController", "SearchCodebaseExecutor", "search_codebase",
     ),
+    "app/src/ai/blocklist/controller.rs": (
+        "OrchestrationEventService", "OrchestrationEventStreamer",
+        "conversation_ready_for_pending_events", "inject_pending_events_for_request",
+        "handle_pending_events_ready", "drain_events_for_request", "requeue_awaiting_events",
+    ),
+    "app/src/ai/blocklist/block/cli_controller.rs": (
+        "BlocklistAIHistoryEvent", "handle_history_model_event",
+    ),
     "app/src/app_state.rs": ("ServerId",),
     "app/src/settings/mod.rs": ("cloud_preferences_syncer",),
     "app/src/settings/privacy.rs": ("CloudPreferencesSyncer", "maybe_sync_with_warp_drive_prefs"),
