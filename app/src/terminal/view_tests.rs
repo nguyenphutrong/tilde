@@ -1019,6 +1019,31 @@ fn bootstrap_with_long_running_block(view: &mut TerminalView) {
 }
 
 #[test]
+fn ctrl_c_interrupts_local_command_without_agent_controls() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+        let writes = Rc::new(RefCell::new(Vec::new()));
+        app.update(|ctx| {
+            let writes = writes.clone();
+            ctx.subscribe_to_view(&terminal, move |_, event, _| {
+                if let Event::WriteBytesToPty { bytes } = event {
+                    writes.borrow_mut().push(bytes.to_vec());
+                }
+            });
+        });
+        terminal.update(&mut app, |view, ctx| {
+            view.model
+                .lock()
+                .simulate_long_running_block("sleep 20", "");
+            view.ctrl_c(ctx);
+            view.ctrl_c(ctx);
+        });
+        assert_eq!(*writes.borrow(), vec![vec![C0::ETX], vec![C0::ETX]]);
+    });
+}
+
+#[test]
 fn local_paste_preserves_newline_and_bracketed_paste_bytes() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);

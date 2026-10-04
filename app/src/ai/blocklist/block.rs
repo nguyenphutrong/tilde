@@ -9,7 +9,6 @@ pub mod number_shortcut_buttons;
 pub mod numbered_button;
 pub mod pending_user_query_block;
 pub mod secret_redaction;
-pub mod status_bar;
 pub mod view_impl;
 
 use std::cell::OnceCell;

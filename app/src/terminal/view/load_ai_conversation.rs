@@ -96,10 +96,6 @@ pub enum ConversationRestorationInNewPaneType {
         conversation: AIConversation,
         /// True when the fork is paired with a follow-up prompt or summarize that
         /// will be sent immediately after restore.
-        /// We skip the `couldn't find original conversation directory` ephemeral
-        /// hint in that case so the warping indicator (gated on
-        /// `ephemeral_message_model.current_message().is_none()` in
-        /// `BlocklistAIStatusBar::render`) isn't suppressed by the hint.
         has_initial_query: bool,
     },
 

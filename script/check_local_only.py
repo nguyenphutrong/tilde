@@ -53,6 +53,8 @@ REMOVED_SOURCES = (
     "app/src/ai/skills/resolve_skill_spec_tests.rs",
     "app/src/ai/conversation_details_panel.rs",
     "app/src/ai/conversation_details_panel_tests.rs",
+    "app/src/ai/blocklist/block/status_bar.rs",
+    "app/src/ai/blocklist/summarization_cancel_dialog.rs",
     "app/src/settings/cloud_preferences_syncer.rs",
     "app/src/settings/cloud_preferences_syncer_tests.rs",
     "app/src/server/cloud_objects/fake_object_client.rs",
