@@ -297,47 +297,6 @@ impl AIDocumentModel {
         }
     }
 
-    /// Publishes every document owned by a conversation before child-agent launch.
-    pub(in crate::ai) fn publish_documents_for_conversation(
-        &mut self,
-        conversation_id: AIConversationId,
-        ctx: &mut ModelContext<Self>,
-    ) -> Vec<AIDocumentId> {
-        self.reconcile_all_document_server_backing(ctx);
-        let document_ids = self
-            .documents
-            .iter()
-            .filter_map(|(document_id, document)| {
-                (document.conversation_id == conversation_id).then_some(*document_id)
-            })
-            .collect::<Vec<_>>();
-        let mut awaiting_server_backing = Vec::new();
-
-        for document_id in document_ids {
-            match self.get_document_save_status(&document_id) {
-                AIDocumentSaveStatus::Saved => {
-                    self.maybe_update_cloud_notebook_data(&document_id, ctx);
-                }
-                AIDocumentSaveStatus::Saving => {
-                    self.refresh_saving_document_content(&document_id, ctx);
-                    awaiting_server_backing.push(document_id);
-                }
-                AIDocumentSaveStatus::NotSaved => {
-                    if !self.sync_to_warp_drive(document_id, ctx) {
-                        report_error!(
-                            "Failed to publish plan document to Warp Drive before child-agent launch.",
-                            extra: { "document_id" => %document_id }
-                        );
-                    } else if !self.get_document_save_status(&document_id).is_saved() {
-                        awaiting_server_backing.push(document_id);
-                    }
-                }
-            }
-        }
-
-        awaiting_server_backing
-    }
-
     /// Reconciles a document with an existing server-backed Warp Drive notebook.
     fn reconcile_document_server_backing(
         &mut self,
@@ -363,33 +322,6 @@ impl AIDocumentModel {
         let document_ids = self.documents.keys().copied().collect::<Vec<_>>();
         for document_id in document_ids {
             self.reconcile_document_server_backing(&document_id, ctx);
-        }
-    }
-
-    /// Refreshes the latest content for a plan whose Warp Drive creation is in progress.
-    fn refresh_saving_document_content(
-        &mut self,
-        document_id: &AIDocumentId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let Some(document) = self.documents.get(document_id) else {
-            return;
-        };
-        let title = document.title.clone();
-        let content = document.editor.as_ref(ctx).markdown(ctx);
-        let sync_id = document.sync_id;
-
-        for pending in self
-            .pending_document_queue
-            .iter_mut()
-            .filter(|pending| pending.id == *document_id)
-        {
-            pending.title.clone_from(&title);
-            pending.content.clone_from(&content);
-        }
-
-        if sync_id.is_some_and(|sync_id| CloudModel::as_ref(ctx).get_notebook(&sync_id).is_some()) {
-            self.maybe_update_cloud_notebook_data(document_id, ctx);
         }
     }
 

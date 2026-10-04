@@ -22,7 +22,7 @@ use crate::agent::action_result::{
     EditDocumentsResult, FetchConversationResult, FileGlobResult, FileGlobV2Result, GrepResult,
     InsertReviewCommentsResult, ReadDocumentsResult, ReadFilesResult, ReadMCPResourceResult,
     ReadShellCommandOutputResult, ReadSkillResult, RequestCommandOutputResult,
-    RequestComputerUseResult, RequestFileEditsResult, RunAgentsResult, SendMessageToAgentResult,
+    RequestComputerUseResult, RequestFileEditsResult, SendMessageToAgentResult,
     StartRecordingResult, StopRecordingResult, SuggestNewConversationResult, SuggestPromptResult,
     TransferShellCommandControlToUserResult, UploadArtifactResult, UseComputerResult,
     WaitForEventsResult, WriteToLongRunningShellCommandResult,
@@ -190,13 +190,6 @@ pub enum AIAgentActionType {
         questions: Vec<AskUserQuestionItem>,
     },
 
-    /// AI requested batched orchestration of one-or-more child agents that
-    /// share run-wide configuration (model, harness, execution mode).
-    /// The full per-child prompt is computed at dispatch time as
-    /// `base_prompt + "\n\n" + agent_run_configs[i].prompt` (or just
-    /// `base_prompt` when the per-agent `prompt` is empty).
-    RunAgents(RunAgentsRequest),
-
     /// Synthesized from a server-emitted Message::ToolCall::WaitForEvents;
     /// dispatched by WaitForEventsExecutor.
     WaitForEvents {
@@ -207,27 +200,6 @@ pub enum AIAgentActionType {
         /// falls back to a default.
         idle_timeout_seconds: i32,
     },
-}
-
-/// Run-wide + per-agent configuration for a `RunAgents` tool call.
-///
-/// Mirrors the proto `RunAgents` message. Server-resolved fields
-/// (`model_id`, `harness_type`, `execution_mode`'s remote details) are
-/// folded in by the server's final tool-call re-emission once the
-/// payload is complete; the client renders the full layout from a
-/// fully-resolved instance only.
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct RunAgentsRequest {
-    pub summary: String,
-    pub base_prompt: String,
-    pub skills: Vec<SkillReference>,
-    pub model_id: String,
-    pub harness_type: String,
-    pub execution_mode: RunAgentsExecutionMode,
-    pub agent_run_configs: Vec<RunAgentsAgentRunConfig>,
-    pub plan_id: String,
-    /// Resolved client-side at dispatch time; not serialized to the wire.
-    pub harness_auth_secret_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -249,57 +221,6 @@ impl RunAgentsExecutionMode {
     pub fn is_remote(&self) -> bool {
         matches!(self, Self::Remote { .. })
     }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct RunAgentsAgentRunConfig {
-    pub name: String,
-    pub prompt: String,
-    pub title: String,
-    /// Optional UID of the named agent (service account) this child run
-    /// should execute as. Empty means the child runs as the caller. Only
-    /// meaningful for factory agents dispatching sibling factory agents;
-    /// requires remote execution and is enforced server-side at dispatch.
-    pub agent_identity_uid: String,
-    /// Optional model override for this specific child agent. When non-empty,
-    /// overrides the batch-level `model_id` for this child only. When empty,
-    /// the child inherits the batch-level model.
-    pub model_id: String,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum StartAgentExecutionMode {
-    Local {
-        /// `None` selects the legacy embedded local child-agent flow.
-        /// `Some(...)` selects a third-party CLI harness to launch locally.
-        harness_type: Option<String>,
-        /// `None` inherits the parent agent's preferred LLM (legacy behavior).
-        /// `Some(_)` overrides the child's preferred LLM with the supplied
-        /// model id (used by the orchestrate confirmation card so the user's
-        /// model selection is honored on local launches).
-        model_id: Option<String>,
-    },
-    Remote {
-        environment_id: String,
-        skill_references: Vec<SkillReference>,
-        model_id: String,
-        computer_use_enabled: bool,
-        worker_host: String,
-        harness_type: String,
-        title: String,
-        /// Name of a managed secret to forward as the authentication
-        /// credential for the remote child when running a non-Oz harness.
-        /// `None` means no client-side secret was selected — the remote
-        /// environment falls back to its own ambient credentials.
-        auth_secret_name: Option<String>,
-        /// Runner UID selecting the child's compute config. Empty means
-        /// "no override" — resolved at dispatch via the environment's
-        /// default runner then system defaults.
-        runner_id: String,
-        /// UID of the named agent (service account) the remote child run
-        /// should execute as. `None` means the child runs as the caller.
-        agent_identity_uid: Option<String>,
-    },
 }
 
 impl AIAgentActionType {
@@ -401,7 +322,6 @@ impl AIAgentActionType {
             Self::AskUserQuestion { .. } => {
                 AIAgentActionResultType::AskUserQuestion(AskUserQuestionResult::Cancelled)
             }
-            Self::RunAgents(_) => AIAgentActionResultType::RunAgents(RunAgentsResult::Cancelled),
             Self::WaitForEvents { .. } => {
                 AIAgentActionResultType::WaitForEvents(WaitForEventsResult::Cancelled)
             }
@@ -449,9 +369,6 @@ impl AIAgentActionType {
             }
             Self::AskUserQuestion { questions } => {
                 format!("Ask user {} question(s)", questions.len())
-            }
-            Self::RunAgents(req) => {
-                format!("Orchestrate {} agent(s)", req.agent_run_configs.len())
             }
             Self::WaitForEvents { .. } => "Wait for events".to_string(),
         }
@@ -631,15 +548,6 @@ impl Display for AIAgentActionType {
             }
             AIAgentActionType::AskUserQuestion { questions } => {
                 write!(f, "AskUserQuestion: {} question(s)", questions.len())
-            }
-            AIAgentActionType::RunAgents(req) => {
-                let names = req
-                    .agent_run_configs
-                    .iter()
-                    .map(|c| c.name.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                write!(f, "Orchestrate: summary='{}' agents=[{names}]", req.summary,)
             }
             AIAgentActionType::WaitForEvents {
                 tool_call_id,

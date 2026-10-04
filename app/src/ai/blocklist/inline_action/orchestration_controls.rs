@@ -1,10 +1,6 @@
-//! Shared orchestration controls reused by the `RunAgentsCardView`
-//! confirmation card editor and the plan-card
-//! `OrchestrationConfigBlockView`.
+//! Orchestration configuration controls.
 //!
-//! The generic parameter `A` is the parent view's typed action — both
-//! consumers impl [`OrchestrationControlAction`] to provide the mapping
-//! from field-change events to their own action enum.
+//! The generic parameter `A` maps field-change events to the parent view's typed actions.
 
 use ai::agent::action::RunAgentsExecutionMode;
 use pathfinder_color::ColorU;
@@ -78,9 +74,7 @@ pub fn runner_controls_enabled(ctx: &AppContext) -> bool {
 
 // ── Action trait ────────────────────────────────────────────────────
 
-/// Trait that both `RunAgentsCardViewAction` and
-/// `OrchestrationConfigBlockAction` implement so the shared picker
-/// creation and render helpers can produce the correct action variant.
+/// Maps picker changes to typed actions.
 pub trait OrchestrationControlAction: DropdownItemAction + Clone {
     fn execution_mode_toggled(is_remote: bool) -> Self;
     fn model_changed(model_id: String) -> Self;
@@ -921,15 +915,6 @@ fn render_segment_button<A: OrchestrationControlAction>(
     })
     .with_cursor(Cursor::PointingHand)
     .finish()
-}
-
-pub fn render_picker_row<A: OrchestrationControlAction>(
-    state: &OrchestrationConfigState,
-    handles: &OrchestrationPickerHandles<A>,
-    appearance: &Appearance,
-    show_runner_controls: bool,
-) -> Box<dyn Element> {
-    render_picker_row_with_layout(state, handles, appearance, false, show_runner_controls)
 }
 
 /// Renders pickers vertically at full width when `vertical` is true,

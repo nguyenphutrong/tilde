@@ -108,13 +108,14 @@ fn supports_orchestration_v2_matches_request_orchestration_setting() {
 }
 
 #[test]
-fn supported_tools_include_orchestration_tools_when_orchestration_enabled() {
+fn orchestration_never_advertises_retired_child_agent_launch() {
     let mut params = request_params_with_ask_user_question_enabled(false);
     params.orchestration_enabled = true;
 
     let supported_tools = get_supported_tools(&params);
 
-    assert!(supported_tools.contains(&api::ToolType::RunAgents));
+    assert!(!supported_tools.contains(&api::ToolType::RunAgents));
+    assert!(!get_supported_cli_agent_tools(&params).contains(&api::ToolType::RunAgents));
     assert!(supported_tools.contains(&api::ToolType::SendMessageToAgent));
 }
 

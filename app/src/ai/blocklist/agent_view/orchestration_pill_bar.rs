@@ -3,24 +3,14 @@ use std::hash::{Hash, Hasher};
 
 use pathfinder_color::ColorU;
 use warp_core::ui::appearance::Appearance;
-use warp_core::ui::color::coloru_with_opacity;
 use warp_core::ui::theme::WarpTheme;
 use warpui::elements::{
-    Align, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Element, Empty, Flex,
-    MainAxisSize, ParentElement, Radius, Stack, Text,
+    Align, ConstrainedBox, Container, CornerRadius, Element, Empty, ParentElement, Radius, Stack,
+    Text,
 };
 use warpui::fonts::{Properties, Weight};
-use warpui::text_layout::ClipConfig;
-use warpui::{AppContext, SingletonEntity};
 
 use crate::ui_components::icons::Icon;
-
-const PILL_HEIGHT: f32 = 22.;
-const PILL_RADIUS: f32 = PILL_HEIGHT / 2.;
-const AVATAR_SIZE: f32 = 16.;
-const PILL_HORIZONTAL_PADDING_LEFT: f32 = 4.;
-const STATIC_PILL_LABEL_MAX_WIDTH: f32 = 110.;
-const STATIC_PILL_HORIZONTAL_PADDING_RIGHT: f32 = 10.;
 
 /// Stable palette used to color child agent avatars deterministically by name.
 fn pill_palette(theme: &WarpTheme) -> [ColorU; 6] {
@@ -83,43 +73,6 @@ pub(crate) fn render_agent_avatar_disc(
 enum AvatarGlyph {
     Letter(char),
     Icon(Icon),
-}
-
-/// Renders a non-interactive agent label.
-pub fn render_static_agent_pill(name: &str, app: &AppContext) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-    let avatar = render_agent_avatar_disc(name, AVATAR_SIZE, theme, appearance);
-    let text_color = theme.ansi_fg_magenta();
-    let bg_color = coloru_with_opacity(text_color, 10);
-    let label_text = Text::new(name.to_string(), appearance.ui_font_family(), 12.)
-        .with_color(text_color)
-        .soft_wrap(false)
-        .with_clip(ClipConfig::ellipsis())
-        .finish();
-
-    let row = Flex::row()
-        .with_cross_axis_alignment(CrossAxisAlignment::Center)
-        .with_main_axis_size(MainAxisSize::Min)
-        .with_spacing(6.)
-        .with_child(avatar)
-        .with_child(
-            ConstrainedBox::new(label_text)
-                .with_max_width(STATIC_PILL_LABEL_MAX_WIDTH)
-                .finish(),
-        )
-        .finish();
-
-    ConstrainedBox::new(
-        Container::new(row)
-            .with_padding_left(PILL_HORIZONTAL_PADDING_LEFT)
-            .with_padding_right(STATIC_PILL_HORIZONTAL_PADDING_RIGHT)
-            .with_background_color(bg_color)
-            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(PILL_RADIUS)))
-            .finish(),
-    )
-    .with_height(PILL_HEIGHT)
-    .finish()
 }
 
 /// Renders the avatar circle as a colored disc with a centered glyph (letter

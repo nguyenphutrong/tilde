@@ -93,7 +93,6 @@ use crate::ai::blocklist::inline_action::requested_action::{
     render_requested_action_row, render_requested_action_row_for_text,
 };
 use crate::ai::blocklist::inline_action::requested_command::RequestedCommand;
-use crate::ai::blocklist::inline_action::run_agents_card_view::RunAgentsCardView;
 use crate::ai::blocklist::inline_action::suggested_unit_tests::SuggestedUnitTestsView;
 use crate::ai::blocklist::inline_action::web_fetch::WebFetchView;
 use crate::ai::blocklist::inline_action::web_search::WebSearchView;
@@ -185,12 +184,6 @@ pub(crate) struct Props<'a> {
     pub(super) gemini_enterprise_credentials_error_view:
         Option<&'a ViewHandle<GeminiEnterpriseCredentialsErrorView>>,
     pub(super) imported_comments: &'a HashMap<AIAgentActionId, ImportedCommentGroup>,
-    /// Per-orchestrate-action card view. Each `RunAgentsCardView` owns
-    /// its own edit state, button + picker handles, and in-flight
-    /// spawning snapshot; AIBlock just lazily creates the view per
-    /// `AIAgentActionId` and embeds it via `ChildView` when the action
-    /// is rendered. Multi-card lifecycle = AIBlock lifecycle.
-    pub(crate) run_agents_card_views: &'a HashMap<AIAgentActionId, ViewHandle<RunAgentsCardView>>,
     #[cfg(feature = "local_fs")]
     pub(crate) resolved_code_block_paths:
         &'a HashMap<std::path::PathBuf, Option<std::path::PathBuf>>,
@@ -811,22 +804,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             should_render_footer = false;
                             output_items
                                 .add_child(render_request_computer_use(props, id, request, app));
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::RunAgents(_req),
-                            id,
-                            ..
-                        }) => {
-                            // Embed the per-action `RunAgentsCardView`
-                            // via `ChildView`. The view renders a
-                            // "Configuring agents..." placeholder while
-                            // streaming, then transitions to the full
-                            // confirmation card once complete.
-                            should_render_footer = false;
-                            should_render_suggestions = false;
-                            if let Some(card_view) = props.run_agents_card_views.get(id) {
-                                output_items.add_child(ChildView::new(card_view).finish());
-                            }
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
                             action:

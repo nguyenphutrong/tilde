@@ -22,16 +22,12 @@ pub use providers::{
     resolve_auth_secret_selection_for_harness, resolve_default_environment_id,
     resolve_default_host_slug,
 };
-pub(crate) use providers::{
-    can_execute_with_auth_secret, populate_default_auth_secret_for_execution,
-};
 pub(crate) use remote_child::should_disable_snapshot;
 #[cfg_attr(not(feature = "tui"), allow(unused_imports))]
 pub use remote_child::{
     CloudAgentStartupAuthFlow, CloudAgentStartupBlocker, CloudAgentStartupFailure,
-    CloudAgentStartupIssue, CloudAgentStartupPresentation, PrepareRemoteChildLaunchError,
-    PreparedRemoteChildLaunch, RemoteChildLaunchConfig, classify_cloud_agent_startup_error,
-    oz_run_url, prepare_remote_child_launch,
+    CloudAgentStartupIssue, CloudAgentStartupPresentation, classify_cloud_agent_startup_error,
+    oz_run_url,
 };
 #[cfg_attr(not(feature = "tui"), allow(unused_imports))]
 pub use snapshots::location_snapshot;

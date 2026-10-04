@@ -29,14 +29,10 @@ pub use execute::{
     AskUserQuestionExecutor, EditAcceptAndContinueClickedEvent, EditAcceptClickedEvent,
     EditResolvedEvent, EditStats, NewConversationDecision, PromptSuggestionExecutor,
     ReadFileContextResult, RequestFileEditsExecutor, RequestFileEditsFormatKind,
-    RequestFileEditsTelemetryEvent, RunAgentsExecutor, RunAgentsExecutorEvent,
-    RunAgentsSpawningSnapshot, ShellCommandExecutor, ShellCommandExecutorEvent, StartAgentExecutor,
-    StartAgentExecutorEvent, StartAgentOutcome, StartAgentRequest, StartAgentRequestId,
+    RequestFileEditsTelemetryEvent, ShellCommandExecutor, ShellCommandExecutorEvent,
     read_local_file_context,
 };
 pub(crate) use execute::{MalformedFinalLineProxyEvent, coerce_integer_args};
-#[cfg(test)]
-pub(crate) use execute::{compose_run_agents_child_prompt, run_agents_to_start_agent_mode};
 use futures::future::{BoxFuture, join_all};
 use itertools::Itertools;
 use parking_lot::FairMutex;
@@ -61,7 +57,6 @@ use crate::ai::agent::{
     RequestCommandOutputResult,
 };
 use crate::ai::blocklist::action_model::execute::suggest_new_conversation::SuggestNewConversationExecutor;
-use crate::ai::blocklist::telemetry::send_run_agents_completed_telemetry;
 use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::terminal::TerminalModel;
 use crate::terminal::model::session::active_session::ActiveSession;
@@ -388,14 +383,6 @@ impl BlocklistAIActionModel {
         self.executor.as_ref(app).suggest_prompt_executor().clone()
     }
 
-    pub fn start_agent_executor(&self, app: &AppContext) -> ModelHandle<StartAgentExecutor> {
-        self.executor.as_ref(app).start_agent_executor().clone()
-    }
-
-    pub fn run_agents_executor(&self, app: &AppContext) -> ModelHandle<RunAgentsExecutor> {
-        self.executor.as_ref(app).run_agents_executor().clone()
-    }
-
     pub fn ask_user_question_executor(
         &self,
         app: &AppContext,
@@ -703,74 +690,6 @@ impl BlocklistAIActionModel {
                 }
             }
         }
-    }
-
-    /// Dispatches a `RunAgents` action with the user-edited request
-    /// from the confirmation card.
-    pub fn execute_run_agents(
-        &mut self,
-        action_id: &AIAgentActionId,
-        request: ai::agent::action::RunAgentsRequest,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let mut found = None;
-        for (conv_id, queue) in self.pending_actions.iter_mut() {
-            if let Some(action) = queue.iter_mut().find(|action| &action.id == action_id) {
-                found = Some((*conv_id, action));
-                break;
-            }
-        }
-        let Some((conversation_id, action)) = found else {
-            log::warn!(
-                "BlocklistAIActionModel::execute_run_agents: no pending action for {action_id:?}"
-            );
-            return;
-        };
-        if !matches!(action.action, AIAgentActionType::RunAgents(_)) {
-            log::warn!(
-                "BlocklistAIActionModel::execute_run_agents: pending action {action_id:?} is not RunAgents"
-            );
-            return;
-        }
-        action.action = AIAgentActionType::RunAgents(request);
-        self.execute_action(action_id, conversation_id, ctx);
-    }
-
-    /// Removes a pending `RunAgents` action and records a `Denied`
-    /// result. Used when the orchestration config is disapproved at
-    /// the time the action becomes blocked on user confirmation.
-    pub fn deny_run_agents(
-        &mut self,
-        action_id: &AIAgentActionId,
-        reason: String,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let mut found: Option<(AIConversationId, AIAgentAction)> = None;
-        for (conv_id, queue) in self.pending_actions.iter_mut() {
-            if let Some(idx) = queue.iter().position(|a| &a.id == action_id) {
-                if let Some(action) = queue.remove(idx) {
-                    found = Some((*conv_id, action));
-                }
-                break;
-            }
-        }
-        let Some((conversation_id, action)) = found else {
-            log::warn!(
-                "BlocklistAIActionModel::deny_run_agents: no pending action for {action_id:?}"
-            );
-            return;
-        };
-        let result =
-            AIAgentActionResultType::RunAgents(ai::agent::action_result::RunAgentsResult::Denied {
-                reason,
-            });
-        send_run_agents_completed_telemetry(conversation_id, &action.action, &result, ctx);
-        let result = Arc::new(AIAgentActionResult {
-            id: action.id,
-            task_id: action.task_id,
-            result,
-        });
-        self.handle_action_result(conversation_id, result, None, ctx);
     }
 
     /// Attempts to execute the next pending action for the active conversation.
@@ -1247,12 +1166,6 @@ impl BlocklistAIActionModel {
         }
 
         let cancelled_result = pending_action.action.cancelled_result();
-        send_run_agents_completed_telemetry(
-            conversation_id,
-            &pending_action.action,
-            &cancelled_result,
-            ctx,
-        );
         let result = Arc::new(AIAgentActionResult {
             id: pending_action.id,
             task_id: pending_action.task_id,

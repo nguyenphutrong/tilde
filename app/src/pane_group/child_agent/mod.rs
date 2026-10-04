@@ -10,14 +10,10 @@ use warp_cli::agent::Harness;
 use warp_errors::report_error;
 use warpui::{EntityId, SingletonEntity, ViewContext, ViewHandle};
 
-use crate::ai::agent::RenderableAIError;
-use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
+use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::attachment_utils::attachments_download_dir;
-use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
-use crate::ai::blocklist::{
-    BlocklistAIHistoryModel, StartAgentRequestId, inherit_child_agent_settings,
-};
+use crate::ai::blocklist::{BlocklistAIHistoryModel, inherit_child_agent_settings};
 use crate::pane_group::{PaneGroup, PaneId};
 use crate::terminal::TerminalView;
 use crate::terminal::shared_session::IsSharedSessionCreator;
@@ -45,15 +41,6 @@ pub(crate) struct HiddenChildAgentConversationRequest {
     /// The dispatch helpers in `terminal_pane.rs` compute this from the host
     /// terminal's own shared-session state.
     pub is_shared_session_creator: IsSharedSessionCreator,
-}
-
-pub(crate) struct ErrorChildAgentConversationRequest {
-    pub parent_pane_id: PaneId,
-    pub name: String,
-    pub parent_conversation_id: AIConversationId,
-    pub request_id: Option<StartAgentRequestId>,
-    pub orchestration_harness: Option<Harness>,
-    pub error_message: String,
 }
 
 pub(crate) fn apply_hidden_child_agent_task_context(
@@ -153,110 +140,4 @@ pub(crate) fn create_hidden_child_agent_conversation(
         terminal_view_id,
         conversation_id,
     })
-}
-
-fn create_error_child_agent_conversation_context(
-    group: &mut PaneGroup,
-    parent_pane_id: PaneId,
-    name: String,
-    parent_conversation_id: AIConversationId,
-    orchestration_harness: Option<Harness>,
-    ctx: &mut ViewContext<PaneGroup>,
-) -> Option<(Option<ViewHandle<TerminalView>>, EntityId, AIConversationId)> {
-    if let Some(HiddenChildAgentConversation {
-        terminal_view,
-        terminal_view_id,
-        conversation_id,
-        ..
-    }) = create_hidden_child_agent_conversation(
-        group,
-        HiddenChildAgentConversationRequest {
-            parent_pane_id,
-            name: name.clone(),
-            parent_conversation_id,
-            orchestration_harness,
-            env_vars: HashMap::new(),
-            task_context: None,
-            is_shared_session_creator: IsSharedSessionCreator::No,
-        },
-        ctx,
-    ) {
-        return Some((Some(terminal_view), terminal_view_id, conversation_id));
-    }
-
-    let parent_terminal_view = group.terminal_view_from_pane_id(parent_pane_id, ctx)?;
-    let parent_terminal_view_id = parent_terminal_view.id();
-    let conversation_id = start_new_child_conversation(
-        parent_terminal_view_id,
-        name,
-        parent_conversation_id,
-        orchestration_harness,
-        ctx,
-    );
-    Some((None, parent_terminal_view_id, conversation_id))
-}
-
-pub(crate) fn create_error_child_agent_conversation(
-    group: &mut PaneGroup,
-    request: ErrorChildAgentConversationRequest,
-    ctx: &mut ViewContext<PaneGroup>,
-) -> Option<AIConversationId> {
-    let ErrorChildAgentConversationRequest {
-        parent_pane_id,
-        name,
-        parent_conversation_id,
-        request_id,
-        orchestration_harness,
-        error_message,
-    } = request;
-    let Some((terminal_view, terminal_view_id, conversation_id)) =
-        create_error_child_agent_conversation_context(
-            group,
-            parent_pane_id,
-            name,
-            parent_conversation_id,
-            orchestration_harness,
-            ctx,
-        )
-    else {
-        report_error!(
-            "Failed to surface local child harness error for parent conversation",
-            extra: {
-                "parent_conversation_id" => ?parent_conversation_id,
-                "error_message" => %error_message
-            }
-        );
-        return None;
-    };
-
-    if let Some(request_id) = request_id {
-        BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-            history_model.record_new_conversation_request_complete(
-                request_id,
-                conversation_id,
-                ctx,
-            );
-        });
-    }
-    if let Some(terminal_view) = terminal_view {
-        terminal_view.update(ctx, |terminal_view, ctx| {
-            terminal_view.enter_agent_view(
-                None,
-                Some(conversation_id),
-                AgentViewEntryOrigin::ChildAgent,
-                ctx,
-            );
-        });
-    }
-
-    BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-        history_model.update_conversation_status_with_error(
-            terminal_view_id,
-            conversation_id,
-            ConversationStatus::Error,
-            Some(RenderableAIError::other(error_message, false)),
-            ctx,
-        );
-    });
-    Some(conversation_id)
 }

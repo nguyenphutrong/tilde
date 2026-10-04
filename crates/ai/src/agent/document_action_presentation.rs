@@ -124,7 +124,6 @@ impl DocumentActionPresentation {
                 | AIAgentActionType::SendMessageToAgent { .. }
                 | AIAgentActionType::TransferShellCommandControlToUser { .. }
                 | AIAgentActionType::AskUserQuestion { .. }
-                | AIAgentActionType::RunAgents(_)
                 | AIAgentActionType::WaitForEvents { .. },
                 _,
             ) => None,

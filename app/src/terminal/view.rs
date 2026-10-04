@@ -228,10 +228,9 @@ use crate::ai::blocklist::{
     ConversationSelection, ConversationStatusUpdate, InputConfig, InputType,
     InputTypeAutoDetectionSource, PRE_REWIND_PREFIX, PendingAttachment, PendingQueryState,
     QueuedQuery, QueuedQueryId, QueuedQueryModel, QueuedQueryOrigin, ShellCommandExecutor,
-    ShellCommandExecutorEvent, SlashCommandRequest, StartAgentExecutor, StartAgentExecutorEvent,
-    StartAgentRequest, ai_brand_color, block_context_from_terminal_model,
-    get_ai_block_overflow_menu_element_position_id, get_attached_blocks_chip_element_position_id,
-    is_lrc_auto_queue_active,
+    ShellCommandExecutorEvent, SlashCommandRequest, ai_brand_color,
+    block_context_from_terminal_model, get_ai_block_overflow_menu_element_position_id,
+    get_attached_blocks_chip_element_position_id, is_lrc_auto_queue_active,
 };
 use crate::ai::conversation_details_panel::ConversationDetailsPanelEvent;
 use crate::ai::conversation_utils;
@@ -1801,13 +1800,6 @@ pub enum Event {
         title: Option<String>,
         body: String,
     },
-    /// Emitted when the StartAgent executor needs the workspace to create
-    /// a new child agent conversation in a split pane. The freshly-created
-    /// child conversation id is echoed back to the executor via
-    /// [`BlocklistAIHistoryModel::record_new_conversation_request_complete`]
-    /// so the executor can disambiguate per-request pendings when multiple
-    /// StartAgent requests are in flight in parallel.
-    StartAgentConversation(StartAgentRequest),
     /// Emitted when the user clicks a child agent row in the status card to reveal
     /// its hidden pane.
     RevealChildAgent {
@@ -3430,10 +3422,6 @@ impl TerminalView {
             Self::handle_shell_command_executor_event,
         );
 
-        ctx.subscribe_to_model(
-            &ai_action_model.as_ref(ctx).start_agent_executor(ctx),
-            Self::handle_start_agent_executor_event,
-        );
         let find_bar = ctx.add_typed_action_view(|ctx| Find::new(find_model.clone(), ctx));
         ctx.subscribe_to_view(&find_bar, move |me, _, event, ctx| {
             me.handle_find_event(event, ctx);
@@ -4762,7 +4750,6 @@ impl TerminalView {
             | BlocklistAIHistoryEvent::RestoredConversations { .. }
             | BlocklistAIHistoryEvent::ConversationServerTokenAssigned { .. }
             | BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalSurfaces { .. }
-            | BlocklistAIHistoryEvent::NewConversationRequestComplete { .. }
             | BlocklistAIHistoryEvent::OrchestrationConfigUpdated { .. }
             | BlocklistAIHistoryEvent::ConversationUsageMetadataUpdated { .. }
             | BlocklistAIHistoryEvent::LocalSharedSessionEstablished { .. } => None,
@@ -5283,7 +5270,6 @@ impl TerminalView {
             | BlocklistAIHistoryEvent::UpdatedConversationMetadata { .. }
             | BlocklistAIHistoryEvent::UpdatedConversationArtifacts { .. }
             | BlocklistAIHistoryEvent::ConversationServerTokenAssigned { .. }
-            | BlocklistAIHistoryEvent::NewConversationRequestComplete { .. }
             | BlocklistAIHistoryEvent::OrchestrationConfigUpdated { .. }
             | BlocklistAIHistoryEvent::ConversationUsageMetadataUpdated { .. }
             | BlocklistAIHistoryEvent::LocalSharedSessionEstablished { .. } => {}
@@ -6208,28 +6194,6 @@ impl TerminalView {
                         },
                         ctx,
                     );
-                });
-            }
-        }
-    }
-
-    fn handle_start_agent_executor_event(
-        &mut self,
-        _executor: ModelHandle<StartAgentExecutor>,
-        event: &StartAgentExecutorEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            StartAgentExecutorEvent::CreateAgent(request) => {
-                ctx.emit(Event::StartAgentConversation(request.as_ref().clone()));
-            }
-            StartAgentExecutorEvent::CleanupFailedChildLaunch { conversation_id } => {
-                // The child failed at launch and never started a server-side
-                // run; reuse the Kill path to drop its hidden pane and
-                // conversation so the orchestration pill bar stops showing a
-                // dead chip.
-                ctx.emit(Event::KillAgentConversation {
-                    conversation_id: *conversation_id,
                 });
             }
         }
@@ -18278,74 +18242,6 @@ impl TerminalView {
         ctx: &mut ViewContext<Self>,
     ) -> ViewHandle<AIBlock> {
         self.insert_dummy_ai_block_internal(query, DummyAIBlockOutput::Streaming, ctx)
-    }
-
-    /// Inserts a dummy AI block whose stream was cancelled while a `run_agents`
-    /// tool call for `agent_names` was still streaming, so the call never
-    /// reached the action queue and has no action status.
-    #[cfg(any(test, feature = "integration_tests"))]
-    pub fn insert_dummy_cancelled_run_agents_ai_block(
-        &mut self,
-        query: String,
-        summary: String,
-        agent_names: Vec<String>,
-        ctx: &mut ViewContext<Self>,
-    ) -> ViewHandle<AIBlock> {
-        use ai::agent::action::{
-            RunAgentsAgentRunConfig, RunAgentsExecutionMode, RunAgentsRequest,
-        };
-
-        use crate::ai::agent::task::TaskId;
-        use crate::ai::agent::{
-            AIAgentAction, AIAgentActionId, AIAgentActionType, AIAgentOutput, AIAgentOutputMessage,
-            AIAgentText, AIAgentTextSection, MessageId,
-        };
-
-        let request = RunAgentsRequest {
-            summary: summary.clone(),
-            base_prompt: "Shared instructions for every child agent.".to_owned(),
-            skills: vec![],
-            model_id: "auto".to_owned(),
-            harness_type: "oz".to_owned(),
-            execution_mode: RunAgentsExecutionMode::Local,
-            agent_run_configs: agent_names
-                .into_iter()
-                .map(|name| RunAgentsAgentRunConfig {
-                    name,
-                    prompt: "Do the work.".to_owned(),
-                    title: String::new(),
-                    agent_identity_uid: String::new(),
-                    model_id: String::new(),
-                })
-                .collect(),
-            plan_id: String::new(),
-            harness_auth_secret_name: None,
-        };
-
-        let output = AIAgentOutput {
-            messages: vec![
-                AIAgentOutputMessage::text(
-                    MessageId::new("fake-run-agents-text-id".to_owned()),
-                    AIAgentText {
-                        sections: vec![AIAgentTextSection::PlainText {
-                            text: summary.into(),
-                        }],
-                    },
-                ),
-                AIAgentOutputMessage::action(
-                    MessageId::new("fake-run-agents-action-message-id".to_owned()),
-                    AIAgentAction {
-                        id: AIAgentActionId::from("fake-run-agents-action-id".to_owned()),
-                        task_id: TaskId::new("fake-task-id".to_owned()),
-                        action: AIAgentActionType::RunAgents(request),
-                        requires_result: true,
-                    },
-                ),
-            ],
-            server_output_id: Some(Self::dummy_server_output_id()),
-            ..Default::default()
-        };
-        self.insert_dummy_ai_block_internal(query, DummyAIBlockOutput::Cancelled(output), ctx)
     }
 
     #[cfg(any(test, feature = "integration_tests"))]

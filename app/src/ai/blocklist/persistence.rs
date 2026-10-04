@@ -431,9 +431,6 @@ impl From<&AIAgentActionType> for PersistedAIAgentActionType {
                 conversation_id: conversation_id.clone(),
             },
             AIAgentActionType::SendMessageToAgent { .. } => Self::NotPersisted,
-            // Orchestrate is rendered from the in-history tool call message;
-            // there is no per-action state we need to persist locally.
-            AIAgentActionType::RunAgents(_) => Self::NotPersisted,
             // The wait is dropped on restart; the unresolved tool call
             // stays in the transcript as an orphan until the next
             // outbound request triggers the server's supersede.
