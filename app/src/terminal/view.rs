@@ -236,7 +236,6 @@ use crate::ai::blocklist::{
 use crate::ai::conversation_details_panel::ConversationDetailsPanelEvent;
 use crate::ai::conversation_utils;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
-use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
 use crate::ai::llms::{LLMId, LLMModelHost, LLMPreferences};
 use crate::ai_assistant::{ASK_AI_ASSISTANT_TEXT, AskAIType};
 use crate::antivirus::AntivirusInfo;
@@ -2514,7 +2513,6 @@ pub struct TerminalView {
     ai_action_model: ModelHandle<BlocklistAIActionModel>,
     ai_input_model: ModelHandle<BlocklistAIInputModel>,
     ai_context_model: ModelHandle<BlocklistAIContextModel>,
-    get_relevant_files_controller: ModelHandle<GetRelevantFilesController>,
 
     pending_env_var_collection: Option<CloudEnvVarCollection>,
 
@@ -3181,7 +3179,6 @@ impl TerminalView {
             model
         });
 
-        let get_relevant_files_controller = ctx.add_model(GetRelevantFilesController::new);
         let ai_action_team_context_resolver =
             UserWorkspaces::team_context_resolver(terminal_view.clone());
         let ai_action_model = ctx.add_model(|ctx| {
@@ -3189,7 +3186,6 @@ impl TerminalView {
                 model.clone(),
                 active_session.clone(),
                 &model_events_handle,
-                get_relevant_files_controller.clone(),
                 terminal_view_id,
                 ai_action_team_context_resolver,
                 ctx,
@@ -3895,7 +3891,6 @@ impl TerminalView {
             ai_controller,
             ai_action_model,
             ai_render_context,
-            get_relevant_files_controller,
             shared_session: None,
             pending_share_source: None,
             conversation_ended_tombstone_view_id: None,
@@ -4904,7 +4899,6 @@ impl TerminalView {
                             response_stream_id: response_stream_id.clone(),
                         },
                         self.ai_controller.clone(),
-                        self.get_relevant_files_controller.clone(),
                         self.pwd(),
                         self.shell_launch_data_if_local(ctx),
                         self.ai_action_model.clone(),
@@ -18421,7 +18415,6 @@ impl TerminalView {
                     response_stream_id: None,
                 },
                 self.ai_controller.clone(),
-                self.get_relevant_files_controller.clone(),
                 None,
                 None,
                 self.ai_action_model.clone(),

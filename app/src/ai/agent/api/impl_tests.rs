@@ -165,15 +165,28 @@ fn supported_tools_omit_upload_artifact_when_feature_flag_is_disabled() {
 }
 
 #[test]
-fn remote_supported_tools_include_search_codebase_when_connected_and_feature_flag_is_enabled() {
+fn remote_supported_tools_omit_search_codebase_when_connected_and_feature_flag_is_enabled() {
     let _flag = FeatureFlag::RemoteCodebaseIndexing.override_enabled(true);
     let params = request_params_for_remote(Some(HostId::new("host".to_string())));
     let supported_tools = get_supported_tools(&params);
     let supported_cli_agent_tools = get_supported_cli_agent_tools(&params);
 
-    assert!(supported_tools.contains(&api::ToolType::SearchCodebase));
-    assert!(supported_cli_agent_tools.contains(&api::ToolType::SearchCodebase));
+    assert!(!supported_tools.contains(&api::ToolType::SearchCodebase));
+    assert!(!supported_cli_agent_tools.contains(&api::ToolType::SearchCodebase));
 }
+
+#[test]
+fn local_supported_tools_never_advertise_retired_search_codebase() {
+    let params = request_params_with_ask_user_question_enabled(false);
+    let _flag = FeatureFlag::RemoteCodebaseIndexing.override_enabled(true);
+    assert!(!get_supported_tools(&params).contains(&api::ToolType::SearchCodebase));
+    assert!(!get_supported_cli_agent_tools(&params).contains(&api::ToolType::SearchCodebase));
+    drop(_flag);
+    let _flag = FeatureFlag::RemoteCodebaseIndexing.override_enabled(false);
+    assert!(!get_supported_tools(&params).contains(&api::ToolType::SearchCodebase));
+    assert!(!get_supported_cli_agent_tools(&params).contains(&api::ToolType::SearchCodebase));
+}
+
 #[test]
 fn remote_supported_tools_omit_search_codebase_when_feature_flag_is_disabled() {
     let _flag = FeatureFlag::RemoteCodebaseIndexing.override_enabled(false);

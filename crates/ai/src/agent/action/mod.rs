@@ -22,11 +22,10 @@ use crate::agent::action_result::{
     EditDocumentsResult, FetchConversationResult, FileGlobResult, FileGlobV2Result, GrepResult,
     InsertReviewCommentsResult, ReadDocumentsResult, ReadFilesResult, ReadMCPResourceResult,
     ReadShellCommandOutputResult, ReadSkillResult, RequestCommandOutputResult,
-    RequestComputerUseResult, RequestFileEditsResult, RunAgentsResult, SearchCodebaseResult,
-    SendMessageToAgentResult, StartRecordingResult, StopRecordingResult,
-    SuggestNewConversationResult, SuggestPromptResult, TransferShellCommandControlToUserResult,
-    UploadArtifactResult, UseComputerResult, WaitForEventsResult,
-    WriteToLongRunningShellCommandResult,
+    RequestComputerUseResult, RequestFileEditsResult, RunAgentsResult, SendMessageToAgentResult,
+    StartRecordingResult, StopRecordingResult, SuggestNewConversationResult, SuggestPromptResult,
+    TransferShellCommandControlToUserResult, UploadArtifactResult, UseComputerResult,
+    WaitForEventsResult, WriteToLongRunningShellCommandResult,
 };
 use crate::agent::{AIAgentCitation, FileLocations};
 use crate::diff_validation::ParsedDiff;
@@ -73,8 +72,6 @@ pub enum AIAgentActionType {
 
     /// AI requested uploading a local file as a conversation artifact.
     UploadArtifact(UploadArtifactRequest),
-
-    SearchCodebase(SearchCodebaseRequest),
 
     /// AI requested a vector of edits. Each edit holds a list of diffs on a single code file.
     RequestFileEdits {
@@ -314,10 +311,6 @@ impl AIAgentActionType {
         matches!(self, Self::ReadFiles(..))
     }
 
-    pub fn is_search_codebase(&self) -> bool {
-        matches!(self, Self::SearchCodebase(..))
-    }
-
     pub fn is_grep(&self) -> bool {
         matches!(self, Self::Grep { .. })
     }
@@ -341,9 +334,6 @@ impl AIAgentActionType {
             Self::ReadFiles(..) => AIAgentActionResultType::ReadFiles(ReadFilesResult::Cancelled),
             Self::UploadArtifact(..) => {
                 AIAgentActionResultType::UploadArtifact(UploadArtifactResult::Cancelled)
-            }
-            Self::SearchCodebase(..) => {
-                AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Cancelled)
             }
             Self::Grep { .. } => AIAgentActionResultType::Grep(GrepResult::Cancelled),
             Self::FileGlob { .. } => AIAgentActionResultType::FileGlob(FileGlobResult::Cancelled),
@@ -428,7 +418,6 @@ impl AIAgentActionType {
             }
             Self::ReadFiles(_) => "Read files".to_string(),
             Self::UploadArtifact(_) => "Upload artifact".to_string(),
-            Self::SearchCodebase(_) => "Search codebase".to_string(),
             Self::RequestFileEdits { file_edits, .. } => {
                 let file_names = file_edits.iter().filter_map(|edit| edit.file()).join(", ");
                 format!("Edit {file_names}")
@@ -497,9 +486,6 @@ impl Display for AIAgentActionType {
                 write!(f, "{request}")
             }
             AIAgentActionType::UploadArtifact(request) => {
-                write!(f, "{request}")
-            }
-            AIAgentActionType::SearchCodebase(request) => {
                 write!(f, "{request}")
             }
             AIAgentActionType::RequestFileEdits { file_edits, title } => {
@@ -742,25 +728,6 @@ pub struct UploadArtifactRequest {
 impl Display for UploadArtifactRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "UploadArtifact: {}", self.file_path)
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct SearchCodebaseRequest {
-    pub query: String,
-
-    /// Optional list of file paths to search through.  This is used to narrow down the search scope.
-    /// Files are searched if any of the partial paths are a substring of the file path.
-    pub partial_paths: Option<Vec<String>>,
-
-    /// Optional absolute path to the codebase that we want to search. If not
-    /// provided, we will use the codebase in the user's current directory.
-    pub codebase_path: Option<String>,
-}
-
-impl Display for SearchCodebaseRequest {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "SearchCodebase: {}", self.query)
     }
 }
 

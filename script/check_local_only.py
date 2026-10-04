@@ -39,6 +39,10 @@ ENDPOINT = re.compile(
 SOURCE_SUFFIXES = {".rs", ".toml", ".sh", ".ps1", ".yml", ".yaml", ".json"}
 REMOVED_SOURCES = (
     "crates/app-installation-detection/",
+    "app/src/ai/get_relevant_files/",
+    "app/src/ai/blocklist/action_model/execute/get_files.rs",
+    "app/src/ai/blocklist/action_model/execute/search_codebase.rs",
+    "app/src/ai/blocklist/inline_action/search_codebase.rs",
     "app/src/settings/cloud_preferences_syncer.rs",
     "app/src/settings/cloud_preferences_syncer_tests.rs",
     "app/src/server/cloud_objects/fake_object_client.rs",
@@ -68,6 +72,15 @@ REMOVED_TELEMETRY_SYMBOLS = re.compile(
 )
 REMOVED_SOURCE_SYMBOLS = {
     "app/src/lib.rs": ("app_installation_detection",),
+    "app/src/ai/mod.rs": ("get_relevant_files",),
+    "app/src/server/server_api.rs": ("get_relevant_files", "GetRelevantFiles"),
+    "app/src/ai/agent/api/impl.rs": ("SearchCodebase",),
+    "crates/ai/src/agent/action/mod.rs": ("SearchCodebase", "SearchCodebaseRequest"),
+    "crates/ai/src/agent/action/convert.rs": ("SearchCodebase",),
+    "app/src/ai/blocklist/action_model.rs": ("GetRelevantFilesController", "SearchCodebaseExecutor"),
+    "app/src/ai/blocklist/action_model/execute.rs": (
+        "GetRelevantFilesController", "SearchCodebaseExecutor", "search_codebase",
+    ),
     "app/src/app_state.rs": ("ServerId",),
     "app/src/settings/mod.rs": ("cloud_preferences_syncer",),
     "app/src/settings/privacy.rs": ("CloudPreferencesSyncer", "maybe_sync_with_warp_drive_prefs"),
@@ -90,6 +103,7 @@ REMOVED_SOURCE_SYMBOLS = {
         "should_hide_cli_agent_cursor_cell", "with_hide_cursor_cell",
         "is_using_conversation_for_pane_header_title", "active_session_remote_host",
         "register_codex_listener_without_session_start_event", "handle_cli_agent_notification",
+        "GetRelevantFilesController", "get_relevant_files_controller",
     ),
     "app/src/pane_group/mod.rs": ("transitively_share_existing_local_children",),
     "app/src/terminal/view/pane_impl.rs": (

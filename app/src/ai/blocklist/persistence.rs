@@ -17,8 +17,7 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
     AIAgentActionType, AIAgentAttachment, AIAgentContext, AIAgentExchangeId, AIAgentInput,
     AIAgentPtyWriteMode, AskUserQuestionItem, FileLocations, PassiveSuggestionResultType,
-    ReadFilesRequest, RequestComputerUseRequest, SearchCodebaseRequest, UseComputerRequest,
-    UserQueryMode,
+    ReadFilesRequest, RequestComputerUseRequest, UseComputerRequest, UserQueryMode,
 };
 use crate::ai::llms::LLMId;
 use crate::persistence::ModelEvent;
@@ -367,15 +366,6 @@ impl From<&AIAgentActionType> for PersistedAIAgentActionType {
             AIAgentActionType::ReadFiles(ReadFilesRequest { locations: files }) => Self::GetFiles {
                 file_names: files.iter().map(|f| f.name.clone()).collect(),
             },
-            AIAgentActionType::SearchCodebase(SearchCodebaseRequest {
-                query,
-                partial_paths,
-                codebase_path,
-            }) => Self::GetRelevantFiles {
-                query: query.clone(),
-                partial_paths: partial_paths.clone(),
-                codebase_path: codebase_path.clone(),
-            },
             AIAgentActionType::Grep { queries, path } => Self::Grep {
                 queries: queries.clone(),
                 path: path.clone(),
@@ -483,15 +473,9 @@ impl TryFrom<PersistedAIAgentActionType> for AIAgentActionType {
                 input: input.clone(),
                 mode: mode.into(),
             }),
-            PersistedAIAgentActionType::GetRelevantFiles {
-                query,
-                partial_paths,
-                codebase_path,
-            } => Ok(Self::SearchCodebase(SearchCodebaseRequest {
-                query,
-                partial_paths,
-                codebase_path,
-            })),
+            PersistedAIAgentActionType::GetRelevantFiles { .. } => {
+                Err(anyhow!("Codebase search is no longer supported."))
+            }
             PersistedAIAgentActionType::RequestFileEdits { .. } => {
                 // TODO(CODE-301): Implement proper restoration for suggested diffs.
                 //

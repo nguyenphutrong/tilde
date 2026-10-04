@@ -9,6 +9,40 @@ use super::{
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{AIAgentActionType, AIAgentOutputMessageType};
 
+#[test]
+fn retired_search_codebase_history_does_not_create_an_executable_action() {
+    let task_id = TaskId::new("legacy-task".to_string());
+    let message = api::Message {
+        id: "legacy-message".to_string(),
+        task_id: task_id.to_string(),
+        message: Some(api::message::Message::ToolCall(api::message::ToolCall {
+            tool_call_id: "legacy-search".to_string(),
+            tool: Some(api::message::tool_call::Tool::SearchCodebase(
+                api::message::tool_call::SearchCodebase {
+                    query: "find old implementation".to_string(),
+                    codebase_path: "/legacy/repo".to_string(),
+                    path_filters: vec!["src".to_string()],
+                },
+            )),
+        })),
+        ..Default::default()
+    };
+
+    let converted = message
+        .to_client_output_message(ConversionParams {
+            task_id: &task_id,
+            current_todo_list: None,
+            active_code_review: None,
+            skill_path_origin: &SkillPathOrigin::Local,
+        })
+        .expect("legacy search should still decode");
+
+    assert!(matches!(
+        converted,
+        MaybeAIAgentOutputMessage::NoClientRepresentation
+    ));
+}
+
 fn upload_artifact_tool_call_message(path: &str, description: &str) -> api::Message {
     api::Message {
         fetched_memories: vec![],

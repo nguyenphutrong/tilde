@@ -657,8 +657,8 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
             api::message::tool_call::Tool::UploadFileArtifact(upload_file_artifact) => {
                 create_standard_action(upload_file_artifact.try_into()?)
             }
-            api::message::tool_call::Tool::SearchCodebase(search_codebase) => {
-                create_standard_action(search_codebase.into())
+            api::message::tool_call::Tool::SearchCodebase(_) => {
+                Ok(MaybeAIAgentAction::NoClientRepresentation)
             }
             api::message::tool_call::Tool::Grep(grep) => create_standard_action(grep.into()),
             #[allow(deprecated)]
