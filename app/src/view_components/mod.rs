@@ -9,6 +9,7 @@ pub mod compactible_split_action_button;
 pub mod copyable_text_field;
 mod dismissible_toast;
 pub mod dropdown;
+#[cfg(feature = "voice_input")]
 mod feature_popup;
 mod filterable_dropdown;
 pub mod find;
@@ -20,6 +21,7 @@ pub use alert::Alert;
 pub use compact_dropdown::{CompactDropdown, CompactDropdownEvent, CompactDropdownItem};
 pub use dismissible_toast::*;
 pub use dropdown::{Dropdown, DropdownItem, DropdownItemAction};
+#[cfg(feature = "voice_input")]
 pub use feature_popup::*;
 pub use filterable_dropdown::{
     FilterableDropdown, FilterableDropdownEvent, FilterableDropdownOrientation,

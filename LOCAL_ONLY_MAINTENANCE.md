@@ -438,3 +438,12 @@ payloads carry no telemetry context. The GitHub updater and relaunch remain; Win
 diagnostics retain local warning logs. Memory pressure still requires two consecutive high samples
 and emits one local warning. Guards reject the deleted files and transport symbols. Queue-only
 events, redaction, privacy settings, and other cloud networking remain; this is not network silence.
+
+Pane headers no longer construct sharing dialogs or consult authentication for toolbelt tooltips.
+Sharing controls, QR actions, pane-share bindings, and their producer events are removed; ordinary
+titles, overflow actions, drag handles, toolbelt buttons, and close behavior remain. Header tests
+construct panes without auth, cloud, sharing, or AI models. Local session-sharing transport and
+other startup consumers remain separate removal work; this change alone does not establish GUI
+startup or network silence.
+The header/shared-viewer selection ran nine tests: eight passed, while the untouched AI queued-command
+test `command_execution_request_failed_clears_queued_command_in_flight` failed its in-flight assertion.

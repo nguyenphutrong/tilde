@@ -297,8 +297,8 @@ use crate::server::ids::{ObjectUid, SyncId};
 use crate::server::telemetry::{
     self, AgentModeAttachContextMethod, AgentModeEntrypoint, AgentModeRewindEntrypoint,
     NotificationAgentVariant, NotificationsTurnedOnSource, PaletteSource,
-    SaveAsWorkflowModalSource, SecretInteraction, SharingDialogSource, TelemetryEvent,
-    ToggleBlockFilterSource, WorkflowTelemetryMetadata,
+    SaveAsWorkflowModalSource, SecretInteraction, TelemetryEvent, ToggleBlockFilterSource,
+    WorkflowTelemetryMetadata,
 };
 use crate::session_management::{CommandContext, SessionNavigationPromptElements};
 use crate::settings::ai::FocusedTerminalInfo;
@@ -1283,10 +1283,6 @@ pub enum ContextMenuAction {
     ForkAIConversation {
         conversation_id: AIConversationId,
     },
-    /// Opens the sharing dialog for a conversation from the AI block context menu
-    OpenConversationShareDialog {
-        conversation_id: AIConversationId,
-    },
     OpenShareSessionModal,
     StopSharing,
     /// Copy the AI block prompt text
@@ -1403,7 +1399,6 @@ impl fmt::Debug for ContextMenuAction {
             CopyConversationShareLink { .. } => f.write_str("CopyConversationShareLink"),
             CopyConversationText { .. } => f.write_str("CopyConversationText"),
             ForkAIConversation { .. } => f.write_str("ForkAIConversation"),
-            OpenConversationShareDialog { .. } => f.write_str("OpenConversationShareDialog"),
             ForkAIConversationFromBlock { .. } => f.write_str("ForkAIConversationFromBlock"),
             ForkAIConversationFromExactExchange { .. } => {
                 f.write_str("ForkAIConversationFromExactExchange")
@@ -21326,14 +21321,6 @@ impl TerminalView {
             ForkAIConversation { conversation_id } => {
                 self.fork_ai_conversation(*conversation_id, None, ctx);
             }
-            OpenConversationShareDialog { conversation_id } => {
-                // Set the shareable object and open the sharing dialog via the pane header
-                let shareable_object = ShareableObject::AIConversation(*conversation_id);
-                self.pane_configuration.update(ctx, |pane_config, ctx| {
-                    pane_config.set_shareable_object(Some(shareable_object), ctx);
-                    pane_config.toggle_sharing_dialog(SharingDialogSource::AIBlockContextMenu, ctx);
-                });
-            }
             CopyAgentCommand { ai_block_view_id } => {
                 for rich_content in self.rich_content_views.iter() {
                     if let Some(ai_metadata) = rich_content.ai_block_metadata()
@@ -22855,7 +22842,6 @@ impl TypedActionView for TerminalView {
             | SetupCloudEnvironmentAndStart(_)
             | TriggerEnvironmentSetupSelection(_)
             | OpenEnvironmentManagementPane
-            | DismissCodeToolbeltTooltip
             | SummarizeConversation
             | ToggleLongRunningCommandControl
             | ToggleHideCliResponses
@@ -23737,19 +23723,6 @@ impl TypedActionView for TerminalView {
                 ctx.dispatch_typed_action(&WorkspaceAction::OpenRepository { path: None });
             }
             OpenFilesPalette { source } => ctx.emit(Event::OpenFilesPalette { source: *source }),
-            DismissCodeToolbeltTooltip => {
-                CodeSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    if let Err(e) = settings
-                        .dismissed_code_toolbelt_new_feature_popup
-                        .set_value(true, ctx)
-                    {
-                        log::warn!(
-                            "Failed to mark code toolbelt new feature popup as dismissed: {e}"
-                        );
-                    }
-                });
-                ctx.notify();
-            }
             StartLspServer => {
                 #[cfg(feature = "local_fs")]
                 self.start_lsp_server_in_active_pwd(ctx);

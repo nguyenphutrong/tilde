@@ -37,6 +37,7 @@ ENDPOINT = re.compile(
 )
 SOURCE_SUFFIXES = {".rs", ".toml", ".sh", ".ps1", ".yml", ".yaml", ".json"}
 REMOVED_SOURCES = (
+    "app/src/pane_group/pane/view/header/sharing.rs",
     "app/src/ai/blocklist/agent_view/zero_state_block.rs",
     "app/src/ai/blocklist/agent_view/zero_state_block_tests.rs",
     "app/src/terminal/input/plans/",
