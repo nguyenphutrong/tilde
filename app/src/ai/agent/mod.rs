@@ -1085,10 +1085,6 @@ impl AIAgentAction {
         self.action.is_read_files()
     }
 
-    pub fn is_get_relevant_files(&self) -> bool {
-        self.action.is_search_codebase()
-    }
-
     pub fn is_grep(&self) -> bool {
         self.action.is_grep()
     }

@@ -2,10 +2,26 @@ use std::collections::HashMap;
 
 use warpui::{App, EntityId};
 
-use super::{PersistedAIInputType, maybe_build_ai_query_upsert_event};
+use super::{PersistedAIAgentActionType, PersistedAIInputType, maybe_build_ai_query_upsert_event};
+use crate::ai::agent::AIAgentActionType;
 use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::persistence::ModelEvent;
+
+#[test]
+fn legacy_codebase_search_round_trips_without_restoring_execution() {
+    let stored = serde_json::json!({
+        "GetRelevantFiles": {
+            "query": "old query",
+            "partial_paths": ["src/lib.rs"],
+            "codebase_path": "/old/repo"
+        }
+    });
+    let action: PersistedAIAgentActionType = serde_json::from_value(stored.clone()).unwrap();
+
+    assert_eq!(serde_json::to_value(&action).unwrap(), stored);
+    assert!(AIAgentActionType::try_from(action).is_err());
+}
 
 fn user_query_message(task_id: &str, query: &str) -> warp_multi_agent_api::Message {
     warp_multi_agent_api::Message {

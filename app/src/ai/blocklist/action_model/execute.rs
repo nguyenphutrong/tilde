@@ -12,7 +12,6 @@ pub(super) mod read_skill;
 pub(super) mod request_computer_use;
 pub(super) mod request_file_edits;
 pub(super) mod run_agents;
-pub(super) mod search_codebase;
 pub(super) mod send_message;
 pub(super) mod shell_command;
 pub(super) mod start_agent;
@@ -83,7 +82,6 @@ use warp_util::file_type::is_buffer_binary;
 use warpui::r#async::{Spawnable, SpawnableOutput};
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
-use self::search_codebase::SearchCodebaseExecutor;
 use crate::BlocklistAIHistoryModel;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
@@ -94,10 +92,8 @@ use crate::ai::agent::{
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::action_model::recording_controller::RecordingController;
 use crate::ai::blocklist::telemetry::send_run_agents_completed_telemetry;
-use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
 #[cfg(feature = "local_fs")]
 use crate::ai::{agent::AnyFileContent, paths::host_native_absolute_path};
-use crate::server::team_scope::RequestTeamScope;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::session::command_executor::shell_quote_arg;
 use crate::terminal::model::session::{ExecuteCommandOptions, Session};
@@ -255,7 +251,6 @@ pub struct BlocklistAIActionExecutor {
     shell_command_executor: ModelHandle<ShellCommandExecutor>,
     read_files_executor: ModelHandle<ReadFilesExecutor>,
     upload_artifact_executor: ModelHandle<UploadArtifactExecutor>,
-    search_codebase_executor: ModelHandle<SearchCodebaseExecutor>,
     request_file_edits_executor: ModelHandle<RequestFileEditsExecutor>,
     grep_executor: ModelHandle<GrepExecutor>,
     file_glob_executor: ModelHandle<FileGlobExecutor>,
@@ -292,7 +287,6 @@ impl BlocklistAIActionExecutor {
         terminal_model: Arc<FairMutex<TerminalModel>>,
         active_session: ModelHandle<ActiveSession>,
         model_event_dispatcher: &ModelHandle<ModelEventDispatcher>,
-        get_relevant_files_controller: ModelHandle<GetRelevantFilesController>,
         terminal_view_id: EntityId,
         team_context_resolver: TeamContextResolver,
         ctx: &mut ModelContext<Self>,
@@ -301,14 +295,6 @@ impl BlocklistAIActionExecutor {
             ctx.add_model(|_| ReadFilesExecutor::new(active_session.clone(), terminal_view_id));
         let upload_artifact_executor = ctx
             .add_model(|_| UploadArtifactExecutor::new(active_session.clone(), terminal_view_id));
-        let search_codebase_executor = ctx.add_model(|ctx| {
-            SearchCodebaseExecutor::new(
-                active_session.clone(),
-                get_relevant_files_controller,
-                terminal_view_id,
-                ctx,
-            )
-        });
         let shell_command_executor = ctx.add_model(|ctx| {
             ShellCommandExecutor::new(
                 active_session.clone(),
@@ -355,7 +341,6 @@ impl BlocklistAIActionExecutor {
             shell_command_executor,
             read_files_executor,
             upload_artifact_executor,
-            search_codebase_executor,
             request_file_edits_executor,
             grep_executor,
             file_glob_executor,
@@ -420,10 +405,6 @@ impl BlocklistAIActionExecutor {
         &self.request_file_edits_executor
     }
 
-    pub fn search_codebase_executor(&self) -> &ModelHandle<SearchCodebaseExecutor> {
-        &self.search_codebase_executor
-    }
-
     pub fn suggest_new_conversation_executor(
         &self,
     ) -> &ModelHandle<SuggestNewConversationExecutor> {
@@ -444,9 +425,7 @@ impl BlocklistAIActionExecutor {
 
     pub fn action_phase(&self, action: &AIAgentAction, ctx: &AppContext) -> RunningActionPhase {
         match &action.action {
-            AIAgentActionType::ReadFiles(..)
-            | AIAgentActionType::SearchCodebase(..)
-            | AIAgentActionType::ReadSkill(_) => {
+            AIAgentActionType::ReadFiles(..) | AIAgentActionType::ReadSkill(_) => {
                 RunningActionPhase::Parallel(ParallelExecutionPolicy::ReadOnlyLocalContext)
             }
             AIAgentActionType::Grep { .. }
@@ -512,9 +491,6 @@ impl BlocklistAIActionExecutor {
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
             AIAgentActionType::UploadArtifact(..) => self
                 .upload_artifact_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::SearchCodebase(..) => self
-                .search_codebase_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
             AIAgentActionType::Grep { .. } => self
                 .grep_executor
@@ -691,15 +667,6 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::UploadArtifact(..) => self
                 .upload_artifact_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx)),
-            AIAgentActionType::SearchCodebase(..) => {
-                let team_context_resolver = self.team_context_resolver.clone();
-                self.search_codebase_executor
-                    .update(ctx, |executor, ctx| {
-                        let team_scope = RequestTeamScope::from_scope(&team_context_resolver(ctx));
-                        executor.execute(input, team_scope, ctx)
-                    })
-                    .into()
-            }
             AIAgentActionType::Grep { .. } => self
                 .grep_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
@@ -881,10 +848,6 @@ impl BlocklistAIActionExecutor {
                 self.shell_command_executor.update(ctx, |executor, ctx| {
                     executor.cancel_execution(&running.action.id, ctx);
                 });
-            } else if matches!(running.action.action, AIAgentActionType::SearchCodebase(..)) {
-                self.search_codebase_executor.update(ctx, |executor, ctx| {
-                    executor.cancel_execution(&running.action.id, ctx);
-                });
             } else if matches!(running.action.action, AIAgentActionType::RunAgents(..)) {
                 self.run_agents_executor.update(ctx, |executor, ctx| {
                     executor.cancel_execution(&running.action.id, ctx);
@@ -983,11 +946,6 @@ impl BlocklistAIActionExecutor {
             }
             AIAgentActionType::UploadArtifact(_) => {
                 self.upload_artifact_executor.update(ctx, |executor, ctx| {
-                    executor.should_autoexecute(input, &team_context_resolver(ctx), ctx)
-                })
-            }
-            AIAgentActionType::SearchCodebase(_) => {
-                self.search_codebase_executor.update(ctx, |executor, ctx| {
                     executor.should_autoexecute(input, &team_context_resolver(ctx), ctx)
                 })
             }
@@ -1113,9 +1071,7 @@ pub struct ReadFileContextResult {
 }
 
 /// Builds a single, reason-accurate summary from a batch of file-read failures,
-/// one `path: reason` entry per file. Shared by the agent-tool consumers
-/// (`read_files`, `get_files`, `search_codebase`) so they all surface the same
-/// per-file reason instead of a flat "do not exist" list.
+/// one `path: reason` entry per file.
 pub fn describe_failed_files(failed_files: &[ReadFilesFailedFile]) -> String {
     failed_files
         .iter()

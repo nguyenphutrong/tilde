@@ -35,7 +35,6 @@ use warpui::elements::{
 use warpui::keymap::Keystroke;
 use warpui::platform::{Cursor, OperatingSystem};
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::ui_components::radio_buttons::{RadioButtonItem, RadioButtonLayout};
 use warpui::{
     Action, AppContext, Element, EntityId, ModelHandle, SingletonEntity, View, ViewHandle,
 };
@@ -63,9 +62,8 @@ use crate::ai::agent::{
     AIAgentActionType, AIAgentCitation, AIAgentInput, AIAgentOutputMessage,
     AIAgentOutputMessageType, AIAgentText, AIAgentTextSection, CancellationOutcome, MessageId,
     ReadFilesFailedFile, ReadFilesRequest, ReadFilesResult, RequestCommandOutputResult,
-    SearchCodebaseFailureReason, SearchCodebaseResult, StartRecordingResult, StopRecordingResult,
-    SubagentCall, SubagentType, SuggestNewConversationResult, SummarizationType, TodoOperation,
-    UploadArtifactResult,
+    StartRecordingResult, StopRecordingResult, SubagentCall, SubagentType,
+    SuggestNewConversationResult, SummarizationType, TodoOperation, UploadArtifactResult,
 };
 use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
@@ -73,7 +71,7 @@ use crate::ai::blocklist::action_model::AIActionStatus;
 use crate::ai::blocklist::block::model::{AIBlockModel, AIBlockModelHelper, AIBlockOutputStatus};
 use crate::ai::blocklist::block::view_impl::common::{
     BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB, BLOCKED_ACTION_MESSAGE_FOR_READING_FILES,
-    BLOCKED_ACTION_MESSAGE_FOR_SEARCHING_CODEBASE, MaybeShimmeringText,
+    MaybeShimmeringText,
 };
 use crate::ai::blocklist::block::{
     AIBlock, AIBlockAction, AIBlockStateHandles, ActionButtons, AutonomySettingSpeedbump,
@@ -96,7 +94,6 @@ use crate::ai::blocklist::inline_action::requested_action::{
 };
 use crate::ai::blocklist::inline_action::requested_command::RequestedCommand;
 use crate::ai::blocklist::inline_action::run_agents_card_view::RunAgentsCardView;
-use crate::ai::blocklist::inline_action::search_codebase::SearchCodebaseView;
 use crate::ai::blocklist::inline_action::suggested_unit_tests::SuggestedUnitTestsView;
 use crate::ai::blocklist::inline_action::web_fetch::WebFetchView;
 use crate::ai::blocklist::inline_action::web_search::WebSearchView;
@@ -169,7 +166,6 @@ pub(crate) struct Props<'a> {
     pub(super) keyboard_navigable_buttons: Option<&'a ViewHandle<KeyboardNavigableButtons>>,
     pub(super) response_rating: &'a OnceCell<AIBlockResponseRating>,
     pub(super) request_refunded_count: Option<i32>,
-    pub(super) search_codebase_view: &'a HashMap<AIAgentActionId, ViewHandle<SearchCodebaseView>>,
     pub(super) web_search_views: &'a HashMap<MessageId, ViewHandle<WebSearchView>>,
     pub(super) web_fetch_views: &'a HashMap<MessageId, ViewHandle<WebFetchView>>,
     pub(super) review_changes_button: &'a ViewHandle<ActionButton>,
@@ -439,18 +435,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                 .map(|requested_command| requested_command.render())
                             {
                                 output_items.add_child(rendered_command);
-                            }
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::SearchCodebase(..),
-                            id,
-                            ..
-                        }) => {
-                            // Neither ratings nor suggestions should be rendered for relevant file queries.
-                            should_render_footer = false;
-                            should_render_suggestions = false;
-                            if let Some(rendered_message) = render_search_codebase(props, id, app) {
-                                output_items.add_child(rendered_message);
                             }
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
@@ -1325,302 +1309,6 @@ fn should_render_stopped_output(props: Props, app: &AppContext) -> bool {
     props.finish_reason.is_some_and(|finish_reason| {
         *finish_reason == FinishReason::CancelledDuringRequestedCommandExecution
     }) || cancellation_reason.is_some()
-}
-
-// Helper function to style a requested action with standard styling when streaming and action blocked on user
-fn renderable_action(
-    props: Props,
-    id: &AIAgentActionId,
-    text: &str,
-    app: &AppContext,
-    footer: Option<Box<dyn Element>>,
-    appearance: &Appearance,
-    status: Option<&AIActionStatus>,
-) -> RenderableAction {
-    let mut requested_action = RenderableAction::new(text, app);
-    let is_blocked_on_user = status.as_ref().is_some_and(|s| s.is_blocked());
-    if is_blocked_on_user {
-        requested_action =
-            requested_action.with_background_color(appearance.theme().background().into_solid())
-    } else {
-        if (props.model.status(app).is_streaming()
-            && !props.model.is_first_action_in_output(id, app))
-            || status.as_ref().is_some_and(|s| s.is_queued())
-        {
-            requested_action = requested_action.with_font_color(blended_colors::text_disabled(
-                appearance.theme(),
-                appearance.theme().surface_2(),
-            ));
-        }
-        requested_action = requested_action
-            .with_icon(action_icon(id, props.action_model, props.model, app).finish());
-    }
-
-    if let Some(footer) = footer {
-        requested_action = requested_action.with_footer(footer);
-    }
-    requested_action
-}
-
-fn render_search_codebase(
-    props: Props,
-    id: &AIAgentActionId,
-    app: &AppContext,
-) -> Option<Box<dyn Element>> {
-    let status = props.action_model.as_ref(app).get_action_status(id);
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-
-    let footer = match props.autonomy_setting_speedbump {
-        AutonomySettingSpeedbump::ShouldShowForCodebaseSearchFileAccess {
-            action_id,
-            shown,
-            ..
-        } if action_id == id => {
-            *shown.lock() = true;
-            Some(
-                Flex::row()
-                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_main_axis_size(MainAxisSize::Max)
-                    .with_child(
-                        appearance
-                            .ui_builder()
-                            .radio_buttons(
-                                props
-                                    .state_handles
-                                    .codebase_search_speedbump_option_handles
-                                    .clone(),
-                                vec![
-                                    RadioButtonItem::text(
-                                        "Always allow file access for coding tasks",
-                                    ),
-                                    RadioButtonItem::text("Always allow file access for this repo"),
-                                ],
-                                props
-                                    .state_handles
-                                    .codebase_search_speedbump_radio_button_handle
-                                    .clone(),
-                                None,
-                                appearance.ui_font_size(),
-                                RadioButtonLayout::Row,
-                            )
-                            .with_style(UiComponentStyles {
-                                font_color: Some(blended_colors::text_sub(
-                                    theme,
-                                    theme.surface_1(),
-                                )),
-                                font_size: Some(appearance.monospace_font_size() - 1.),
-                                padding: Some(Coords::default()),
-                                margin: Some(Coords {
-                                    top: 4.,
-                                    bottom: 4.,
-                                    right: 16.,
-                                    left: 0.,
-                                }),
-                                ..Default::default()
-                            })
-                            .with_button_diameter(appearance.monospace_font_size() - 1.)
-                            .on_change(Rc::new(move |ctx, _, index| {
-                                ctx.dispatch_typed_action(
-                                    AIBlockAction::ToggleCodebaseSearchSpeedbump(index),
-                                );
-                            }))
-                            .supports_unselected_state()
-                            .build()
-                            .finish(),
-                    )
-                    .finish(),
-            )
-        }
-        _ => None,
-    };
-
-    let root_repo_path = props
-        .action_model
-        .as_ref(app)
-        .search_codebase_executor(app)
-        .as_ref(app)
-        .root_repo_for_action(id);
-
-    let requested_action = match status.as_ref() {
-        Some(status) => match status {
-            AIActionStatus::Preprocessing | AIActionStatus::Queued => {
-                match props.search_codebase_view.get(id) {
-                    Some(search_codebase_view) if FeatureFlag::SearchCodebaseUI.is_enabled() => {
-                        ChildView::new(search_codebase_view).finish()
-                    }
-                    _ => {
-                        let root_repo_path = root_repo_path?;
-                        renderable_action(
-                            props,
-                            id,
-                            format!("Search in {}", root_repo_path.to_string_lossy()).as_str(),
-                            app,
-                            footer,
-                            appearance,
-                            Some(status),
-                        )
-                        .render(app)
-                        .finish()
-                    }
-                }
-            }
-            AIActionStatus::Blocked => {
-                let root_repo_path = root_repo_path?;
-
-                let buttons = props
-                    .action_buttons
-                    .get(id)
-                    .expect("Button states must exist for each requested action.");
-
-                renderable_action(
-                    props,
-                    id,
-                    &root_repo_path.to_string_lossy(),
-                    app,
-                    footer,
-                    appearance,
-                    Some(status),
-                )
-                .with_header(blocked_action_header(
-                    id.clone(),
-                    BLOCKED_ACTION_MESSAGE_FOR_SEARCHING_CODEBASE,
-                    buttons.run_button.clone(),
-                    buttons.cancel_button.clone(),
-                    props.action_model,
-                    props.model,
-                    app,
-                ))
-                .with_highlighted_border()
-                .render(app)
-                .finish()
-            }
-            AIActionStatus::RunningAsync => match props.search_codebase_view.get(id) {
-                Some(search_codebase_view) if FeatureFlag::SearchCodebaseUI.is_enabled() => {
-                    ChildView::new(search_codebase_view).finish()
-                }
-                _ => {
-                    let root_repo_path = root_repo_path?;
-                    renderable_action(
-                        props,
-                        id,
-                        format!("Searching in {}", root_repo_path.to_string_lossy()).as_str(),
-                        app,
-                        footer,
-                        appearance,
-                        Some(status),
-                    )
-                    .render(app)
-                    .finish()
-                }
-            },
-            AIActionStatus::Finished(result) => match props.search_codebase_view.get(id) {
-                Some(search_codebase_view) if FeatureFlag::SearchCodebaseUI.is_enabled() => {
-                    ChildView::new(search_codebase_view).finish()
-                }
-                _ => {
-                    let AIAgentActionResultType::SearchCodebase(search_codebase_result) =
-                        &result.result
-                    else {
-                        return None;
-                    };
-                    match search_codebase_result {
-                        SearchCodebaseResult::Success { files } => {
-                            if files.is_empty() {
-                                renderable_action(
-                                    props,
-                                    id,
-                                    "No relevant files found.",
-                                    app,
-                                    footer,
-                                    appearance,
-                                    Some(status),
-                                )
-                                .render(app)
-                                .finish()
-                            } else {
-                                let file_locations = files
-                                    .iter()
-                                    .map(|file| {
-                                        props
-                                            .active_session
-                                            .as_ref(app)
-                                            .location_for_path(&file.file_name, app)
-                                    })
-                                    .collect::<Option<Vec<_>>>();
-                                let skill = file_locations.and_then(|file_locations| {
-                                    parsed_skill_for_common_locations(file_locations, app)
-                                });
-                                let grouped = group_file_contexts_for_display(files, None, None);
-                                return Some(render_read_files(
-                                    props,
-                                    id,
-                                    grouped.iter(),
-                                    app,
-                                    skill,
-                                    0,
-                                    &[],
-                                ));
-                            }
-                        }
-                        SearchCodebaseResult::Failed { reason, .. } => {
-                            let root_repo_path = root_repo_path?;
-                            let message = match reason {
-                                SearchCodebaseFailureReason::CodebaseNotIndexed => format!(
-                                    "Search in {} failed because the codebase isn't indexed",
-                                    root_repo_path.to_string_lossy(),
-                                ),
-                                _ => {
-                                    format!("Search in {} failed", root_repo_path.to_string_lossy())
-                                }
-                            };
-                            renderable_action(
-                                props,
-                                id,
-                                message.as_str(),
-                                app,
-                                footer,
-                                appearance,
-                                Some(status),
-                            )
-                            .render(app)
-                            .finish()
-                        }
-                        SearchCodebaseResult::Cancelled => {
-                            let root_repo_path = root_repo_path?;
-                            renderable_action(
-                                props,
-                                id,
-                                format!("Search in {} cancelled", root_repo_path.to_string_lossy())
-                                    .as_str(),
-                                app,
-                                footer,
-                                appearance,
-                                Some(status),
-                            )
-                            .render(app)
-                            .finish()
-                        }
-                    }
-                }
-            },
-        },
-        None => {
-            let root_repo_path = root_repo_path?;
-            renderable_action(
-                props,
-                id,
-                format!("Search in {}", root_repo_path.to_string_lossy()).as_str(),
-                app,
-                footer,
-                appearance,
-                None,
-            )
-            .render(app)
-            .finish()
-        }
-    };
-    Some(requested_action)
 }
 
 pub struct LinkActionConstructors<A: Action> {

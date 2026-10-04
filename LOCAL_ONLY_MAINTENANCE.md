@@ -493,3 +493,11 @@ The native installation-detection crate, Warp-origin CORS route and dependency e
 Local HTTP profiling and the separate terminal-control server remain. Six lockfile packages are
 removed; no browser-facing compatibility settings or stored data are erased. The dependency/source
 guard covers reintroduction, and all 14 guard tests, format and GUI all-target Clippy passed.
+
+Codebase-search controllers, executors, result views and the server transport are deleted; neither
+normal nor CLI tool lists advertise SearchCodebase. Old protobuf calls decode without an executable
+client action, and persisted GetRelevantFiles data still round-trips but cannot start a search.
+No database schema or stored rows change. The API, persistence, block and execution-profile suite
+passed 179 tests, including the profile tests deferred above. Format, 14 guard tests and GUI
+all-target Clippy passed with the authorized baseline warning allowance. Eager child-agent and
+orchestration consumers still require removal before GUI startup can be established.
