@@ -26,7 +26,6 @@ mod persistence;
 pub mod prompt;
 pub mod suggested_agent_mode_workflow_modal;
 mod suggestion_chip_view;
-pub mod summarization_cancel_dialog;
 pub(crate) mod telemetry;
 pub mod usage;
 

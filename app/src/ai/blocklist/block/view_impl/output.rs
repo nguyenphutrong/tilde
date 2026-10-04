@@ -71,7 +71,6 @@ use crate::ai::blocklist::action_model::AIActionStatus;
 use crate::ai::blocklist::block::model::{AIBlockModel, AIBlockModelHelper, AIBlockOutputStatus};
 use crate::ai::blocklist::block::view_impl::common::{
     BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB, BLOCKED_ACTION_MESSAGE_FOR_READING_FILES,
-    MaybeShimmeringText,
 };
 use crate::ai::blocklist::block::{
     AIBlock, AIBlockAction, AIBlockStateHandles, ActionButtons, AutonomySettingSpeedbump,
@@ -1811,15 +1810,7 @@ fn render_stopped_output(props: Props, app: &AppContext) -> Box<dyn Element> {
 
     row.add_children([
         stop_icon,
-        Expanded::new(
-            1.,
-            render_output_status_text(
-                MaybeShimmeringText::Static(stopped_label.into()),
-                appearance,
-                app,
-            ),
-        )
-        .finish(),
+        Expanded::new(1., render_output_status_text(stopped_label, appearance)).finish(),
     ]);
 
     // Only show resume button for the latest cancelled task in the conversation

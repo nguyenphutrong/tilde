@@ -552,3 +552,9 @@ Format, 14 guard tests, residue checking and GUI all-target Clippy passed. The i
 input selection passed all 40 tests; the expanded selection passed 48/49, including all new local
 input and retired-history regressions. The previously recorded late-arriving cloud-continuation
 failure remains; the expanded suite is not green. GUI rendering remains unverified.
+
+The orphan AI status bar, summarization dialog, warping controls and timers are removed. Independent
+stopped-output text and command/block Ctrl-C routing remain. A regression verifies two Ctrl-C presses
+send two ETX bytes to an ordinary local command. All 33 selected Ctrl-C/common-renderer tests,
+format, 14 guard tests, residue checking and GUI all-target Clippy passed. GUI startup still depends
+on removing the eager conversation-selection consumer; no rendered smoke success is claimed.
