@@ -301,7 +301,6 @@ impl PaneGroup {
         }
 
         new_terminal_view.update(ctx, |terminal_view, ctx| {
-            terminal_view.suppress_initial_conversation_details_panel_auto_open();
             terminal_view.restore_conversation_after_view_creation(
                 RestoredAIConversation::new(child_conversation),
                 true,

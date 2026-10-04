@@ -51,6 +51,8 @@ REMOVED_SOURCES = (
     "app/src/ai/document/plan_publication.rs",
     "app/src/ai/skills/resolve_skill_spec.rs",
     "app/src/ai/skills/resolve_skill_spec_tests.rs",
+    "app/src/ai/conversation_details_panel.rs",
+    "app/src/ai/conversation_details_panel_tests.rs",
     "app/src/settings/cloud_preferences_syncer.rs",
     "app/src/settings/cloud_preferences_syncer_tests.rs",
     "app/src/server/cloud_objects/fake_object_client.rs",
@@ -83,7 +85,7 @@ REMOVED_SOURCE_SYMBOLS = {
     "app/src/workflows/categories.rs": (
         "CloudModel", "UserWorkspaces", "load_cloud_workflows", "PersonalCloud", "TelemetryEvent",
     ),
-    "app/src/ai/mod.rs": ("get_relevant_files",),
+    "app/src/ai/mod.rs": ("get_relevant_files", "conversation_details_panel"),
     "app/src/server/server_api.rs": ("get_relevant_files", "GetRelevantFiles"),
     "app/src/ai/agent/api/impl.rs": ("SearchCodebase", "RunAgents"),
     "crates/ai/src/agent/action/mod.rs": (
@@ -124,7 +126,11 @@ REMOVED_SOURCE_SYMBOLS = {
         "team_uid_for_window", "notify_terminal_focus_change", "CloudPreferencesSettings",
         "TELEMETRY_FLAG", "SETTINGS_SYNC_FLAG", "AI_RULES_FLAG", "FILE_BASED_MCP_FLAG",
         "IS_CODEBASE_INDEXING_ENABLED", "IS_AUTOINDEXING_ENABLED",
+        "transcript_details_panel", "transcript_info_button", "view_cloud_runs_button",
+        "ToggleConversationTranscriptDetailsPanel",
     ),
+    "app/src/workspace/view/wasm_view.rs": ("ConversationDetailsPanel", "AgentConversationsModel"),
+    "app/src/terminal/view/init.rs": ("ToggleConversationDetailsPanel",),
     "app/src/terminal/view.rs": (
         "update_focused_terminal_info", "mcp_execution_path", "PersistedWorkspace",
         "InitProjectModel", "maybe_set_pending_repo_init_path", "start_lsp_server_in_active_pwd",
@@ -134,6 +140,7 @@ REMOVED_SOURCE_SYMBOLS = {
         "register_codex_listener_without_session_start_event", "handle_cli_agent_notification",
         "GetRelevantFilesController", "get_relevant_files_controller",
         "StartAgentConversation", "StartAgentExecutor", "StartAgentRequest",
+        "conversation_details_panel", "ToggleConversationDetailsPanel",
     ),
     "app/src/pane_group/mod.rs": ("transitively_share_existing_local_children",),
     "app/src/terminal/view/pane_impl.rs": (

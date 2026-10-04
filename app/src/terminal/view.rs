@@ -132,9 +132,9 @@ use warpui::elements::new_scrollable::{
     ScrollableAppearance, SingleAxisConfig,
 };
 use warpui::elements::{
-    Align, Border, ChildAnchor, ChildView, Clipped, ClippedScrollStateHandle, ConstrainedBox,
-    Container, CornerRadius, CrossAxisAlignment, DispatchEventResult, DropTarget, DropTargetData,
-    Empty, EventHandler, Expanded, Fill, Flex, Hoverable, Icon, LiveElement, MouseStateHandle,
+    Align, ChildAnchor, ChildView, Clipped, ClippedScrollStateHandle, ConstrainedBox, Container,
+    CornerRadius, CrossAxisAlignment, DispatchEventResult, DropTarget, DropTargetData, Empty,
+    EventHandler, Expanded, Fill, Flex, Hoverable, Icon, LiveElement, MouseStateHandle,
     NewScrollable, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds,
     PositionedElementAnchor, PositionedElementOffsetBounds, Radius, Rect, SavePosition,
     ScrollStateHandle, Scrollable, ScrollableElement, ScrollbarWidth, Shrinkable, Stack, Text,
@@ -232,7 +232,6 @@ use crate::ai::blocklist::{
     block_context_from_terminal_model, get_ai_block_overflow_menu_element_position_id,
     get_attached_blocks_chip_element_position_id, is_lrc_auto_queue_active,
 };
-use crate::ai::conversation_details_panel::ConversationDetailsPanelEvent;
 use crate::ai::conversation_utils;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
 use crate::ai::llms::{LLMId, LLMModelHost, LLMPreferences};
@@ -2181,13 +2180,6 @@ pub enum TerminalViewState {
     Normal,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(in crate::terminal::view) enum ConversationDetailsPanelAutoOpenPolicy {
-    #[default]
-    DefaultOpen,
-    DefaultClosed,
-}
-
 /// A struct containing information about a state change event for a particular
 /// terminal view.
 #[derive(Copy, Clone)]
@@ -2630,21 +2622,6 @@ pub struct TerminalView {
     /// A passive orchestration child whose live execution session could not
     /// be joined. Task refresh may later replace this with a transcript.
     orchestration_child_live_unavailable: bool,
-
-    /// Conversation details panel (side panel showing conversation/task metadata).
-    /// Available for cloud Oz runs and for any active local AI conversation.
-    conversation_details_panel:
-        ViewHandle<crate::ai::conversation_details_panel::ConversationDetailsPanel>,
-    /// Whether the conversation details panel is currently open.
-    is_conversation_details_panel_open: bool,
-    /// Whether we've already auto-opened the panel when the agent started running.
-    /// This prevents re-opening the panel if the user manually closes it. Only set
-    /// by the cloud-mode auto-open path; local conversations require the user to
-    /// click the pane-header toggle button to open the panel.
-    has_auto_opened_conversation_details_panel: bool,
-    /// Determines whether the one-shot auto-open should open the panel or be
-    /// consumed without opening.
-    conversation_details_panel_auto_open_policy: ConversationDetailsPanelAutoOpenPolicy,
 
     /// Environment setup mode selector modal for /create-environment command.
     environment_setup_mode_selector: ViewHandle<EnvironmentSetupModeSelector>,
@@ -3301,16 +3278,6 @@ impl TerminalView {
 
         ctx.subscribe_to_model(&ai_controller, |me, handle, event, ctx| {
             me.handle_ai_controller_event(handle, event, ctx);
-            // Refresh the conversation details panel when agent output completes
-            // (may include new artifacts, run time, credits). This applies to both
-            // cloud-task-backed and local AI conversations as long as the panel is open.
-            if matches!(
-                event,
-                BlocklistAIControllerEvent::FinishedReceivingOutput { .. }
-            ) && me.is_conversation_details_panel_open
-            {
-                me.fetch_and_update_conversation_details_panel(ctx);
-            }
         });
 
         let _ = ctx.spawn_stream_local(
@@ -3765,28 +3732,6 @@ impl TerminalView {
                 })
         });
 
-        // Conversation details panel (cloud Oz runs and any active local AI conversation).
-        let conversation_details_panel = ctx.add_typed_action_view(|ctx| {
-            crate::ai::conversation_details_panel::ConversationDetailsPanel::new(
-                false, // don't show "Open" button since we're already viewing the conversation
-                320.0, // initial width
-                ctx,
-            )
-        });
-        ctx.subscribe_to_view(&conversation_details_panel, |me, _, event, ctx| {
-            match event {
-                ConversationDetailsPanelEvent::Close => {
-                    me.is_conversation_details_panel_open = false;
-                    ctx.notify();
-                }
-                ConversationDetailsPanelEvent::OpenPlanNotebook { notebook_uid } => {
-                    // Convert NotebookId -> SyncId -> ObjectUid (String)
-                    let object_uid = SyncId::from(*notebook_uid).uid();
-                    ctx.emit(Event::OpenWarpDriveObjectInPane(object_uid));
-                }
-            }
-        });
-
         let window_id = ctx.window_id();
         let mut terminal_view = Self {
             model,
@@ -3917,10 +3862,6 @@ impl TerminalView {
             is_orchestration_split_off: false,
             // Wired after construction via `wire_ambient_agent_view_model`.
             ambient_agent_view_model: None,
-            conversation_details_panel,
-            is_conversation_details_panel_open: false,
-            has_auto_opened_conversation_details_panel: false,
-            conversation_details_panel_auto_open_policy: Default::default(),
             pending_cloud_followup_task_id: None,
             orchestration_child_live_unavailable: false,
             is_pending_aws_login: false,
@@ -4771,25 +4712,6 @@ impl TerminalView {
         };
         if !should_handle {
             return;
-        }
-        // If the conversation details panel is open and showing an active local
-        // AI conversation in this terminal view, refresh its data when status,
-        // artifacts, exchanges, or metadata change. Mirrors the WASM transcript
-        // panel refresh logic in `Workspace::handle_history_model_event` for
-        // APP-3595.
-        if self.is_conversation_details_panel_open
-            && matches!(
-                event,
-                BlocklistAIHistoryEvent::UpdatedConversationStatus { .. }
-                    | BlocklistAIHistoryEvent::UpdatedConversationTitle { .. }
-                    | BlocklistAIHistoryEvent::UpdatedConversationMetadata { .. }
-                    | BlocklistAIHistoryEvent::UpdatedConversationArtifacts { .. }
-                    | BlocklistAIHistoryEvent::UpdatedStreamingExchange { .. }
-                    | BlocklistAIHistoryEvent::SetActiveConversation { .. }
-                    | BlocklistAIHistoryEvent::RestoredConversations { .. }
-            )
-        {
-            self.fetch_and_update_conversation_details_panel(ctx);
         }
         if matches!(
             event,
@@ -6492,7 +6414,7 @@ impl TerminalView {
         }
     }
 
-    fn ambient_agent_task_id_for_details_panel_from_model(
+    fn ambient_agent_task_id_from_model(
         &self,
         model: &TerminalModel,
         app: &AppContext,
@@ -6502,71 +6424,9 @@ impl TerminalView {
             .and_then(|model| model.as_ref(app).task_id())
             .or_else(|| model.ambient_agent_task_id())
     }
-    pub fn ambient_agent_task_id_for_details_panel(
-        &self,
-        app: &AppContext,
-    ) -> Option<AmbientAgentTaskId> {
+    pub fn ambient_agent_task_id(&self, app: &AppContext) -> Option<AmbientAgentTaskId> {
         let model = self.model.lock();
-        self.ambient_agent_task_id_for_details_panel_from_model(&model, app)
-    }
-
-    /// Whether the conversation details side panel should be available in the
-    /// pane header / pane layout for this terminal view.
-    fn can_show_conversation_details_ui_from_model(
-        &self,
-        model: &TerminalModel,
-        app: &AppContext,
-    ) -> bool {
-        self.ambient_agent_task_id_for_details_panel_from_model(model, app)
-            .is_some()
-            || BlocklistAIHistoryModel::as_ref(app)
-                .active_conversation(self.view_id)
-                .is_some_and(|conversation| !conversation.is_empty())
-    }
-
-    /// Convenience wrapper around
-    /// [`Self::can_show_conversation_details_ui_from_model`] that locks the
-    /// terminal model. Do not call from contexts that already hold the lock.
-    fn can_show_conversation_details_ui(&self, app: &AppContext) -> bool {
-        let model = self.model.lock();
-        self.can_show_conversation_details_ui_from_model(&model, app)
-    }
-
-    /// Whether the WASM workspace-level conversation details panel should be shown for this
-    /// terminal view. This is the authoritative predicate: `Workspace::should_show_conversation_details_panel`
-    /// delegates here. The `#[cfg(any(test, target_arch = "wasm32"))]` gate allows this logic
-    /// to be exercised by host-target unit tests even though the WASM render path is compiled out.
-    ///
-    /// Returns `true` for:
-    /// - Restored ambient cloud tasks
-    /// - Conversation transcript viewers
-    /// - Shared sessions with an active conversation
-    #[cfg(any(test, target_arch = "wasm32"))]
-    pub(crate) fn should_show_wasm_conversation_details_panel(&self, app: &AppContext) -> bool {
-        if self.ambient_agent_task_id_for_details_panel(app).is_some() {
-            return true;
-        }
-        let model = self.model.lock();
-        if model.is_conversation_transcript_viewer() {
-            return true;
-        }
-        if model.shared_session_status().is_sharer_or_viewer() {
-            drop(model);
-            return BlocklistAIHistoryModel::as_ref(app)
-                .active_conversation(self.view_id)
-                .is_some();
-        }
-        false
-    }
-
-    /// Consume the one-shot conversation details panel auto-open for this
-    /// view. Call this before the first `maybe_auto_open_conversation_details_panel`
-    /// fires (e.g. on a parent-orchestrated child agent pane) so the panel does
-    /// not default open. Manual toggle via `TerminalAction::ToggleConversationDetailsPanel`
-    /// continues to work normally.
-    pub(crate) fn suppress_initial_conversation_details_panel_auto_open(&mut self) {
-        self.conversation_details_panel_auto_open_policy =
-            ConversationDetailsPanelAutoOpenPolicy::DefaultClosed;
+        self.ambient_agent_task_id_from_model(&model, app)
     }
 
     pub(crate) fn set_orchestration_child_live_unavailable(
@@ -6584,15 +6444,6 @@ impl TerminalView {
     #[cfg(test)]
     pub(crate) fn is_orchestration_child_live_unavailable_for_test(&self) -> bool {
         self.orchestration_child_live_unavailable
-    }
-    #[cfg(test)]
-    pub(crate) fn is_initial_conversation_details_panel_auto_open_suppressed_for_test(
-        &self,
-    ) -> bool {
-        matches!(
-            self.conversation_details_panel_auto_open_policy,
-            ConversationDetailsPanelAutoOpenPolicy::DefaultClosed
-        )
     }
 
     fn maybe_insert_tombstone_for_non_running_shared_ambient_task(
@@ -6622,7 +6473,7 @@ impl TerminalView {
             }
 
             (
-                self.ambient_agent_task_id_for_details_panel_from_model(&model, ctx),
+                self.ambient_agent_task_id_from_model(&model, ctx),
                 status.is_active_viewer() || status.is_active_sharer(),
                 status.is_finished_viewer(),
             )
@@ -21691,7 +21542,6 @@ impl TypedActionView for TerminalView {
             | ExitAgentView
             | EnterCloudAgentView
             | StartNewAgentConversation { .. }
-            | ToggleConversationDetailsPanel
             | CancelAmbientAgentTask
             | OpenInlineHistoryMenu
             | AwsBedrockLoginBanner(_)
@@ -22623,14 +22473,6 @@ impl TypedActionView for TerminalView {
             AwsCliNotInstalledBanner(action) => {
                 self.handle_aws_cli_not_installed_banner_action(*action, ctx);
             }
-            ToggleConversationDetailsPanel => {
-                let will_open = !self.is_conversation_details_panel_open;
-                self.is_conversation_details_panel_open = will_open;
-                if will_open {
-                    self.fetch_and_update_conversation_details_panel(ctx);
-                }
-                ctx.notify();
-            }
             CancelAmbientAgentTask => {
                 if let Some(ambient_agent_view_model) = self.ambient_agent_view_model.as_ref() {
                     ambient_agent_view_model.update(ctx, |model, ctx| {
@@ -23182,37 +23024,12 @@ impl View for TerminalView {
             SavePosition::new(stack.finish(), &self.terminal_position_id()).finish()
         };
 
-        let final_element = if self.is_file_drop_target && FeatureFlag::SshDragAndDrop.is_enabled()
-        {
+        if self.is_file_drop_target && FeatureFlag::SshDragAndDrop.is_enabled() {
             Container::new(element)
                 .with_foreground_overlay(appearance.theme().accent_overlay())
                 .finish()
         } else {
             element
-        };
-
-        // Wrap with conversation details panel on the right if open.
-        // On WASM, the panel is rendered in the wasm_view instead.
-        //
-        // Use the `_from_model` variant since `render` already holds
-        // `self.model.lock()` and the task-id lookup would otherwise re-lock.
-        let should_show_panel = !cfg!(target_family = "wasm")
-            && self.is_conversation_details_panel_open
-            && self.can_show_conversation_details_ui_from_model(&model, app);
-
-        if should_show_panel {
-            Container::new(
-                Flex::row()
-                    .with_main_axis_size(warpui::elements::MainAxisSize::Max)
-                    .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-                    .with_child(Shrinkable::new(1., final_element).finish())
-                    .with_child(ChildView::new(&self.conversation_details_panel).finish())
-                    .finish(),
-            )
-            .with_border(Border::top(1.0).with_border_fill(appearance.theme().outline()))
-            .finish()
-        } else {
-            final_element
         }
     }
 
