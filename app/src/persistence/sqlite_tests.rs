@@ -5,6 +5,7 @@ use std::sync::Arc;
 use chrono::Local;
 use cloud_object_persistence::to_cloud_object_permissions;
 use diesel::connection::SimpleConnection;
+use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
 use warp_core::features::FeatureFlag;
@@ -25,6 +26,7 @@ use crate::notebooks::{CloudNotebook, CloudNotebookModel};
 use crate::persistence::model::ObjectPermissions;
 use crate::persistence::{
     BlockCompleted, ModelEvent, PersistedDataScope, PersistenceScope, StartedCommandMetadata,
+    model, schema,
 };
 use crate::server::ids::{ClientId, ServerId};
 use crate::tab::SelectedTabColor;
@@ -95,6 +97,78 @@ fn sqlite_read_restores_app_state() {
         .app_state
         .expect("app state should be present for the full scope");
     assert_eq!(restored_app_state.windows.len(), 1);
+}
+
+#[test]
+fn sqlite_preserves_opaque_legacy_terminal_metadata_by_uuid() {
+    let tempdir = tempfile::tempdir().unwrap();
+    let mut conn = setup_database(&tempdir.path().join("warp.sqlite")).unwrap();
+    let app_state = AppState {
+        windows: vec![
+            test_terminal_window_snapshot(false),
+            test_terminal_window_snapshot(true),
+        ],
+        active_window_index: Some(0),
+        block_lists: Default::default(),
+        running_mcp_servers: Default::default(),
+    };
+    save_app_state(&mut conn, &app_state).unwrap();
+
+    use schema::terminal_panes::dsl::{
+        active_conversation_id, active_profile_id, conversation_ids, id, input_config,
+        llm_model_override, terminal_panes, uuid,
+    };
+    let original_id: i32 = terminal_panes
+        .filter(uuid.eq(vec![1u8]))
+        .select(id)
+        .first(&mut conn)
+        .unwrap();
+    diesel::update(terminal_panes.filter(uuid.eq(vec![1u8])))
+        .set((
+            input_config.eq("{unknown input"),
+            llm_model_override.eq("legacy model"),
+            active_profile_id.eq("invalid profile"),
+            conversation_ids.eq("[unparsed conversations"),
+            active_conversation_id.eq("invalid conversation"),
+        ))
+        .execute(&mut conn)
+        .unwrap();
+
+    let mut restored = read_sqlite_data(&mut conn, PersistedDataScope::Full)
+        .unwrap()
+        .app_state
+        .unwrap();
+    assert_eq!(restored.windows, app_state.windows);
+    restored.windows.reverse();
+    save_app_state(&mut conn, &restored).unwrap();
+    let rows = terminal_panes
+        .order(uuid)
+        .select(model::TerminalPane::as_select())
+        .load(&mut conn)
+        .unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_ne!(rows[0].id, original_id);
+    assert_eq!(rows[0].uuid, vec![1]);
+    assert_eq!(rows[0].input_config.as_deref(), Some("{unknown input"));
+    assert_eq!(rows[0].llm_model_override.as_deref(), Some("legacy model"));
+    assert_eq!(
+        rows[0].active_profile_id.as_deref(),
+        Some("invalid profile")
+    );
+    assert_eq!(
+        rows[0].conversation_ids.as_deref(),
+        Some("[unparsed conversations")
+    );
+    assert_eq!(
+        rows[0].active_conversation_id.as_deref(),
+        Some("invalid conversation")
+    );
+    assert_eq!(rows[1].uuid, vec![2]);
+    assert_eq!(rows[1].input_config, None);
+    assert_eq!(rows[1].llm_model_override, None);
+    assert_eq!(rows[1].active_profile_id, None);
+    assert_eq!(rows[1].conversation_ids, None);
+    assert_eq!(rows[1].active_conversation_id, None);
 }
 
 /// Mirrors `init_db(&PersistenceScope::Tui)` in an isolated tempdir: the TUI
@@ -254,11 +328,6 @@ fn test_terminal_window_snapshot(vertical_tabs_panel_open: bool) -> WindowSnapsh
                     }),
                     is_active: true,
                     is_read_only: false,
-                    input_config: None,
-                    llm_model_override: None,
-                    active_profile_id: None,
-                    conversation_ids_to_restore: vec![],
-                    active_conversation_id: None,
                 }),
             }),
             default_directory_color: None,
@@ -369,11 +438,6 @@ fn test_sqlite_round_trips_custom_vertical_tabs_title() {
                         }),
                         is_active: true,
                         is_read_only: false,
-                        input_config: None,
-                        llm_model_override: None,
-                        active_profile_id: None,
-                        conversation_ids_to_restore: vec![],
-                        active_conversation_id: None,
                     }),
                 }),
                 default_directory_color: None,
@@ -535,11 +599,6 @@ fn test_sqlite_round_trips_tab_groups() {
                 }),
                 is_active: true,
                 is_read_only: false,
-                input_config: None,
-                llm_model_override: None,
-                active_profile_id: None,
-                conversation_ids_to_restore: vec![],
-                active_conversation_id: None,
             }),
         }),
         default_directory_color: None,
@@ -563,11 +622,6 @@ fn test_sqlite_round_trips_tab_groups() {
                 }),
                 is_active: false,
                 is_read_only: false,
-                input_config: None,
-                llm_model_override: None,
-                active_profile_id: None,
-                conversation_ids_to_restore: vec![],
-                active_conversation_id: None,
             }),
         }),
         default_directory_color: None,
@@ -659,11 +713,6 @@ fn test_sqlite_round_trips_pinned_state() {
                 }),
                 is_active: true,
                 is_read_only: false,
-                input_config: None,
-                llm_model_override: None,
-                active_profile_id: None,
-                conversation_ids_to_restore: vec![],
-                active_conversation_id: None,
             }),
         }),
         default_directory_color: None,
@@ -687,11 +736,6 @@ fn test_sqlite_round_trips_pinned_state() {
                 }),
                 is_active: false,
                 is_read_only: false,
-                input_config: None,
-                llm_model_override: None,
-                active_profile_id: None,
-                conversation_ids_to_restore: vec![],
-                active_conversation_id: None,
             }),
         }),
         default_directory_color: None,
@@ -715,11 +759,6 @@ fn test_sqlite_round_trips_pinned_state() {
                 }),
                 is_active: false,
                 is_read_only: false,
-                input_config: None,
-                llm_model_override: None,
-                active_profile_id: None,
-                conversation_ids_to_restore: vec![],
-                active_conversation_id: None,
             }),
         }),
         default_directory_color: None,

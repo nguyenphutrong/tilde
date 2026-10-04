@@ -419,3 +419,15 @@ The inline AI model and saved-prompt pickers, eager construction, actions, rende
 dedicated tests are removed. Retired height-map keys still round-trip alongside local history.
 The `/prompts` command is removed from the registry rather than replaced with a no-op. Other AI
 input controls and startup consumers remain pending the grouped leaf-to-root recovery.
+
+GUI Enter now executes shell input, with only `/open` and `/open-file` retained for local files.
+History, completion, newline continuation, and pinned/waterfall input layouts remain. The GUI
+slash/cloud/skill/repository/plan/fork/rewind menus and agent zero-state block are deleted; shared
+TUI command data and remaining AI backend consumers are still removal debt.
+
+Local pane attachment, closing, Clear Blocks, and session snapshots no longer consult AI history,
+profiles, model selection, or agent registration. The five old terminal metadata columns remain
+opaque: saving a session preserves their raw strings by UUID in the same SQLite transaction,
+without parsing or restoring AI state. New panes leave those columns NULL. A regression reverses
+window order with deliberately invalid legacy values to detect row-ID mixups or data loss.
+The local editor initialization is restored; GUI startup still requires a fresh smoke check.

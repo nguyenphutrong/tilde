@@ -59,7 +59,6 @@ use super::{
     BlockCompleted, FinishedCommandMetadata, ModelEvent, PersistedData, PersistedDataScope,
     PersistenceScope, StartedCommandMetadata, WriterHandles, schema,
 };
-use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::mcp::TemplatableMCPServerInstallation;
 use crate::ai::persisted_workspace::EnablementState;
@@ -783,6 +782,10 @@ struct SaveAppStateNodeTraversal<'a> {
 // Does so in a transaction so we're never in a partial state.
 fn save_app_state(conn: &mut SqliteConnection, app_state: &AppState) -> Result<()> {
     conn.transaction::<(), Error, _>(|conn| {
+        let legacy_terminal_panes = schema::terminal_panes::dsl::terminal_panes
+            .select(model::TerminalPane::as_select())
+            .load(conn)?;
+
         // Remove old app state
         diesel::delete(schema::app::dsl::app).execute(conn)?;
         diesel::delete(schema::terminal_panes::dsl::terminal_panes).execute(conn)?;
@@ -1027,6 +1030,20 @@ fn save_app_state(conn: &mut SqliteConnection, app_state: &AppState) -> Result<(
             }
         }
 
+        // Row IDs are recycled during rebuild; preserve opaque legacy metadata by pane UUID.
+        for pane in legacy_terminal_panes {
+            use schema::terminal_panes::dsl::*;
+            diesel::update(terminal_panes.filter(uuid.eq(pane.uuid)))
+                .set((
+                    input_config.eq(pane.input_config),
+                    llm_model_override.eq(pane.llm_model_override),
+                    active_profile_id.eq(pane.active_profile_id),
+                    conversation_ids.eq(pane.conversation_ids),
+                    active_conversation_id.eq(pane.active_conversation_id),
+                ))
+                .execute(conn)?;
+        }
+
         let new_app = NewApp { active_window_id };
 
         diesel::insert_into(schema::app::dsl::app)
@@ -1104,17 +1121,6 @@ fn save_pane_state(
 
     match &snapshot.contents {
         LeafContents::Terminal(terminal_snapshot) => {
-            let conversation_ids = if terminal_snapshot.conversation_ids_to_restore.is_empty() {
-                None
-            } else {
-                let ids: Vec<String> = terminal_snapshot
-                    .conversation_ids_to_restore
-                    .iter()
-                    .map(|id| id.to_string())
-                    .collect();
-                serde_json::to_string(&ids).ok()
-            };
-
             let terminal = model::NewTerminalPane {
                 id,
                 uuid: terminal_snapshot.uuid.clone(),
@@ -1124,19 +1130,11 @@ fn save_pane_state(
                     .shell_launch_data
                     .as_ref()
                     .and_then(|shell| serde_json::to_string(shell).ok()),
-                input_config: terminal_snapshot
-                    .input_config
-                    .as_ref()
-                    .and_then(|config| serde_json::to_string(config).ok()),
-                llm_model_override: terminal_snapshot.llm_model_override.clone(),
-                active_profile_id: terminal_snapshot
-                    .active_profile_id
-                    .as_ref()
-                    .and_then(|sync_id| serde_json::to_string(sync_id).ok()),
-                conversation_ids,
-                active_conversation_id: terminal_snapshot
-                    .active_conversation_id
-                    .map(|id| id.to_string()),
+                input_config: None,
+                llm_model_override: None,
+                active_profile_id: None,
+                conversation_ids: None,
+                active_conversation_id: None,
             };
 
             diesel::insert_into(schema::terminal_panes::dsl::terminal_panes)
@@ -1905,27 +1903,6 @@ fn upsert_generic_string_objects(
     upsert_generic_string_object_rows(conn, objects)
 }
 
-/// Parse conversation IDs from JSON string.
-fn parse_conversation_ids(ids_json: &Option<String>) -> Vec<AIConversationId> {
-    let Some(ids_str) = ids_json.as_ref() else {
-        return vec![];
-    };
-
-    let Ok(id_strings) = serde_json::from_str::<Vec<String>>(ids_str) else {
-        log::warn!("Failed to deserialize conversation IDs from column");
-        return vec![];
-    };
-
-    id_strings
-        .into_iter()
-        .map(AIConversationId::try_from)
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap_or_else(|_| {
-            log::warn!("Failed to parse conversation IDs");
-            vec![]
-        })
-}
-
 fn read_root_node(conn: &mut SqliteConnection, tab_id_val: i32) -> Result<PaneNodeSnapshot> {
     use schema::pane_nodes::dsl::*;
 
@@ -1954,20 +1931,6 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
                     let shell_launch_data: Option<ShellLaunchData> = terminal_pane
                         .shell_launch_data
                         .and_then(|shell_str| serde_json::from_str(&shell_str).ok());
-                    let input_config = terminal_pane
-                        .input_config
-                        .and_then(|config_str| serde_json::from_str(&config_str).ok());
-                    let active_profile_id = terminal_pane
-                        .active_profile_id
-                        .and_then(|profile_str| serde_json::from_str(&profile_str).ok());
-                    // Don't provide a fallback here - let the higher-level code with AppContext handle it
-
-                    let conversation_ids_to_restore =
-                        parse_conversation_ids(&terminal_pane.conversation_ids);
-
-                    let active_conversation_id = terminal_pane
-                        .active_conversation_id
-                        .and_then(|id_str| AIConversationId::try_from(id_str).ok());
 
                     LeafContents::Terminal(TerminalPaneSnapshot {
                         uuid: terminal_pane.uuid,
@@ -1975,11 +1938,6 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
                         is_active: terminal_pane.is_active,
                         is_read_only: false,
                         shell_launch_data,
-                        input_config,
-                        llm_model_override: terminal_pane.llm_model_override,
-                        active_profile_id,
-                        conversation_ids_to_restore,
-                        active_conversation_id,
                     })
                 }
                 NOTEBOOK_PANE_KIND => {

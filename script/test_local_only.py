@@ -3,10 +3,23 @@ import tempfile
 from pathlib import Path
 import unittest
 
-from check_local_only import inventory
+from check_local_only import REMOVED_SOURCES, inventory
 
 
 class LocalOnlyGuardTests(unittest.TestCase):
+    def test_rejects_removed_sources_even_when_empty(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "Cargo.lock").write_text('[[package]]\nname="local"\nversion="1"\n')
+            for source in REMOVED_SOURCES:
+                relative = source + "mod.rs" if source.endswith("/") else source
+                with self.subTest(source=relative):
+                    path = root / relative
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.touch()
+                    _, forbidden = inventory(root, [relative])
+                    self.assertEqual(forbidden, [f"{relative}: removed source"])
+
     def scan(self, manifest, source="", lock='[[package]]\nname="local"\nversion="1"\n'):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

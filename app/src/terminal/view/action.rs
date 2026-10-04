@@ -334,7 +334,6 @@ pub enum TerminalAction {
     AgentModeSetupSpeedbumpBanner(AgentModeSetupSpeedbumpBannerAction),
     ResumeConversation,
     ForkConversationFromLastKnownGoodState,
-    ToggleAIDocumentPane,
     ToggleCodeReviewPane {
         entrypoint: CodeReviewPaneEntrypoint,
     },
@@ -656,7 +655,6 @@ impl fmt::Debug for TerminalAction {
             ForkConversationFromLastKnownGoodState => {
                 write!(f, "ForkConversationFromLastKnownGoodState")
             }
-            ToggleAIDocumentPane => write!(f, "ToggleAIDocumentPane"),
             ToggleCodeReviewPane { .. } => write!(f, "ToggleCodeReviewPane"),
             InitProject => write!(f, "InitProject"),
             IndexProjectSpeedbump => write!(f, "IndexProject"),

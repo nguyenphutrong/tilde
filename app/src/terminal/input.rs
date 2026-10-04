@@ -5,9 +5,6 @@ pub mod decorations;
 pub mod inline_history;
 pub mod inline_menu;
 pub mod message_bar;
-pub mod plans;
-pub mod repos;
-pub mod rewind;
 pub mod skills;
 pub mod slash_command_model;
 pub mod slash_commands;
@@ -15,7 +12,6 @@ mod suggestions_mode_menu;
 pub mod suggestions_mode_model;
 mod terminal;
 mod terminal_message_bar;
-pub mod user_query;
 
 use std::any::Any;
 use std::borrow::Cow;
@@ -27,7 +23,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
-use ai::skills::SkillReference;
 use async_channel::Sender;
 use base64::Engine as _;
 #[cfg(feature = "local_fs")]
@@ -97,7 +92,7 @@ use super::ligature_settings::LigatureSettings;
 use super::model::block::{
     AgentInteractionMetadata, BlockId, BlockMetadata, BlocklistEnvVarMetadata,
 };
-use super::model::session::{Session, SessionId, SessionType, Sessions};
+use super::model::session::{Session, SessionId, Sessions};
 use super::prompt_render_helper::{
     PromptRenderHelper, SameLinePromptElements, should_render_prompt_on_same_line,
 };
@@ -134,22 +129,19 @@ use crate::ai::blocklist::agent_view::{
     AgentViewController, AgentViewEntryOrigin, EphemeralMessageModel,
 };
 use crate::ai::blocklist::block::cli_controller::{CLISubagentController, CLISubagentEvent};
-use crate::ai::blocklist::block::status_bar::BlocklistAIStatusBar;
 use crate::ai::blocklist::prompt::prompt_alert::PromptAlertView;
 use crate::ai::blocklist::{
     AttachmentType, BLOCK_CONTEXT_ATTACHMENT_REGEX, BlocklistAIActionModel,
     BlocklistAIContextEvent, BlocklistAIContextModel, BlocklistAIController,
-    BlocklistAIControllerEvent, BlocklistAIHistoryEvent, BlocklistAIHistoryModel,
-    BlocklistAIInputEvent, BlocklistAIInputModel, DIFF_HUNK_ATTACHMENT_REGEX,
-    DRIVE_OBJECT_ATTACHMENT_REGEX, InputConfig, InputType, InputTypeAutoDetectionSource,
-    PendingAttachment, PendingFile, QueuedQuery, QueuedQueryEvent, QueuedQueryId, QueuedQueryModel,
+    BlocklistAIControllerEvent, BlocklistAIHistoryModel, BlocklistAIInputModel,
+    DIFF_HUNK_ATTACHMENT_REGEX, DRIVE_OBJECT_ATTACHMENT_REGEX, InputConfig, InputType,
+    InputTypeAutoDetectionSource, PendingAttachment, PendingFile, QueuedQuery, QueuedQueryModel,
     SlashCommandRequest, ai_indicator_height, render_ai_agent_mode_icon, render_ai_follow_up_icon,
 };
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::conversation_export::export_conversation_markdown;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
 use crate::ai::mcp::TemplatableMCPServerManager;
-use crate::ai::skills::{SkillOpenOrigin, SkillTelemetryEvent};
 use crate::appearance::{Appearance, AppearanceEvent};
 use crate::cloud_object::model::actions::ObjectActionType;
 use crate::cloud_object::model::persistence::CloudModel;
@@ -186,7 +178,6 @@ use crate::resource_center::{
     Tip, TipAction, TipHint, TipsCompleted, mark_feature_used_and_write_to_user_defaults,
 };
 use crate::search::QueryFilter;
-use crate::search::slash_command_menu::static_commands::commands::{self, COMMAND_REGISTRY};
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::SyncId;
 use crate::server::server_api::ServerApi;
@@ -196,7 +187,7 @@ use crate::server::server_api::ai::{AIClient, AttachmentFileInfo};
 use crate::server::server_api::presigned_upload::upload_to_target;
 use crate::server::telemetry::{
     AnonymousUserSignupEntrypoint, CommandXRayTrigger, EnvVarTelemetryMetadata, PaletteSource,
-    SlashCommandAcceptedDetails, SlashMenuSource, TelemetryEvent, WorkflowTelemetryMetadata,
+    TelemetryEvent, WorkflowTelemetryMetadata,
 };
 use crate::session_management::SessionNavigationPromptElements;
 use crate::settings::{
@@ -213,34 +204,20 @@ use crate::terminal::autosuggestions::get_similar_history_context;
 use crate::terminal::autosuggestions::{
     get_reverse_chronological_potential_autosuggestions, is_command_valid,
 };
-use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::input::buffer_model::InputBufferModel;
 use crate::terminal::input::inline_history::InlineHistoryMenuView;
 use crate::terminal::input::inline_menu::InlineMenuPositioner;
-use crate::terminal::input::plans::{InlinePlanMenuEvent, InlinePlanMenuView};
-use crate::terminal::input::repos::{InlineReposMenuEvent, InlineReposMenuView};
-use crate::terminal::input::rewind::{RewindMenuEvent, RewindMenuView};
-use crate::terminal::input::skills::{
-    InlineSkillSelectorEvent, InlineSkillSelectorView, LOCAL_SKILLS_REMOTE_EXECUTION_ERROR_MESSAGE,
-};
-use crate::terminal::input::slash_command_model::{SlashCommandEntryState, SlashCommandModel};
-use crate::terminal::input::slash_commands::{
-    CloudModeV2SlashCommandView, GuiSlashCommandDataSource, InlineSlashCommandView,
-    SlashCommandDataSource as _, SlashCommandTrigger, UpdatedActiveCommands,
-    slash_command_is_submitted_as_prompt,
-};
 use crate::terminal::input::suggestions_mode_model::{
     InputSuggestionsModeEvent, InputSuggestionsModeModel,
 };
 use crate::terminal::input::terminal_message_bar::TerminalInputMessageBar;
-use crate::terminal::input::user_query::{UserQueryMenuEvent, UserQueryMenuView};
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::session::shell_quote_arg;
 use crate::terminal::view::{AIQueryRouting, resolve_ai_query_routing};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 use crate::user_config::WarpConfig;
-use crate::util::bindings::{self, CustomAction, keybinding_name_to_normalized_string};
+use crate::util::bindings::{self, CustomAction};
 #[cfg(feature = "local_fs")]
 use crate::util::file::external_editor;
 use crate::util::truncation::truncate_from_end;
@@ -261,10 +238,7 @@ use crate::workflows::local_workflows::LocalWorkflows;
 use crate::workflows::workflow_enum::EnumVariants;
 use crate::workflows::{self, WorkflowSelectionSource, WorkflowSource, WorkflowType};
 use crate::workspace::sync_inputs::SyncedInputState;
-use crate::workspace::{
-    CommandSearchOptions, ForkFromExchange, ForkedConversationDestination, InitContent, ToastStack,
-    WorkspaceAction,
-};
+use crate::workspace::{CommandSearchOptions, InitContent, ToastStack, WorkspaceAction};
 use crate::workspaces::user_workspaces::{TeamContext, UserWorkspaces};
 #[allow(unused_imports)]
 use crate::{AgentModeEntrypoint, ServerApiProvider, cmd_or_ctrl_shift, send_telemetry_from_ctx};
@@ -571,38 +545,13 @@ pub enum InputSuggestionsMode {
         command: String,
     },
 
-    SlashCommands,
-
-    /// Skill menu mode for /open-skill command.
-    SkillMenu,
-
-    /// User query menu mode for selecting a query point (e.g., fork-from, rewind).
-    UserQueryMenu {
-        action: UserQueryMenuAction,
-        conversation_id: AIConversationId,
-    },
-
     /// Inline history menu mode for selecting commands and conversations from history.
     InlineHistoryMenu {
         original_input_config: Option<InputConfig>,
     },
 
-    /// Indexed repos switcher menu mode.
-    IndexedReposMenu,
-
-    /// Plan menu mode for selecting among multiple AI document plans.
-    PlanMenu {
-        conversation_id: AIConversationId,
-    },
-
     /// Mode indicating that no suggestion UI is being shown.
     Closed,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum UserQueryMenuAction {
-    ForkFrom,
-    Rewind,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -623,14 +572,7 @@ impl InputSuggestionsMode {
     }
 
     pub fn is_inline_menu(&self) -> bool {
-        matches!(
-            self,
-            Self::SlashCommands
-                | Self::UserQueryMenu { .. }
-                | Self::InlineHistoryMenu { .. }
-                | Self::PlanMenu { .. }
-        ) || (FeatureFlag::ListSkills.is_enabled() && matches!(self, Self::SkillMenu))
-            || (FeatureFlag::InlineRepoMenu.is_enabled() && matches!(self, Self::IndexedReposMenu))
+        matches!(self, Self::InlineHistoryMenu { .. })
     }
 
     /// Whether this mode should snapshot the input buffer on open and restore it on dismiss.
@@ -645,29 +587,6 @@ impl InputSuggestionsMode {
             Self::InlineHistoryMenu {
                 original_input_config,
             } => *original_input_config,
-            _ => None,
-        }
-    }
-
-    /// Returns the placeholder text for this mode, if it has a custom one.
-    pub fn placeholder_text(&self) -> Option<&'static str> {
-        match self {
-            InputSuggestionsMode::UserQueryMenu {
-                action: UserQueryMenuAction::ForkFrom,
-                ..
-            } => Some("Search queries"),
-            InputSuggestionsMode::UserQueryMenu {
-                action: UserQueryMenuAction::Rewind,
-                ..
-            } => Some("Search queries to rewind to"),
-            InputSuggestionsMode::SkillMenu => Some("Search skills"),
-
-            InputSuggestionsMode::SlashCommands if FeatureFlag::AgentView.is_enabled() => {
-                Some("Search commands")
-            }
-
-            InputSuggestionsMode::IndexedReposMenu => Some("Search indexed repos"),
-            InputSuggestionsMode::PlanMenu { .. } => Some("Search plans"),
             _ => None,
         }
     }
@@ -692,19 +611,10 @@ impl InputSuggestionsMode {
                 TelemetryInputSuggestionsMode::DynamicWorkflowEnumSuggestions
             }
 
-            InputSuggestionsMode::SlashCommands => TelemetryInputSuggestionsMode::SlashCommands,
-
-            InputSuggestionsMode::SkillMenu => TelemetryInputSuggestionsMode::SkillMenu,
-            InputSuggestionsMode::UserQueryMenu { .. } => {
-                TelemetryInputSuggestionsMode::ConversationMenu
-            }
             InputSuggestionsMode::InlineHistoryMenu { .. } => {
                 TelemetryInputSuggestionsMode::InlineHistoryMenu
             }
-            InputSuggestionsMode::IndexedReposMenu => {
-                TelemetryInputSuggestionsMode::IndexedReposMenu
-            }
-            InputSuggestionsMode::PlanMenu { .. } => TelemetryInputSuggestionsMode::PlanMenu,
+
             InputSuggestionsMode::Closed => unreachable!(),
         }
     }
@@ -992,16 +902,8 @@ pub enum InputAction {
     /// Toggles the '?' shortcuts UI in the agent view.
     ToggleAgentViewShortcuts,
 
-    /// Toggles the '/' slash commands menu in the agent view.
-    ToggleSlashCommandsMenu,
-
     /// Opens the inline history menu for cycling through past commands and conversations.
     OpenInlineHistoryMenu,
-
-    DismissCloudModeV2SlashCommandsMenu,
-
-    /// Triggers a slash command from a custom keybinding. The string is the command name.
-    TriggerSlashCommandFromKeybinding(&'static str),
 
     /// Clears attached blocks and text selection context.
     ClearAttachedContext,
@@ -1452,41 +1354,14 @@ pub struct Input {
 
     terminal_input_message_bar: ViewHandle<TerminalInputMessageBar>,
 
-    inline_slash_commands_view: ViewHandle<InlineSlashCommandView>,
-    cloud_mode_v2_slash_commands_view: Option<ViewHandle<CloudModeV2SlashCommandView>>,
-    slash_command_data_source: ModelHandle<GuiSlashCommandDataSource>,
-    cloud_mode_composer_slash_command_data_source: Option<ModelHandle<GuiSlashCommandDataSource>>,
-
-    /// Inline plan menu for selecting among multiple plans.
-    inline_plan_menu_view: ViewHandle<InlinePlanMenuView>,
-
-    /// Inline repos switcher menu.
-    inline_repos_menu_view: ViewHandle<InlineReposMenuView>,
-
-    /// Inline skill selector for /open-skill command.
-    inline_skill_selector_view: ViewHandle<InlineSkillSelectorView>,
-
-    /// Whether the skill selector should invoke (true) or open (false) the skill.
-    skill_selector_should_invoke: bool,
-
-    /// Inline menu for selecting a query point when forking a conversation.
-    user_query_menu_view: ViewHandle<UserQueryMenuView>,
-
-    /// Inline menu for selecting a rewind point in a conversation.
-    rewind_menu_view: ViewHandle<RewindMenuView>,
-
     /// Inline history menu for up-arrow with conversations and commands.
     inline_history_menu_view: ViewHandle<InlineHistoryMenuView>,
 
     inline_terminal_menu_positioner: ModelHandle<InlineMenuPositioner>,
 
-    /// Model for managing slash command state.
-    slash_command_model: ModelHandle<SlashCommandModel>,
-
     /// Weak handle to this input view for drop target data
     weak_view_handle: WeakViewHandle<Input>,
 
-    agent_status_view: ViewHandle<BlocklistAIStatusBar>,
     agent_view_controller: ModelHandle<AgentViewController>,
     agent_shortcut_view_model: ModelHandle<AgentShortcutViewModel>,
     ambient_agent_view_state: Option<AmbientAgentViewState>,
@@ -1821,40 +1696,6 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-t"),
     ]);
 
-    let slash_command_bindings = COMMAND_REGISTRY
-        .all_commands()
-        .map(|command| {
-            use crate::search::slash_command_menu::static_commands::{
-                bindings as slash_command_bindings, bindings::DefaultSlashCommandBinding,
-            };
-
-            let context_predicate = id!("Input")
-                & !id!("IMEOpen")
-                & id!(command.name)
-                & !id!(flags::ACTIVE_INLINE_AGENT_VIEW)
-                & (id!(flags::ACTIVE_AGENT_VIEW) | id!(flags::SLASH_COMMANDS_IN_TERMINAL_FLAG));
-
-            let mut binding = EditableBinding::new(
-                command.name,
-                slash_command_bindings::binding_description(command),
-                InputAction::TriggerSlashCommandFromKeybinding(command.name),
-            )
-            .with_context_predicate(context_predicate);
-
-            binding = match slash_command_bindings::default_binding_for_command(command.name) {
-                DefaultSlashCommandBinding::None => binding,
-                DefaultSlashCommandBinding::Single(keys) => binding.with_key_binding(keys),
-                DefaultSlashCommandBinding::PerPlatform(keys) => binding
-                    .with_mac_key_binding(keys.mac)
-                    .with_linux_or_windows_key_binding(keys.linux_and_windows),
-            };
-
-            binding
-        })
-        .collect::<Vec<_>>();
-
-    app.register_editable_bindings(slash_command_bindings);
-
     if FeatureFlag::AgentView.is_enabled() {
         app.register_fixed_bindings([FixedBinding::new(
             "shift-?",
@@ -1951,34 +1792,6 @@ impl Input {
             return;
         }
         Self::subscribe_to_ambient_agent_view_model(&view_model, ctx);
-        // Push the model to the agent status bar. It captured `None` at construction
-        // on this link-join path, so without this it can't render the cloud-mode setup /
-        // follow-up progress (`render_cloud_mode_setup_status`) while a follow-up VM spins up.
-        let status_bar_model = view_model.clone();
-        self.agent_status_view.update(ctx, |status_bar, ctx| {
-            status_bar.set_ambient_agent_view_model(status_bar_model, ctx);
-        });
-        // Composer slash-command data sources gate cloud-follow-up commands on the ambient run
-        // (e.g. `is_disconnected_cloud_followup`), so keep them in sync for the link-join viewer.
-        let slash_model = view_model.clone();
-        self.slash_command_data_source
-            .update(ctx, |data_source, ctx| {
-                data_source.set_ambient_agent_view_model(slash_model, ctx);
-            });
-        if let Some(cloud_mode_composer_slash_command_data_source) =
-            self.cloud_mode_composer_slash_command_data_source.clone()
-        {
-            let composer_slash_model = view_model.clone();
-            cloud_mode_composer_slash_command_data_source.update(ctx, |data_source, ctx| {
-                data_source.set_ambient_agent_view_model(composer_slash_model, ctx);
-            });
-        }
-        // The /skills selector hides skills on a disconnected cloud follow-up composer (skills run
-        // locally and must not be shown when a follow-up should start a new cloud VM instead).
-        let skill_selector_model = view_model.clone();
-        self.inline_skill_selector_view.update(ctx, |view, ctx| {
-            view.set_ambient_agent_view_model(skill_selector_model, ctx);
-        });
         self.ambient_agent_view_state = Some(AmbientAgentViewState { view_model });
         ctx.notify();
     }
@@ -2269,16 +2082,8 @@ impl Input {
         }
         let inline_history_model = inline_history_menu_view.as_ref(ctx).model().clone();
 
-        let terminal_input_message_bar = ctx.add_typed_action_view(|ctx| {
-            TerminalInputMessageBar::new(
-                model.clone(),
-                ai_input_model.clone(),
-                buffer_model.clone(),
-                ai_context_model.clone(),
-                suggestions_mode_model.clone(),
-                inline_history_model,
-                ctx,
-            )
+        let terminal_input_message_bar = ctx.add_view(|ctx| {
+            TerminalInputMessageBar::new(suggestions_mode_model.clone(), inline_history_model, ctx)
         });
 
         let agent_shortcut_view_model = ctx.add_model(|ctx| {
@@ -2442,9 +2247,7 @@ impl Input {
                 let should_preserve_menu = me
                     .suggestions_mode_model
                     .as_ref(ctx)
-                    .is_inline_history_menu()
-                    || (me.suggestions_mode_model.as_ref(ctx).is_slash_commands()
-                        && config.input_type.is_ai());
+                    .is_inline_history_menu();
 
                 if !should_preserve_menu {
                     // If switching to any locked mode (not autodetect), close suggestions
@@ -2463,55 +2266,6 @@ impl Input {
             me.set_zero_state_hint_text(ctx);
             ctx.notify();
         });
-        // Re-render the input's placeholder/hint text when any history event that could
-        // change `selected_conversation_status_for_hint` fires — the selected conversation
-        // swapping, its status changing, its title being set/unset, it becoming non-empty,
-        // or its being cleared. Mirrors the set used by
-        // `agent_conversation_event_affects_vertical_tabs` in `workspace/view.rs` that keeps
-        // vertical tab progress indicators in sync.
-        ctx.subscribe_to_model(
-            &BlocklistAIHistoryModel::handle(ctx),
-            move |me, _, event, ctx| {
-                let affects_hint = matches!(
-                    event,
-                    BlocklistAIHistoryEvent::UpdatedConversationStatus { .. }
-                        | BlocklistAIHistoryEvent::SetActiveConversation { .. }
-                        | BlocklistAIHistoryEvent::ClearedActiveConversation { .. }
-                        | BlocklistAIHistoryEvent::ClearedConversationsForTerminalSurface { .. }
-                        | BlocklistAIHistoryEvent::StartedNewConversation { .. }
-                        | BlocklistAIHistoryEvent::SplitConversation { .. }
-                        | BlocklistAIHistoryEvent::AppendedExchange { .. }
-                        | BlocklistAIHistoryEvent::UpdatedStreamingExchange { .. }
-                        | BlocklistAIHistoryEvent::UpdatedConversationTitle { .. }
-                        | BlocklistAIHistoryEvent::UpdatedConversationMetadata { .. }
-                        | BlocklistAIHistoryEvent::RestoredConversations { .. }
-                );
-                if !affects_hint {
-                    return;
-                }
-                if event.terminal_surface_id() != Some(terminal_view_id) {
-                    return;
-                }
-                me.set_zero_state_hint_text(ctx);
-                ctx.notify();
-            },
-        );
-        ctx.subscribe_to_model(&QueuedQueryModel::handle(ctx), |me, _, event, ctx| {
-            let affects_hint = match event {
-                QueuedQueryEvent::QueueNextPromptToggled { conversation_id } => me
-                    .ai_context_model
-                    .as_ref(ctx)
-                    .selected_conversation_id(ctx)
-                    .is_some_and(|selected_id| selected_id == *conversation_id),
-                QueuedQueryEvent::DefaultModeChanged => true,
-                _ => false,
-            };
-            if affects_hint {
-                me.set_zero_state_hint_text(ctx);
-                ctx.notify();
-            }
-        });
-
         // Refresh the ghost text when control of a long-running command changes hands —
         // queue mode is auto-enabled while the agent holds control, so the steer/queue
         // hint must track the control state.
@@ -2583,210 +2337,11 @@ impl Input {
             },
         );
 
-        let slash_command_team_context_resolver =
-            UserWorkspaces::team_context_resolver(ctx.handle());
-        let slash_command_data_source = ctx.add_model(|ctx| {
-            let args = slash_commands::GuiDataSourceArgs {
-                active_session: active_session.clone(),
-                agent_view_controller: agent_view_controller.clone(),
-                cli_subagent_controller: cli_subagent_controller.clone(),
-                terminal_view_id,
-                // Wired post-construction via `attach_ambient_agent_view_model`.
-                ambient_agent_view_model: None,
-                team_context_resolver: slash_command_team_context_resolver.clone(),
-            };
-            GuiSlashCommandDataSource::new(args, ctx)
-        });
-        ctx.subscribe_to_model(
-            &slash_command_data_source,
-            |me, _, _: &UpdatedActiveCommands, ctx| {
-                me.set_zero_state_hint_text(ctx);
-                ctx.notify();
-            },
-        );
-
-        let cloud_mode_composer_slash_command_data_source =
-            if FeatureFlag::CloudModeInputV2.is_enabled() {
-                let args = slash_commands::GuiDataSourceArgs {
-                    active_session: active_session.clone(),
-                    agent_view_controller: agent_view_controller.clone(),
-                    cli_subagent_controller: cli_subagent_controller.clone(),
-                    terminal_view_id,
-                    // Wired post-construction via `attach_ambient_agent_view_model`.
-                    ambient_agent_view_model: None,
-                    team_context_resolver: slash_command_team_context_resolver,
-                };
-                Some(ctx.add_model(|ctx| GuiSlashCommandDataSource::for_cloud_mode_v2(args, ctx)))
-            } else {
-                None
-            };
-        let slash_command_model = ctx.add_model(|ctx| {
-            SlashCommandModel::new(
-                &buffer_model,
-                &ai_input_model,
-                slash_command_data_source.clone(),
-                ctx,
-            )
-        });
-        ctx.subscribe_to_model(&slash_command_model, move |me, _, event, ctx| {
-            me.handle_slash_command_model_event(event, ctx);
-        });
-
         if FeatureFlag::AgentView.is_enabled() {
             ctx.subscribe_to_model(&inline_terminal_menu_positioner, |_, _, _, ctx| {
                 ctx.notify();
             });
         }
-
-        let inline_repos_menu_view = ctx.add_view(|ctx| {
-            InlineReposMenuView::new(
-                suggestions_mode_model.clone(),
-                &buffer_model,
-                &inline_terminal_menu_positioner,
-                ctx,
-            )
-        });
-        ctx.subscribe_to_view(&inline_repos_menu_view, |me, _, event, ctx| {
-            me.handle_repos_menu_event(event, ctx);
-        });
-
-        let inline_skill_selector_view = ctx.add_view(|ctx| {
-            InlineSkillSelectorView::new(
-                suggestions_mode_model.clone(),
-                &buffer_model,
-                &inline_terminal_menu_positioner,
-                active_session,
-                terminal_view_id,
-                // Wired post-construction via `attach_ambient_agent_view_model`.
-                None,
-                ctx,
-            )
-        });
-        ctx.subscribe_to_view(&inline_skill_selector_view, |me, _, event, ctx| {
-            me.handle_inline_skill_selector_event(event, ctx);
-        });
-
-        let user_query_menu_view = ctx.add_view(|ctx| {
-            UserQueryMenuView::new(
-                AIConversationId::default(),
-                suggestions_mode_model.clone(),
-                &inline_terminal_menu_positioner,
-                &buffer_model,
-                ctx,
-            )
-        });
-        if FeatureFlag::AgentView.is_enabled() {
-            ctx.subscribe_to_view(&user_query_menu_view, |me, _, event, ctx| {
-                me.handle_user_query_menu_event(event, ctx);
-            });
-        }
-
-        let inline_plan_menu_view = ctx.add_view(|ctx| {
-            InlinePlanMenuView::new(
-                AIConversationId::default(),
-                suggestions_mode_model.clone(),
-                &inline_terminal_menu_positioner,
-                &buffer_model,
-                ctx,
-            )
-        });
-        ctx.subscribe_to_view(&inline_plan_menu_view, |me, _, event, ctx| {
-            me.handle_plan_menu_event(event, ctx);
-        });
-
-        let rewind_menu_view = ctx.add_view(|ctx| {
-            RewindMenuView::new(
-                AIConversationId::default(),
-                suggestions_mode_model.clone(),
-                &inline_terminal_menu_positioner,
-                &buffer_model,
-                ctx,
-            )
-        });
-        ctx.subscribe_to_view(&rewind_menu_view, |me, _, event, ctx| {
-            me.handle_rewind_menu_event(event, ctx);
-        });
-
-        let inline_slash_commands_view = ctx.add_view(|ctx| {
-            InlineSlashCommandView::new(
-                &slash_command_model,
-                &inline_terminal_menu_positioner,
-                slash_command_data_source.clone(),
-                suggestions_mode_model.clone(),
-                buffer_model.clone(),
-                ctx,
-            )
-        });
-        ctx.subscribe_to_view(&inline_slash_commands_view, |me, _, event, ctx| {
-            me.handle_slash_commands_menu_event(event, ctx);
-        });
-
-        let cloud_mode_v2_slash_commands_view =
-            match cloud_mode_composer_slash_command_data_source.clone() {
-                Some(v2_data_source) => {
-                    let view = ctx.add_typed_action_view(|ctx| {
-                        CloudModeV2SlashCommandView::new(
-                            &slash_command_model,
-                            v2_data_source,
-                            suggestions_mode_model.clone(),
-                            buffer_model.clone(),
-                            ctx,
-                        )
-                    });
-                    ctx.subscribe_to_view(&view, |me, _, event, ctx| {
-                        me.handle_slash_commands_menu_event(event, ctx);
-                    });
-                    Some(view)
-                }
-                _ => None,
-            };
-
-        ctx.subscribe_to_model(&ai_input_model, move |me, _, event, ctx| {
-            match event {
-                BlocklistAIInputEvent::InputTypeChanged { .. }
-                | BlocklistAIInputEvent::LockChanged { .. } => {
-                    // Close slash command menu if we're now in locked shell mode
-                    if me.is_locked_in_shell_mode(ctx)
-                        && me.suggestions_mode_model.as_ref(ctx).is_slash_commands()
-                    {
-                        me.suggestions_mode_model.update(ctx, |m, ctx| {
-                            m.set_mode(InputSuggestionsMode::Closed, ctx);
-                        });
-                        ctx.notify();
-                    }
-                }
-            }
-        });
-
-        let ai_req_usage_model = AIRequestUsageModel::handle(ctx);
-        ctx.subscribe_to_model(&ai_req_usage_model, |_, _, _, ctx| {
-            ctx.notify();
-        });
-        ctx.observe(&ai_req_usage_model, |_, _, ctx| {
-            ctx.notify();
-        });
-
-        let agent_status_view = ctx.add_typed_action_view(|ctx| {
-            BlocklistAIStatusBar::new(
-                ai_controller.clone(),
-                agent_view_controller.clone(),
-                cli_subagent_controller.clone(),
-                ai_action_model.clone(),
-                ai_context_model.clone(),
-                ai_input_model.clone(),
-                buffer_model,
-                &model_events,
-                model.clone(),
-                agent_shortcut_view_model.clone(),
-                // Wired post-construction via `attach_ambient_agent_view_model`.
-                None,
-                suggestions_mode_model.clone(),
-                slash_command_model.clone(),
-                ephemeral_message_model.clone(),
-                terminal_view_id,
-                ctx,
-            )
-        });
 
         let deferred_remote_operations =
             DeferredRemoteOperations::new(model.lock().block_list().active_block_id().clone());
@@ -2843,25 +2398,13 @@ impl Input {
             #[cfg(feature = "local_fs")]
             conn: None,
             attachment_chips: Default::default(),
-            slash_command_model,
-            inline_slash_commands_view,
-            cloud_mode_v2_slash_commands_view,
-            inline_plan_menu_view,
-            inline_repos_menu_view,
-            inline_skill_selector_view,
-            skill_selector_should_invoke: false,
-            user_query_menu_view,
-            rewind_menu_view,
             inline_history_menu_view,
             inline_terminal_menu_positioner,
             cached_agent_mode_hint_text: None,
             weak_view_handle: ctx.handle(),
-            agent_status_view,
             agent_view_controller,
             agent_shortcut_view_model,
             ambient_agent_view_state,
-            slash_command_data_source,
-            cloud_mode_composer_slash_command_data_source,
             ephemeral_message_model,
             input_contents_before_prompt_chip_command: None,
             pending_shell_widget_handoff: None,
@@ -2926,10 +2469,6 @@ impl Input {
             editor.set_is_ai_input(is_ai_input, ctx);
             ctx.notify();
         });
-    }
-
-    pub fn agent_status_bar(&self) -> &ViewHandle<BlocklistAIStatusBar> {
-        &self.agent_status_view
     }
 
     fn ambient_agent_view_model(&self) -> Option<&ModelHandle<AmbientAgentViewModel>> {
@@ -3150,281 +2689,6 @@ impl Input {
                 .is_some_and(|model| model.as_ref(app).is_configuring_ambient_agent())
     }
 
-    fn open_slash_commands_menu(&mut self, ctx: &mut ViewContext<Self>) {
-        if self
-            .model
-            .lock()
-            .block_list()
-            .active_block()
-            .is_active_and_long_running()
-        {
-            return;
-        }
-        self.suggestions_mode_model.update(ctx, |model, ctx| {
-            model.set_mode(InputSuggestionsMode::SlashCommands, ctx);
-        });
-        ctx.notify();
-    }
-
-    fn toggle_legacy_slash_commands_menu(&mut self, ctx: &mut ViewContext<Self>) {
-        let is_slash_menu_open = self.suggestions_mode_model.as_ref(ctx).is_slash_commands();
-
-        if is_slash_menu_open {
-            self.editor.update(ctx, |editor, ctx| {
-                editor.clear_buffer(ctx);
-            });
-            self.slash_command_model.update(ctx, |model, ctx| {
-                model.disable(ctx);
-            });
-            self.close_slash_commands_menu(ctx);
-        } else {
-            self.system_insert("/", ctx);
-            let is_in_agent_view = FeatureFlag::AgentView.is_enabled()
-                && self.agent_view_controller.as_ref(ctx).is_fullscreen();
-            send_telemetry_from_ctx!(
-                TelemetryEvent::OpenSlashMenu {
-                    source: SlashMenuSource::SlashButton,
-                    is_inline_ui_enabled: true,
-                    is_in_agent_view,
-                },
-                ctx
-            );
-        }
-    }
-
-    fn handle_repos_menu_event(
-        &mut self,
-        event: &InlineReposMenuEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            InlineReposMenuEvent::NavigateToRepo { path } => {
-                if self.suggestions_mode_model.as_ref(ctx).is_repos_menu() {
-                    self.suggestions_mode_model.update(ctx, |model, ctx| {
-                        model.set_mode(InputSuggestionsMode::Closed, ctx);
-                    });
-                    ctx.notify();
-                }
-                self.clear_buffer_and_reset_undo_stack(ctx);
-                let path_str = path.to_string_lossy().replace("'", "'\\''");
-                let cd_command = format!("cd '{path_str}'");
-                self.try_execute_command(&cd_command, ctx);
-            }
-            InlineReposMenuEvent::Dismissed => {
-                if self.suggestions_mode_model.as_ref(ctx).is_repos_menu() {
-                    self.suggestions_mode_model.update(ctx, |model, ctx| {
-                        model.close_and_restore_buffer(ctx);
-                    });
-                    ctx.notify();
-                }
-            }
-        }
-    }
-
-    fn handle_inline_skill_selector_event(
-        &mut self,
-        event: &InlineSkillSelectorEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let InlineSkillSelectorEvent::SelectedSkill {
-            skill_name,
-            skill_reference,
-        } = event;
-
-        if self.skill_selector_should_invoke {
-            // Insert the skill invocation into the buffer using the CLI agent's
-            // native prefix (e.g. "/" for most agents, "$" for Codex).
-            let prefix = CLIAgentSessionsModel::as_ref(ctx)
-                .session(self.terminal_view_id)
-                .map(|s| s.agent.skill_command_prefix())
-                .unwrap_or("/");
-            self.editor.update(ctx, |editor, ctx| {
-                editor.set_buffer_text(format!("{prefix}{skill_name} ").as_str(), ctx);
-            });
-
-            // Close the menu but keep input focused so user can press Enter
-            if self.suggestions_mode_model.as_ref(ctx).is_skill_menu() {
-                self.suggestions_mode_model.update(ctx, |model, ctx| {
-                    model.set_mode(InputSuggestionsMode::Closed, ctx);
-                });
-                ctx.notify();
-            }
-            self.focus_input_box(ctx);
-        } else {
-            // Open the skill file in editor (from /open-skill command)
-            send_telemetry_from_ctx!(
-                SkillTelemetryEvent::Opened {
-                    reference: skill_reference.clone(),
-                    name: Some(skill_name.clone()),
-                    origin: SkillOpenOrigin::OpenSkillCommand,
-                },
-                ctx
-            );
-
-            ctx.dispatch_typed_action(&TerminalAction::OpenEditSkillPane {
-                skill_reference: skill_reference.clone(),
-            });
-
-            // Close the skill selector menu and clear the buffer
-            if self.suggestions_mode_model.as_ref(ctx).is_skill_menu() {
-                self.suggestions_mode_model.update(ctx, |model, ctx| {
-                    model.set_mode(InputSuggestionsMode::Closed, ctx);
-                });
-                ctx.notify();
-            }
-            self.clear_buffer_and_reset_undo_stack(ctx);
-            self.focus_input_box(ctx);
-        }
-    }
-
-    fn open_skill_selector(&mut self, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::ListSkills.is_enabled() {
-            return;
-        }
-
-        self.skill_selector_should_invoke = false;
-        self.inline_skill_selector_view.update(ctx, |view, ctx| {
-            view.set_include_bundled(false, ctx);
-        });
-        self.suggestions_mode_model.update(ctx, |model, ctx| {
-            model.set_mode(InputSuggestionsMode::SkillMenu, ctx);
-        });
-
-        ctx.notify();
-    }
-
-    fn open_invoke_skill_selector(&mut self, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::ListSkills.is_enabled() {
-            return;
-        }
-
-        self.skill_selector_should_invoke = true;
-        self.inline_skill_selector_view.update(ctx, |view, ctx| {
-            view.set_include_bundled(true, ctx);
-        });
-        self.suggestions_mode_model.update(ctx, |model, ctx| {
-            model.set_mode(InputSuggestionsMode::SkillMenu, ctx);
-        });
-
-        ctx.notify();
-    }
-
-    pub fn open_plan_menu(
-        &mut self,
-        conversation_id: AIConversationId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.suggestions_mode_model.update(ctx, |model, ctx| {
-            model.set_mode(InputSuggestionsMode::PlanMenu { conversation_id }, ctx);
-        });
-        ctx.notify();
-    }
-
-    fn handle_plan_menu_event(&mut self, event: &InlinePlanMenuEvent, ctx: &mut ViewContext<Self>) {
-        match event {
-            InlinePlanMenuEvent::OpenPlan {
-                document_id,
-                document_version,
-            } => {
-                ctx.emit(Event::OpenAIDocumentPane {
-                    document_id: *document_id,
-                    document_version: *document_version,
-                });
-                if self.suggestions_mode_model.as_ref(ctx).is_plan_menu() {
-                    self.suggestions_mode_model.update(ctx, |model, ctx| {
-                        model.set_mode(InputSuggestionsMode::Closed, ctx);
-                    });
-                    ctx.notify();
-                }
-            }
-            InlinePlanMenuEvent::Dismissed => {
-                if self.suggestions_mode_model.as_ref(ctx).is_plan_menu() {
-                    self.suggestions_mode_model.update(ctx, |model, ctx| {
-                        model.close_and_restore_buffer(ctx);
-                    });
-                    ctx.notify();
-                }
-            }
-        }
-    }
-
-    fn open_repos_menu(&mut self, ctx: &mut ViewContext<Self>) {
-        self.suggestions_mode_model.update(ctx, |model, ctx| {
-            model.set_mode(InputSuggestionsMode::IndexedReposMenu, ctx);
-        });
-        ctx.notify();
-    }
-
-    fn handle_user_query_menu_event(
-        &mut self,
-        event: &UserQueryMenuEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if !self.suggestions_mode_model.as_ref(ctx).is_user_query_menu() {
-            report_error!("handle_user_query_menu_event called when mode is not UserQueryMenu");
-            return;
-        }
-
-        match event {
-            UserQueryMenuEvent::SelectedQuery { exchange_id } => {
-                ctx.emit(Event::ScrollToExchange {
-                    exchange_id: *exchange_id,
-                });
-            }
-            UserQueryMenuEvent::AcceptedQuery {
-                exchange_id,
-                cmd_enter,
-            } => {
-                let Some(conversation_id) = self
-                    .suggestions_mode_model
-                    .as_ref(ctx)
-                    .user_query_conversation_id()
-                else {
-                    report_error!("No conversation_id in UserQueryMenu mode when accepting");
-                    return;
-                };
-
-                let destination = ForkedConversationDestination::for_fork_trigger(*cmd_enter);
-                ctx.dispatch_typed_action(&WorkspaceAction::ForkAIConversation {
-                    conversation_id,
-                    fork_from_exchange: Some(ForkFromExchange {
-                        exchange_id: *exchange_id,
-                        fork_from_exact_exchange: false,
-                    }),
-                    summarize_after_fork: false,
-                    summarization_prompt: None,
-                    initial_prompt: None,
-                    initial_attachments: vec![],
-                    destination,
-                });
-
-                let is_in_agent_view = FeatureFlag::AgentView.is_enabled()
-                    && self.agent_view_controller.as_ref(ctx).is_active();
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::SlashCommandAccepted {
-                        command_details: SlashCommandAcceptedDetails::StaticCommand {
-                            command_name: commands::FORK_FROM.name.to_owned(),
-                        },
-                        is_in_agent_view,
-                    },
-                    ctx
-                );
-
-                self.suggestions_mode_model.update(ctx, |model, ctx| {
-                    model.set_mode(InputSuggestionsMode::Closed, ctx);
-                });
-                ctx.notify();
-                self.clear_buffer_and_reset_undo_stack(ctx);
-            }
-            UserQueryMenuEvent::Dismissed => {
-                self.suggestions_mode_model.update(ctx, |model, ctx| {
-                    model.close_and_restore_buffer(ctx);
-                });
-                ctx.notify();
-            }
-        }
-    }
-
     fn handle_inline_history_menu_event(
         &mut self,
         event: &inline_history::InlineHistoryMenuEvent,
@@ -3510,141 +2774,6 @@ impl Input {
         ctx.notify();
     }
 
-    fn open_user_query_menu(&mut self, action: UserQueryMenuAction, ctx: &mut ViewContext<Self>) {
-        // Don't reopen if already open.
-        if self.suggestions_mode_model.as_ref(ctx).is_user_query_menu() {
-            return;
-        }
-
-        let Some(conversation_id) = self
-            .ai_context_model
-            .as_ref(ctx)
-            .selected_conversation_id(ctx)
-        else {
-            return;
-        };
-
-        // Close any other menus first
-        if self.suggestions_mode_model.as_ref(ctx).is_visible() {
-            self.suggestions_mode_model.update(ctx, |model, ctx| {
-                model.set_mode(InputSuggestionsMode::Closed, ctx);
-            });
-        }
-
-        // Clear the input buffer
-        self.clear_buffer_and_reset_undo_stack(ctx);
-
-        // Open the menu - conversation_id is stored in the mode and the view reads it from there
-        self.suggestions_mode_model.update(ctx, |model, ctx| {
-            model.set_mode(
-                InputSuggestionsMode::UserQueryMenu {
-                    action,
-                    conversation_id,
-                },
-                ctx,
-            );
-        });
-
-        ctx.notify();
-    }
-
-    fn open_rewind_menu(&mut self, ctx: &mut ViewContext<Self>) {
-        // Don't reopen if already open.
-        if self.suggestions_mode_model.as_ref(ctx).is_rewind_menu() {
-            return;
-        }
-
-        let Some(conversation_id) = self
-            .ai_context_model
-            .as_ref(ctx)
-            .selected_conversation_id(ctx)
-        else {
-            return;
-        };
-
-        // Close any other menus first
-        if self.suggestions_mode_model.as_ref(ctx).is_visible() {
-            self.suggestions_mode_model.update(ctx, |model, ctx| {
-                model.set_mode(InputSuggestionsMode::Closed, ctx);
-            });
-        }
-
-        // Clear the input buffer
-        self.clear_buffer_and_reset_undo_stack(ctx);
-
-        // Open the rewind menu
-        self.suggestions_mode_model.update(ctx, |model, ctx| {
-            model.set_mode(
-                InputSuggestionsMode::UserQueryMenu {
-                    action: UserQueryMenuAction::Rewind,
-                    conversation_id,
-                },
-                ctx,
-            );
-        });
-
-        ctx.notify();
-    }
-
-    fn handle_rewind_menu_event(&mut self, event: &RewindMenuEvent, ctx: &mut ViewContext<Self>) {
-        if !self.suggestions_mode_model.as_ref(ctx).is_rewind_menu() {
-            report_error!("handle_rewind_menu_event called when mode is not RewindMenu");
-            return;
-        }
-
-        match event {
-            RewindMenuEvent::Dismissed => {
-                self.suggestions_mode_model.update(ctx, |model, ctx| {
-                    model.close_and_restore_buffer(ctx);
-                });
-                ctx.notify();
-            }
-            RewindMenuEvent::AcceptedRewindPoint { exchange_id } => {
-                // If exchange_id is None, user selected "Current" - just close menu
-                let Some(exchange_id) = exchange_id else {
-                    self.suggestions_mode_model.update(ctx, |model, ctx| {
-                        model.set_mode(InputSuggestionsMode::Closed, ctx);
-                    });
-                    ctx.notify();
-                    self.clear_buffer_and_reset_undo_stack(ctx);
-                    return;
-                };
-
-                let Some(conversation_id) = self
-                    .suggestions_mode_model
-                    .as_ref(ctx)
-                    .rewind_conversation_id()
-                else {
-                    report_error!("No conversation_id in RewindMenu mode when accepting");
-                    return;
-                };
-
-                ctx.dispatch_typed_action(&TerminalAction::ExecuteRewindFromInlineMenu {
-                    conversation_id,
-                    exchange_id: *exchange_id,
-                });
-
-                let is_in_agent_view = FeatureFlag::AgentView.is_enabled()
-                    && self.agent_view_controller.as_ref(ctx).is_active();
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::SlashCommandAccepted {
-                        command_details: SlashCommandAcceptedDetails::StaticCommand {
-                            command_name: commands::REWIND.name.to_owned(),
-                        },
-                        is_in_agent_view,
-                    },
-                    ctx
-                );
-
-                self.suggestions_mode_model.update(ctx, |model, ctx| {
-                    model.set_mode(InputSuggestionsMode::Closed, ctx);
-                });
-                ctx.notify();
-                self.clear_buffer_and_reset_undo_stack(ctx);
-            }
-        }
-    }
-
     fn open_inline_history_menu(&mut self, ctx: &mut ViewContext<Self>) {
         if !FeatureFlag::InlineHistoryMenu.is_enabled() {
             return;
@@ -3666,108 +2795,6 @@ impl Input {
         });
 
         ctx.notify();
-    }
-
-    /// Executes a skill command.
-    ///
-    /// This enters AI mode, resolves the skill from SkillManager, and submits it.
-    ///
-    /// When `queued_query_id` is `Some`, this is the first send of a previously queued prompt:
-    /// the input buffer is left alone (the user may have typed new input while the agent was
-    /// busy) and the emitted `SentRequest` event is tagged as a queued-prompt submission so
-    /// other UI subscribers also skip their user-submission side effects.
-    ///
-    /// Returns `true` if execution was handled.
-    fn execute_skill_command(
-        &mut self,
-        reference: SkillReference,
-        user_query: Option<String>,
-        queued_query_id: Option<QueuedQueryId>,
-        // The conversation a fired queued skill was queued on, used to route the send and resolve
-        // the row's attachments instead of re-deriving from the current UI selection. `None` for
-        // direct (non-queued) skill invocations.
-        conversation_id_override: Option<AIConversationId>,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
-        // The skills menu should be hiding skills that are not available in the remote context.
-        // This is a safety net to prevent invoking skills locally when follow ups are not supposed to run locally, in case some skills are showing up in the menu.
-        // Currently skills are populated by the local machine's state and are always run locally below.
-        // TODO: consider populating the skills menu with skills in the remote machine, and forward to the remote machine.
-        let ai_query_routing = resolve_ai_query_routing(
-            self.terminal_view_id,
-            self.ambient_agent_view_model(),
-            &self.model.lock(),
-            ctx,
-        );
-        if !ai_query_routing.is_local() {
-            let window_id = ctx.window_id();
-            ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                toast_stack.add_ephemeral_toast(
-                    DismissibleToast::default(
-                        LOCAL_SKILLS_REMOTE_EXECUTION_ERROR_MESSAGE.to_owned(),
-                    ),
-                    window_id,
-                    ctx,
-                );
-            });
-            return true;
-        }
-
-        let is_queued_prompt = queued_query_id.is_some();
-        let skill = match self
-            .ai_controller
-            .as_ref(ctx)
-            .resolve_skill_for_invocation(&reference, ctx)
-        {
-            Ok(skill) => skill,
-            Err(error) => {
-                // Show error toast if skill not found
-                let window_id = ctx.window_id();
-                ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    toast_stack.add_ephemeral_toast(
-                        DismissibleToast::error(error.to_string()),
-                        window_id,
-                        ctx,
-                    );
-                });
-                return true;
-            }
-        };
-
-        // Clear the buffer (unless this is a queued-prompt auto-send, in which case
-        // the buffer may contain new input the user has started typing).
-        if !is_queued_prompt {
-            self.editor.update(ctx, |editor, ctx| {
-                editor.clear_buffer(ctx);
-            });
-        }
-
-        // Enter agent view if not already active
-        if FeatureFlag::AgentView.is_enabled()
-            && !self.agent_view_controller.as_ref(ctx).is_active()
-        {
-            self.agent_view_controller.update(ctx, |controller, ctx| {
-                let _ = controller.try_enter_agent_view(
-                    None,
-                    AgentViewEntryOrigin::SlashCommand {
-                        trigger: SlashCommandTrigger::input(),
-                    },
-                    ctx,
-                );
-            });
-        }
-
-        self.ai_controller.update(ctx, move |controller, ctx| {
-            controller.send_resolved_skill_invocation(
-                skill,
-                user_query,
-                queued_query_id,
-                conversation_id_override,
-                ctx,
-            );
-        });
-
-        true
     }
 
     #[cfg(not(target_family = "wasm"))]
@@ -4273,67 +3300,13 @@ impl Input {
     }
 
     pub fn set_zero_state_hint_text(&mut self, ctx: &mut ViewContext<Self>) {
-        let slash_command_hint_prefixes = COMMAND_REGISTRY
-            .all_commands()
-            .filter(|command| {
-                command
-                    .argument
-                    .as_ref()
-                    .and_then(|argument| argument.hint_text)
-                    .is_some()
-            })
-            .map(|command| format!("{} ", command.name))
-            .collect_vec();
-
-        self.editor.update(ctx, |editor, ctx| {
-            for prefix in slash_command_hint_prefixes {
-                editor.clear_placeholder_text_with_prefix(&prefix, ctx);
-            }
-        });
-
-        // If the current input suggestions mode has a custom placeholder,
-        // that takes precedence over other placeholders.
-        if let Some(placeholder) = self
-            .suggestions_mode_model
-            .as_ref(ctx)
-            .mode()
-            .placeholder_text()
-        {
-            self.editor.update(ctx, |editor, ctx| {
-                editor.set_placeholder_text(placeholder, ctx);
-            });
-            return;
-        }
-
         let toggled_on = *InputSettings::as_ref(ctx).show_hint_text;
-
-        let slash_command_placeholders = self
-            .slash_command_data_source
-            .as_ref(ctx)
-            .active_commands()
-            .filter_map(|(_, command)| {
-                command
-                    .argument
-                    .as_ref()
-                    .and_then(|argument| argument.hint_text)
-                    .map(|hint_text| (command.name, hint_text))
-            })
-            .collect_vec();
-
-        // Loop through active static commands and set placeholders for those with hint text
-        self.editor.update(ctx, |editor, ctx| {
-            for (command_name, hint_text) in slash_command_placeholders {
-                editor.set_placeholder_text_with_prefix(format!("{command_name} "), hint_text, ctx);
-            }
-        });
-
         if self.should_show_universal_developer_input(ctx) || toggled_on {
             self.editor.update(ctx, |editor, ctx| {
                 editor.set_placeholder_text(TERMINAL_INPUT_HINT_TEXT, ctx);
             });
         } else {
             self.editor.update(ctx, |editor, ctx| {
-                // Clear only the default placeholder, keep slash command placeholders
                 editor.clear_placeholder_text(ctx);
                 ctx.notify();
             });
@@ -5833,27 +4806,11 @@ impl Input {
                         // If in the future we want to replace the selected arguments with suggestion options as we cycle, this is where we do it
                     }
 
-                    InputSuggestionsMode::SlashCommands => {
-                        // Slash commands selection is handled separately
-                        // This shouldn't be reached since slash commands doesn't use InputSuggestions
-                    }
-
-                    InputSuggestionsMode::SkillMenu => {
-                        // Skill menu selection is handled via InlineSkillSelectorView
-                    }
-                    InputSuggestionsMode::UserQueryMenu { .. } => {
-                        // User query menu selection is handled separately
-                    }
                     InputSuggestionsMode::InlineHistoryMenu { .. } => {
                         // Inline history menu selection is handled separately
                         // This shouldn't be reached since inline history menu doesn't use InputSuggestions
                     }
-                    InputSuggestionsMode::IndexedReposMenu => {
-                        // Repos menu selection is handled separately
-                    }
-                    InputSuggestionsMode::PlanMenu { .. } => {
-                        // Plan menu selection is handled via InlinePlanMenuView
-                    }
+
                     InputSuggestionsMode::Closed => {
                         log::warn!("Got a InputSuggestionsEvent::Select when the mode was Closed!");
                     }
@@ -5977,30 +4934,8 @@ impl Input {
                 true
             }
 
-            InputSuggestionsMode::SlashCommands => {
-                // Slash commands selection is handled separately
-                // For now, just close the menu
-                false
-            }
-
-            InputSuggestionsMode::SkillMenu => {
-                // Skill menu selection is handled via InlineSkillSelectorView
-                false
-            }
-            InputSuggestionsMode::UserQueryMenu { .. } => {
-                // User query menu selection is handled separately
-                false
-            }
             InputSuggestionsMode::InlineHistoryMenu { .. } => {
                 // Inline history menu selection is handled separately
-                false
-            }
-            InputSuggestionsMode::IndexedReposMenu => {
-                // Repos menu selection is handled separately
-                false
-            }
-            InputSuggestionsMode::PlanMenu { .. } => {
-                // Plan menu selection is handled via InlinePlanMenuView
                 false
             }
         }
@@ -6163,63 +5098,13 @@ impl Input {
 
         // For some input suggestion modes, the menu handles its own actions.
         let handled = match self.suggestions_mode_model.as_ref(ctx).mode() {
-            InputSuggestionsMode::SlashCommands => {
-                if self.is_cloud_mode_input_v2_composing(ctx) {
-                    if let Some(view) = self.cloud_mode_v2_slash_commands_view.clone() {
-                        view.update(ctx, |view, ctx| {
-                            view.select_up(ctx);
-                        });
-                    }
-                } else {
-                    self.inline_slash_commands_view.update(ctx, |view, ctx| {
-                        view.select_up(ctx);
-                    });
-                }
-                true
-            }
-            InputSuggestionsMode::UserQueryMenu {
-                action: UserQueryMenuAction::ForkFrom,
-                ..
-            } => {
-                self.user_query_menu_view.update(ctx, |view, ctx| {
-                    view.select_up(ctx);
-                });
-                true
-            }
-            InputSuggestionsMode::UserQueryMenu {
-                action: UserQueryMenuAction::Rewind,
-                ..
-            } => {
-                self.rewind_menu_view.update(ctx, |view, ctx| {
-                    view.select_up(ctx);
-                });
-                true
-            }
-
-            InputSuggestionsMode::SkillMenu => {
-                self.inline_skill_selector_view.update(ctx, |view, ctx| {
-                    view.select_up(ctx);
-                });
-                true
-            }
             InputSuggestionsMode::InlineHistoryMenu { .. } => {
                 self.inline_history_menu_view.update(ctx, |view, ctx| {
                     view.select_up(ctx);
                 });
                 true
             }
-            InputSuggestionsMode::IndexedReposMenu => {
-                self.inline_repos_menu_view.update(ctx, |view, ctx| {
-                    view.select_up(ctx);
-                });
-                true
-            }
-            InputSuggestionsMode::PlanMenu { .. } => {
-                self.inline_plan_menu_view.update(ctx, |view, ctx| {
-                    view.select_up(ctx);
-                });
-                true
-            }
+
             InputSuggestionsMode::HistoryUp { .. }
             | InputSuggestionsMode::CompletionSuggestions { .. }
             | InputSuggestionsMode::StaticWorkflowEnumSuggestions { .. }
@@ -6322,16 +5207,6 @@ impl Input {
             self.editor.update(ctx, |editor, editor_ctx| {
                 editor.handle_action(&EditorAction::VimEscape, editor_ctx);
             });
-        } else if self.suggestions_mode_model.as_ref(ctx).is_slash_commands() {
-            if self.maybe_clear_v2_slash_section_filter(ctx) {
-                return;
-            }
-            self.slash_command_model
-                .update(ctx, |model, ctx| model.disable(ctx));
-            self.suggestions_mode_model.update(ctx, |model, ctx| {
-                model.set_mode(InputSuggestionsMode::Closed, ctx);
-            });
-            ctx.notify();
         } else if self
             .suggestions_mode_model
             .as_ref(ctx)
@@ -6405,57 +5280,6 @@ impl Input {
     fn editor_down(&mut self, ctx: &mut ViewContext<Self>) {
         // For some input suggestion modes, the menu handles its own actions.
         let handled = match self.suggestions_mode_model.as_ref(ctx).mode() {
-            InputSuggestionsMode::SlashCommands => {
-                if self.is_cloud_mode_input_v2_composing(ctx) {
-                    if let Some(view) = self.cloud_mode_v2_slash_commands_view.clone() {
-                        view.update(ctx, |view, ctx| {
-                            view.select_down(ctx);
-                        });
-                    }
-                } else {
-                    self.inline_slash_commands_view.update(ctx, |view, ctx| {
-                        view.select_down(ctx);
-                    });
-                }
-                true
-            }
-            InputSuggestionsMode::UserQueryMenu {
-                action: UserQueryMenuAction::ForkFrom,
-                ..
-            } => {
-                self.user_query_menu_view.update(ctx, |view, ctx| {
-                    view.select_down(ctx);
-                });
-                true
-            }
-            InputSuggestionsMode::UserQueryMenu {
-                action: UserQueryMenuAction::Rewind,
-                ..
-            } => {
-                self.rewind_menu_view.update(ctx, |view, ctx| {
-                    view.select_down(ctx);
-                });
-                true
-            }
-
-            InputSuggestionsMode::SkillMenu => {
-                self.inline_skill_selector_view.update(ctx, |view, ctx| {
-                    view.select_down(ctx);
-                });
-                true
-            }
-            InputSuggestionsMode::IndexedReposMenu => {
-                self.inline_repos_menu_view.update(ctx, |view, ctx| {
-                    view.select_down(ctx);
-                });
-                true
-            }
-            InputSuggestionsMode::PlanMenu { .. } => {
-                self.inline_plan_menu_view.update(ctx, |view, ctx| {
-                    view.select_down(ctx);
-                });
-                true
-            }
             InputSuggestionsMode::HistoryUp { .. }
             | InputSuggestionsMode::CompletionSuggestions { .. }
             | InputSuggestionsMode::StaticWorkflowEnumSuggestions { .. }
@@ -7201,16 +6025,6 @@ impl Input {
                         }
                     }
 
-                    InputSuggestionsMode::SlashCommands => {
-                        // empty for now
-                    }
-
-                    InputSuggestionsMode::SkillMenu => {
-                        // Skill menu handles its own state
-                    }
-                    InputSuggestionsMode::UserQueryMenu { .. } => {
-                        // User query menu handles its own state
-                    }
                     InputSuggestionsMode::InlineHistoryMenu { .. } => {
                         let mismatched = self
                             .inline_history_menu_view
@@ -7228,12 +6042,6 @@ impl Input {
                             });
                             ctx.notify();
                         }
-                    }
-                    InputSuggestionsMode::IndexedReposMenu => {
-                        // Repos menu handles its own state
-                    }
-                    InputSuggestionsMode::PlanMenu { .. } => {
-                        // Plan menu handles its own state
                     }
                 }
             }
@@ -7291,32 +6099,8 @@ impl Input {
                             }
                         }
 
-                        InputSuggestionsMode::SlashCommands => {
-                            let cursor_pos = self
-                                .editor
-                                .as_ref(ctx)
-                                .start_byte_index_of_last_selection(ctx)
-                                .as_usize();
-
-                            if cursor_pos == 0 {
-                                self.close_input_suggestions(true, ctx);
-                            }
-                        }
-
-                        InputSuggestionsMode::SkillMenu => {
-                            // Skill menu handles its own selection state
-                        }
-                        InputSuggestionsMode::UserQueryMenu { .. } => {
-                            // User query menu handles its own selection state
-                        }
                         InputSuggestionsMode::InlineHistoryMenu { .. } => {
                             // Inline history menu handles its own selection state
-                        }
-                        InputSuggestionsMode::IndexedReposMenu => {
-                            // Repos menu handles its own selection state
-                        }
-                        InputSuggestionsMode::PlanMenu { .. } => {
-                            // Plan menu handles its own selection state
                         }
                     }
                 }
@@ -7961,10 +6745,6 @@ impl Input {
         completions_trigger: CompletionsTrigger,
         ctx: &mut ViewContext<Self>,
     ) {
-        if self.suggestions_mode_model.as_ref(ctx).is_slash_commands() {
-            self.close_slash_commands_menu(ctx);
-        }
-
         let editor = self.editor.as_ref(ctx);
         let buffer_text = editor.buffer_text(ctx);
 
@@ -8995,12 +7775,6 @@ impl Input {
     /// handled by the ongoing process corresponding to the active/long running command.
     pub(crate) fn input_enter(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.emit(Event::Enter);
-        if self.maybe_handle_enter_for_slash_command(ctx) {
-            return;
-        }
-        if self.input_type(ctx) == InputType::AI {
-            return;
-        }
         if self.should_insert_newline_on_enter(ctx) {
             self.editor.update(ctx, |editor, ctx| {
                 editor.user_initiated_insert("\n", PlainTextEditorViewAction::NewLine, ctx)
@@ -9038,6 +7812,9 @@ impl Input {
             self.input_suggestions
                 .update(ctx, |suggestions, ctx| suggestions.confirm(ctx));
         } else {
+            if self.maybe_open_local_file(ctx) {
+                return;
+            }
             let command = self.get_command(ctx);
             if !self.try_execute_command(&command, ctx) {
                 return;
@@ -9050,23 +7827,11 @@ impl Input {
     }
 
     fn input_cmd_enter(&mut self, ctx: &mut ViewContext<Self>) {
-        // NaturalLanguageCommandSearch has its own `cmd+enter` behaviour, not expected to execute here
-        let mode = self.suggestions_mode_model.as_ref(ctx).mode().clone();
-        match &mode {
+        match self.suggestions_mode_model.as_ref(ctx).mode().clone() {
             InputSuggestionsMode::CompletionSuggestions { .. }
-            | InputSuggestionsMode::HistoryUp { .. }
-                // If FeatureFlag::AgentView is enabled, cmd-enter should unconditionally enter the
-                // agent view with the current buffer contents as agent input.
-                //
-                // I'm (ZB) not even sure what this legacy behavior is for, because if you have any
-                // selected completion or history suggestion, that suggestion has already been
-                // inserted into the buffer so enter (without cmd- prefix) would directly execute
-                // it anyway.
-                if !FeatureFlag::AgentView.is_enabled() =>
-            {
-                self.input_suggestions.update(ctx, |suggestions, ctx| {
-                    suggestions.confirm_and_execute(ctx);
-                });
+            | InputSuggestionsMode::HistoryUp { .. } => {
+                self.input_suggestions
+                    .update(ctx, |suggestions, ctx| suggestions.confirm_and_execute(ctx));
             }
             InputSuggestionsMode::DynamicWorkflowEnumSuggestions {
                 dynamic_enum_status: DynamicEnumSuggestionStatus::Unapproved,
@@ -9074,63 +7839,12 @@ impl Input {
                 ..
             } => {
                 let editor_model = self.editor.read(ctx, |view, ctx| view.snapshot_model(ctx));
-                self.get_enum_suggestions_async(command.clone(), editor_model, ctx);
+                self.get_enum_suggestions_async(command, editor_model, ctx);
             }
-            InputSuggestionsMode::UserQueryMenu { .. } => {
-                self.user_query_menu_view
-                    .update(ctx, |view, ctx| view.accept_selected_item(true, ctx));
-            }
-            InputSuggestionsMode::IndexedReposMenu => {
-                self.inline_repos_menu_view
-                    .update(ctx, |view, ctx| view.accept_selected_item(true, ctx));
-            }
-            _ => {
-                if FeatureFlag::AgentView.is_enabled()
-                    && self.maybe_handle_cmd_or_ctrl_shift_enter_for_slash_command(ctx)
-                {
-                    return;
-                }
-                // In cloud mode (ambient agent), Cmd+Enter should exit cloud mode entirely and start a
-                // new *local* agent conversation in the root terminal. This should work whether the
-                // buffer is empty (blank convo) or non-empty (prefill draft, but don't auto-send).
-                if self
-                    .ambient_agent_view_model()
-                    .is_some_and(|ambient_agent_model| {
-                        ambient_agent_model.as_ref(ctx).is_ambient_agent()
-                    })
-                {
-                    let mut draft = self.editor.as_ref(ctx).buffer_text(ctx);
-                    // Normalize draft for empty-checks and for prefill.
-                    draft.truncate(draft.trim_end().len());
-
-                    let is_empty = draft.trim().is_empty();
-                    ctx.emit(Event::ExitCloudModeAndStartLocalAgent {
-                        initial_prompt: (!is_empty).then_some(draft),
-                    });
-                    return;
-                }
-
-                // If there is a slash command bound to cmd-enter, we'll execute it.
-                let cmd_enter_slash_command = {
-                    self.slash_command_data_source
-                        .as_ref(ctx)
-                        .active_commands()
-                        .find_map(|(_, command)| {
-                            let binding = keybinding_name_to_normalized_string(command.name, ctx)?;
-                            (binding == CMD_ENTER_KEYBINDING).then_some(command)
-                        })
-                        .cloned()
-                };
-
-
-                if let Some(command) = cmd_enter_slash_command {
-                    self.select_slash_command(&command, SlashCommandTrigger::keybinding(), ctx);
-                    return;
-                }
-
-                // Cmd+Enter is not a local-submit gesture (Enter is).
-                self.maybe_route_ai_query_to_remote_target(ctx);
-            }
+            InputSuggestionsMode::Closed
+            | InputSuggestionsMode::StaticWorkflowEnumSuggestions { .. }
+            | InputSuggestionsMode::DynamicWorkflowEnumSuggestions { .. }
+            | InputSuggestionsMode::InlineHistoryMenu { .. } => {}
         }
     }
 
@@ -9286,21 +8000,6 @@ impl Input {
         if prompt.is_empty() {
             return true;
         }
-
-        // Slash commands that run as an immediate local action (e.g. /fork) should execute on
-        // the viewer's own machine instead of being forwarded to the sharer. Centralized with
-        // the prompt-queue gate via `slash_command_is_submitted_as_prompt`: only the
-        // prompt-submitting commands (/compact, /plan, /orchestrate) are forwarded as prompts;
-        // every other slash command runs locally.
-        if let SlashCommandEntryState::SlashCommand(detected) = self
-            .slash_command_model
-            .as_ref(ctx)
-            .detect_command(&prompt, ctx)
-            && !slash_command_is_submitted_as_prompt(&detected.command)
-        {
-            return false;
-        }
-
         self.emit_input_buffer_submitted_telemetry(ctx);
 
         // Freeze the editor and put it in a loading state
@@ -10303,20 +9002,8 @@ impl Input {
         self.prompt_render_helper
             .prompt_view()
             .update(ctx, |prompt, prompt_ctx| {
-                prompt.update_repo_path(repo_path.clone(), prompt_ctx);
+                prompt.update_repo_path(repo_path, prompt_ctx);
             });
-
-        self.slash_command_data_source.update(ctx, {
-            let repo_path = repo_path.clone();
-            |data_source, ctx| {
-                data_source.set_active_repo_root(repo_path, ctx);
-            }
-        });
-        if let Some(data_source) = self.cloud_mode_composer_slash_command_data_source.as_ref() {
-            data_source.update(ctx, |data_source, ctx| {
-                data_source.set_active_repo_root(repo_path, ctx);
-            });
-        }
     }
 
     fn active_session_path_if_local(&self, ctx: &ViewContext<Self>) -> Option<&Path> {
@@ -10659,15 +9346,7 @@ impl TypedActionView for Input {
                     report_if_error!(settings.completions_menu_height.set_value(*height, ctx));
                 });
             }
-            InputAction::ToggleSlashCommandsMenu => {
-                self.toggle_legacy_slash_commands_menu(ctx);
-            }
-            InputAction::TriggerSlashCommandFromKeybinding(command_name) => {
-                let Some(command) = COMMAND_REGISTRY.get_command_with_name(command_name) else {
-                    return;
-                };
-                self.select_slash_command(command, SlashCommandTrigger::keybinding(), ctx);
-            }
+
             InputAction::StartNewAgentConversation { origin } => {
                 // Block starting a new conversation if the agent is in control of a long-running command
                 if !self
@@ -10721,13 +9400,7 @@ impl TypedActionView for Input {
             InputAction::OpenInlineHistoryMenu => {
                 self.open_inline_history_menu(ctx);
             }
-            InputAction::DismissCloudModeV2SlashCommandsMenu => {
-                if self.suggestions_mode_model.as_ref(ctx).is_slash_commands() {
-                    self.slash_command_model
-                        .update(ctx, |model, ctx| model.disable(ctx));
-                    self.close_slash_commands_menu(ctx);
-                }
-            }
+
             InputAction::FigmaAddButtonClicked => {
                 TemplatableMCPServerManager::handle(ctx).update(ctx, |manager, ctx| {
                     manager.install_figma_from_gallery(ctx);
@@ -10829,10 +9502,6 @@ impl View for Input {
             ctx.set.insert("TerminalView_EmptyBlockList");
         } else {
             ctx.set.insert("TerminalView_NonEmptyBlockList");
-        }
-
-        for (_, command) in self.slash_command_data_source.as_ref(app).active_commands() {
-            ctx.set.insert(command.name);
         }
 
         ctx
