@@ -76,9 +76,7 @@ use crate::server::cloud_objects::update_manager::{
 };
 use crate::server::ids::{ObjectUid, ServerId, SyncId};
 use crate::server::sync_queue::SyncQueue;
-use crate::server::telemetry::{
-    AnonymousUserSignupEntrypoint, SharingDialogSource, TelemetryEvent,
-};
+use crate::server::telemetry::{SharingDialogSource, TelemetryEvent};
 use crate::settings::SharedObjectLimitBannerSettings;
 use crate::settings::app_installation_detection::{
     UserAppInstallDetectionSettings, UserAppInstallStatus,
@@ -5178,9 +5176,8 @@ impl TypedActionView for DriveIndex {
                 );
             }
             DriveIndexAction::SignupAnonymousUser => {
-                let entrypoint = AnonymousUserSignupEntrypoint::SignUpButton;
                 AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                    auth_manager.initiate_anonymous_user_linking(entrypoint, ctx);
+                    auth_manager.initiate_anonymous_user_linking(ctx);
                 });
             }
             DriveIndexAction::DismissPersonalObjectLimits => {

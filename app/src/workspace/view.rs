@@ -253,8 +253,8 @@ use crate::server::ids::{ObjectUid, ServerId, SyncId};
 use crate::server::network_log_pane_manager::NetworkLogPaneManager;
 use crate::server::server_api::{ServerApi, ServerApiProvider, ServerTime};
 use crate::server::telemetry::{
-    AddTabWithShellSource, AnonymousUserSignupEntrypoint, CloseTarget, EnvVarTelemetryMetadata,
-    FileTreeSource, NotificationsTurnedOnSource, PaletteSource, TabRenameEvent, TierLimitHitEvent,
+    AddTabWithShellSource, CloseTarget, EnvVarTelemetryMetadata, FileTreeSource,
+    NotificationsTurnedOnSource, PaletteSource, TabRenameEvent, TierLimitHitEvent,
 };
 use crate::session_management::{SessionNavigationData, SessionSource, TabNavigationData};
 use crate::settings::cloud_preferences::CloudPreferencesSettings;
@@ -13236,7 +13236,7 @@ impl Workspace {
                 self.open_suggested_agent_mode_workflow_modal(workflow_and_id, ctx);
             }
             pane_group::Event::AnonymousUserSignup => {
-                self.initiate_user_signup(AnonymousUserSignupEntrypoint::RenotificationBlock, ctx);
+                self.initiate_user_signup(ctx);
             }
             pane_group::Event::OpenDriveObjectShareDialog { .. } => {}
             pane_group::Event::OpenPalette {
@@ -13388,9 +13388,6 @@ impl Workspace {
                     }
                     toast_stack.add_ephemeral_toast(toast, ctx);
                 });
-            }
-            pane_group::Event::SignupAnonymousUser { entrypoint } => {
-                self.initiate_user_signup(*entrypoint, ctx);
             }
             pane_group::Event::OpenThemeChooser => {
                 self.show_theme_chooser_for_custom_theme(ctx);
@@ -18433,15 +18430,11 @@ impl Workspace {
             .map(|team| team.uid)
     }
 
-    fn initiate_user_signup(
-        &mut self,
-        entrypoint: AnonymousUserSignupEntrypoint,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn initiate_user_signup(&mut self, ctx: &mut ViewContext<Self>) {
         if self.auth_state.is_user_anonymous().unwrap_or_default() {
             // User has a Firebase anonymous account — use the linking flow.
             AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                auth_manager.initiate_anonymous_user_linking(entrypoint, ctx);
+                auth_manager.initiate_anonymous_user_linking(ctx);
             });
         } else {
             // User is fully logged out (no Firebase user) — open the regular sign-up page.
@@ -19610,7 +19603,7 @@ impl TypedActionView for Workspace {
                 send_telemetry_from_ctx!(TelemetryEvent::InitiateReauth, ctx);
             }
             SignupAnonymousUser => {
-                self.initiate_user_signup(AnonymousUserSignupEntrypoint::SignUpButton, ctx);
+                self.initiate_user_signup(ctx);
             }
             SignInAnonymousWebUser => {
                 self.redirect_to_sign_in();

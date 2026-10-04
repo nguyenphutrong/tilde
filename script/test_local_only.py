@@ -7,6 +7,26 @@ from check_local_only import REMOVED_SOURCES, inventory
 
 
 class LocalOnlyGuardTests(unittest.TestCase):
+    def test_rejects_telemetry_transport_but_keeps_local_events(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "Cargo.lock").write_text('[[package]]\nname="local"\nversion="1"\n')
+            path = root / "app/src/server/server_api.rs"
+            path.parent.mkdir(parents=True)
+            for symbol in ["TelemetryApi", "send_telemetry_sync_from_ctx!()",
+                           "send_telemetry_sync_from_app_ctx!()", "to_rudder_batch_message()",
+                           "flush_telemetry_events()", "persist_telemetry_events()",
+                           "flush_persisted_events_to_rudder()", "telemetry_context ()"]:
+                with self.subTest(symbol=symbol):
+                    path.write_text(symbol)
+                    _, forbidden = inventory(root, ["app/src/server/server_api.rs"])
+                    self.assertEqual(forbidden, [
+                        "app/src/server/server_api.rs: removed telemetry transport"
+                    ])
+            path.write_text("send_telemetry_from_ctx!(event, ctx); telemetry_context: None")
+            _, forbidden = inventory(root, ["app/src/server/server_api.rs"])
+            self.assertEqual(forbidden, [])
+
     def test_rejects_removed_sources_even_when_empty(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

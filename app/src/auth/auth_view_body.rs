@@ -34,11 +34,11 @@ use crate::editor::{
 use crate::experiments::{AuthFlowInstructions, Experiment};
 use crate::modal::MODAL_CORNER_RADIUS;
 use crate::network::NetworkStatus;
-use crate::server::telemetry::{AnonymousUserSignupEntrypoint, LoginEventSource, TelemetryEvent};
+use crate::send_telemetry_from_ctx;
+use crate::server::telemetry::{LoginEventSource, TelemetryEvent};
 use crate::settings::{AISettings, PrivacySettings};
 use crate::themes::theme::Fill as ThemeFill;
 use crate::util::color::{darken, lighten};
-use crate::{send_telemetry_from_ctx, send_telemetry_sync_from_ctx};
 
 const TOS_URL: &str = "https://www.warp.dev/terms-of-service";
 
@@ -838,14 +838,6 @@ impl TypedActionView for AuthViewBody {
                 self.loginless_step = LoginlessStep::Initiated;
             }
             AuthViewBodyAction::LoginLater => {
-                // Send synchronously since this is an important event in the sign up funnel and we
-                // don't want to lose events if the user quits before the event queue is flushed.
-                send_telemetry_sync_from_ctx!(
-                    TelemetryEvent::LoginLaterConfirmationButtonClicked {
-                        source: LoginEventSource::AuthModal,
-                    },
-                    ctx
-                );
                 ctx.emit(AuthViewBodyEvent::LoginLaterClicked);
             }
             AuthViewBodyAction::EnterToken => {
@@ -877,9 +869,6 @@ impl TypedActionView for AuthViewBody {
                 }
             }
             AuthViewBodyAction::Signup => {
-                // Send synchronously since this is an important event in the sign up funnel and we
-                // don't want to lose events if the user quits before the event queue is flushed.
-                send_telemetry_sync_from_ctx!(TelemetryEvent::SignUpButtonClicked, ctx);
                 self.auth_step = AuthStep::BrowserOpen;
 
                 AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
@@ -888,37 +877,19 @@ impl TypedActionView for AuthViewBody {
                 });
             }
             AuthViewBodyAction::SignupAnonymousUser => {
-                let entrypoint = match self.variant {
-                    AuthViewVariant::RequireLoginCloseable
-                    | AuthViewVariant::ShareRequirementCloseable => {
-                        AnonymousUserSignupEntrypoint::LoginGatedFeature
-                    }
-                    AuthViewVariant::HitDriveObjectLimitCloseable => {
-                        AnonymousUserSignupEntrypoint::HitDriveObjectLimit
-                    }
-                    AuthViewVariant::Initial => {
-                        report_error!(anyhow!(
-                            "Anonymous user initiated sign-up from unexpected AuthView variant"
-                        ));
-                        AnonymousUserSignupEntrypoint::Unknown
-                    }
-                };
+                if matches!(self.variant, AuthViewVariant::Initial) {
+                    report_error!(anyhow!(
+                        "Anonymous user initiated sign-up from unexpected AuthView variant"
+                    ));
+                }
 
                 AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                    auth_manager.initiate_anonymous_user_linking(entrypoint, ctx);
+                    auth_manager.initiate_anonymous_user_linking(ctx);
                 });
                 self.auth_step = AuthStep::BrowserOpen;
                 ctx.emit(AuthViewBodyEvent::SignUpButtonClicked);
             }
             AuthViewBodyAction::ShowOverlay(overlay) => {
-                if let AuthViewOverlay::PrivacySettings = overlay {
-                    send_telemetry_sync_from_ctx!(
-                        TelemetryEvent::OpenAuthPrivacySettings {
-                            source: LoginEventSource::AuthModal,
-                        },
-                        ctx
-                    );
-                }
                 self.active_overlay = Some(*overlay);
                 ctx.notify();
             }

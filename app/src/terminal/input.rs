@@ -186,8 +186,8 @@ use crate::server::server_api::ai::AttachmentInput;
 use crate::server::server_api::ai::{AIClient, AttachmentFileInfo};
 use crate::server::server_api::presigned_upload::upload_to_target;
 use crate::server::telemetry::{
-    AnonymousUserSignupEntrypoint, CommandXRayTrigger, EnvVarTelemetryMetadata, PaletteSource,
-    TelemetryEvent, WorkflowTelemetryMetadata,
+    CommandXRayTrigger, EnvVarTelemetryMetadata, PaletteSource, TelemetryEvent,
+    WorkflowTelemetryMetadata,
 };
 use crate::session_management::SessionNavigationPromptElements;
 use crate::settings::{
@@ -808,9 +808,6 @@ pub enum Event {
     },
     InputFocusedFromMiddleClick,
     EditorFocused,
-    SignupAnonymousUser {
-        entrypoint: AnonymousUserSignupEntrypoint,
-    },
     OpenSettings(SettingsSection),
     #[cfg(feature = "local_fs")]
     OpenCodeInWarp {

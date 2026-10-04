@@ -296,9 +296,9 @@ use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ObjectUid, SyncId};
 use crate::server::telemetry::{
     self, AgentModeAttachContextMethod, AgentModeEntrypoint, AgentModeRewindEntrypoint,
-    AnonymousUserSignupEntrypoint, NotificationAgentVariant, NotificationsTurnedOnSource,
-    PaletteSource, SaveAsWorkflowModalSource, SecretInteraction, SharingDialogSource,
-    TelemetryEvent, ToggleBlockFilterSource, WorkflowTelemetryMetadata,
+    NotificationAgentVariant, NotificationsTurnedOnSource, PaletteSource,
+    SaveAsWorkflowModalSource, SecretInteraction, SharingDialogSource, TelemetryEvent,
+    ToggleBlockFilterSource, WorkflowTelemetryMetadata,
 };
 use crate::session_management::{CommandContext, SessionNavigationPromptElements};
 use crate::settings::ai::FocusedTerminalInfo;
@@ -1777,9 +1777,6 @@ pub enum Event {
     RunNativeShellCompletions {
         buffer_text: String,
         results_tx: async_channel::Sender<Vec<ShellCompletion>>,
-    },
-    SignupAnonymousUser {
-        entrypoint: AnonymousUserSignupEntrypoint,
     },
 
     OpenThemeChooser,
@@ -18212,11 +18209,6 @@ impl TerminalView {
             InputEvent::EditorFocused => {
                 ctx.dispatch_typed_action(&PaneGroupAction::HandleFocusChange);
                 ctx.notify();
-            }
-            InputEvent::SignupAnonymousUser { entrypoint } => {
-                ctx.emit(Event::SignupAnonymousUser {
-                    entrypoint: *entrypoint,
-                });
             }
             InputEvent::OpenSettings(section) => {
                 ctx.emit(Event::OpenSettings(*section));

@@ -1084,7 +1084,7 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(AntivirusInfo::new);
 
     if let LaunchMode::App { .. } = launch_mode {
-        autoupdate::check_and_report_update_errors(ctx);
+        autoupdate::check_and_report_update_errors();
     }
 
     ctx.set_fallback_font_source_provider(|url| ::asset_cache::url_source(url));

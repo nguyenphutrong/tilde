@@ -1,8 +1,41 @@
+use std::cell::Cell;
+use std::rc::Rc;
+
 use byte_unit::Byte;
 
 use super::*;
 use crate::terminal::model::test_utils::TestBlockBuilder;
 use crate::test_util::mock_blockgrid;
+
+#[test]
+fn excessive_memory_warning_requires_confirmation_and_emits_once_without_server() {
+    App::test((), |mut app| async move {
+        let model = app.add_model(SystemInfo::new);
+        let warnings = Rc::new(Cell::new(0));
+        app.update(|ctx| {
+            let warnings = warnings.clone();
+            ctx.subscribe_to_model(&model, move |_, event, _| {
+                if matches!(event, SystemInfoEvent::MemoryUsageHigh) {
+                    warnings.set(warnings.get() + 1);
+                }
+            });
+        });
+
+        let threshold = 10_000_000_000;
+        for (footprint, expected_warnings) in [
+            (threshold, 0),
+            (threshold - 1, 0),
+            (threshold + 1, 0),
+            (threshold, 1),
+            (threshold * 2, 1),
+        ] {
+            model.update(&mut app, |model, ctx| {
+                model.check_for_excessive_memory_usage(Byte::from_u64(footprint), ctx);
+            });
+            assert_eq!(warnings.get(), expected_warnings);
+        }
+    });
+}
 
 #[test]
 fn test_memory_usage_stats_construction() {
