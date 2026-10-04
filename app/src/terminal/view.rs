@@ -3350,7 +3350,6 @@ impl TerminalView {
                 },
                 model.clone(),
                 &model_events_handle,
-                terminal_view_id,
                 ctx,
             )
         });
