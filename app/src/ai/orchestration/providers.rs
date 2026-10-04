@@ -1,7 +1,6 @@
 //! `AppContext`-backed catalog lookups, default resolution, and
 //! persistence helpers for orchestration edit flows. No GUI types.
 
-use ai::agent::action::RunAgentsRequest;
 use settings::Setting;
 use warp_cli::agent::Harness;
 use warp_errors::report_if_error;
@@ -195,35 +194,6 @@ pub fn resolve_auth_secret_selection_for_harness(
     }
 }
 
-/// Whether Remote execution of `request` requires a managed auth secret
-/// (non-Oz cloud harness with at least one supported secret type).
-fn requires_default_auth_secret_for_execution(request: &RunAgentsRequest) -> bool {
-    if !request.execution_mode.is_remote() {
-        return false;
-    }
-    let Some(harness) = Harness::parse_orchestration_harness(&request.harness_type) else {
-        return false;
-    };
-    matches!(harness, Harness::Claude | Harness::Codex)
-}
-
-/// Whether the request can execute as-is: either it doesn't need a
-/// managed auth secret, already carries one, or a persisted default
-/// exists for the harness.
-pub(crate) fn can_execute_with_auth_secret(request: &RunAgentsRequest, ctx: &AppContext) -> bool {
-    if !requires_default_auth_secret_for_execution(request) {
-        return true;
-    }
-    if request
-        .harness_auth_secret_name
-        .as_deref()
-        .is_some_and(|name| !name.trim().is_empty())
-    {
-        return true;
-    }
-    default_auth_secret_name_for_harness(&request.harness_type, ctx).is_some()
-}
-
 /// Returns the persisted default managed-secret name for a harness, if any.
 pub(crate) fn default_auth_secret_name_for_harness(
     harness_type: &str,
@@ -239,22 +209,4 @@ pub(crate) fn default_auth_secret_name_for_harness(
         .get(harness.config_name())
         .cloned()
         .filter(|name| !name.trim().is_empty())
-}
-
-/// Fills `harness_auth_secret_name` from the persisted per-harness default
-/// when the request needs one and doesn't already carry a name.
-pub(crate) fn populate_default_auth_secret_for_execution(
-    request: &mut RunAgentsRequest,
-    ctx: &AppContext,
-) {
-    if !requires_default_auth_secret_for_execution(request)
-        || request
-            .harness_auth_secret_name
-            .as_deref()
-            .is_some_and(|name| !name.trim().is_empty())
-    {
-        return;
-    }
-    request.harness_auth_secret_name =
-        default_auth_secret_name_for_harness(&request.harness_type, ctx);
 }

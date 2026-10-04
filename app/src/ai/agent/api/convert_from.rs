@@ -5,9 +5,7 @@ use std::time::Duration;
 use ai::agent::UnknownCitationTypeError;
 use ai::agent::action::ReadSkillRequest;
 use ai::agent::convert::ToolToAIAgentActionError;
-use ai::skills::{
-    SkillPathOrigin, skill_reference_from_api_skill_ref, skill_reference_from_read_skill_ref,
-};
+use ai::skills::{SkillPathOrigin, skill_reference_from_read_skill_ref};
 use api::ask_user_question::question::QuestionType;
 use warp_core::channel::ChannelState;
 use warp_multi_agent_api as api;
@@ -22,9 +20,8 @@ use crate::ai::agent::util::parse_markdown_into_text_and_code_sections;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionType, AIAgentAttachment, AIAgentCitation, AIAgentInput,
     AIAgentOutputMessage, AIAgentText, AIAgentTodo, ArtifactCreatedData, CloneRepositoryURL,
-    MessageId, RunAgentsAgentRunConfig, RunAgentsExecutionMode, RunAgentsRequest, SubagentCall,
-    SubagentType, SuggestedAgentModeWorkflow, SuggestedRule, Suggestions, SummarizationType,
-    TodoOperation, UserQueryMode, WebFetchStatus, WebSearchStatus,
+    MessageId, SubagentCall, SubagentType, SuggestedAgentModeWorkflow, SuggestedRule, Suggestions,
+    SummarizationType, TodoOperation, UserQueryMode, WebFetchStatus, WebSearchStatus,
 };
 use crate::ai::artifact_download::sanitized_basename;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
@@ -90,64 +87,6 @@ pub(crate) fn convert_run_agents_harness(harness: Option<&api::Harness>) -> Opti
         }
         .to_string(),
     )
-}
-
-fn convert_run_agents_execution_mode(
-    execution_mode: Option<api::run_agents::ExecutionModeOneOf>,
-) -> RunAgentsExecutionMode {
-    match execution_mode {
-        Some(api::run_agents::ExecutionModeOneOf::Remote(remote)) => {
-            RunAgentsExecutionMode::Remote {
-                environment_id: remote.environment_id,
-                worker_host: remote.worker_host,
-                computer_use_enabled: remote.computer_use_enabled,
-                runner_id: remote.runner_id,
-            }
-        }
-        Some(api::run_agents::ExecutionModeOneOf::Local(_)) | None => RunAgentsExecutionMode::Local,
-    }
-}
-
-fn convert_run_agents(
-    run_agents: api::RunAgents,
-    skill_path_origin: &SkillPathOrigin,
-) -> AIAgentActionType {
-    let api::RunAgents {
-        summary,
-        base_prompt,
-        skills,
-        model_id,
-        harness,
-        agent_run_configs,
-        execution_mode,
-        plan_id,
-    } = run_agents;
-    AIAgentActionType::RunAgents(RunAgentsRequest {
-        summary,
-        base_prompt,
-        skills: skills
-            .into_iter()
-            .filter_map(|skill| skill_reference_from_api_skill_ref(skill, skill_path_origin))
-            .collect(),
-        model_id,
-        harness_type: convert_run_agents_harness(harness.as_ref()).unwrap_or_default(),
-        execution_mode: convert_run_agents_execution_mode(execution_mode),
-        agent_run_configs: agent_run_configs
-            .into_iter()
-            .map(|config| RunAgentsAgentRunConfig {
-                name: config.name,
-                prompt: config.prompt,
-                title: config.title,
-                agent_identity_uid: config.agent_identity_uid,
-                model_id: config.model_id,
-            })
-            .collect(),
-        plan_id,
-        // Auth secret is a client-side dispatch concern populated by the
-        // confirmation card from `CloudAgentSettings.last_selected_auth_secret`
-        // before Accept. The proto does not carry it.
-        harness_auth_secret_name: None,
-    })
 }
 
 /// Unexpected errors when trying to convert an [`api::Message`] to an [`AIAgentOutputMessage`].
@@ -762,8 +701,8 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
                     subagent_type,
                 }))
             }
-            api::message::tool_call::Tool::RunAgents(orchestrate) => {
-                create_standard_action(convert_run_agents(orchestrate, params.skill_path_origin))
+            api::message::tool_call::Tool::RunAgents(_) => {
+                Ok(MaybeAIAgentAction::NoClientRepresentation)
             }
             api::message::tool_call::Tool::SendMessageToAgent(send_message) => {
                 create_standard_action(AIAgentActionType::SendMessageToAgent {

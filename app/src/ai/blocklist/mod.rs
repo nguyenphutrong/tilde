@@ -47,29 +47,11 @@ pub use action_model::{
 };
 #[cfg_attr(target_family = "wasm", allow(unused_imports))]
 pub(crate) use action_model::{ReadFileContextResult, read_local_file_context};
-// Consumed by `tui_export` for the `warp_tui` frontend.
-#[cfg(feature = "tui")]
-pub use action_model::{RunAgentsExecutor, RunAgentsExecutorEvent, RunAgentsSpawningSnapshot};
-// Consumed by `tui_export` for the `warp_tui` frontend's child-agent
-// materializer, in addition to the GUI pane-group dispatch.
-#[cfg_attr(
-    any(target_family = "wasm", not(feature = "tui")),
-    allow(unused_imports)
-)]
-pub use action_model::{
-    StartAgentExecutor, StartAgentExecutorEvent, StartAgentOutcome, StartAgentRequest,
-    StartAgentRequestId,
-};
 pub use block::keyboard_navigable_buttons;
 #[cfg(any(test, feature = "integration_tests"))]
 pub(crate) use block::model::testing::FakeAIBlockModel;
 pub(crate) use block::{AIBlock, AIBlockEvent, RequestedEditResolution, model};
 pub use child_agent_launch::inherit_child_agent_settings;
-#[cfg(not(target_family = "wasm"))]
-#[cfg_attr(not(feature = "tui"), allow(unused_imports))]
-pub use child_agent_launch::{
-    PreparedLocalOzChildLaunch, apply_child_agent_model_override, prepare_local_oz_child_launch,
-};
 #[cfg(feature = "tui")]
 pub use context_model::PendingAttachmentSummary;
 #[cfg(not(feature = "tui"))]

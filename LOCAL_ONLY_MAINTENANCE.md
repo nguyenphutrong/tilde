@@ -510,3 +510,11 @@ handlers. This removes two startup dependencies without restoring any AI singlet
 stored history. Child-agent executors and other startup consumers remain separate removal work.
 Format, all 14 guard tests, the residue check and GUI all-target Clippy passed. Controller runtime
 tests and GUI startup remain part of the combined verification; no new runtime result is claimed.
+
+Child-agent launch executors, confirmation cards, pane dispatch, request/completion events and
+launch-only plan publication/skill resolution are removed. RunAgents is not advertised or converted
+into an executable client action; old protobuf history and result data remain readable. Independent
+restoration, plan configuration and cloud-error presentation consumers remain, without replacement
+singletons or database changes. Static guards reject the deleted sources and launch plumbing.
+Format, 14 guard tests, the residue check, GUI all-target Clippy and 124 selected API/persistence/
+block/document/orchestration tests passed. GUI startup is not yet verified at this checkpoint.

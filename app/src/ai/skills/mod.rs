@@ -7,8 +7,8 @@ mod telemetry;
 pub use telemetry::{SkillOpenOrigin, SkillTelemetryEvent};
 #[cfg(feature = "local_fs")]
 mod bundled;
-#[cfg(all(not(target_family = "wasm"), feature = "local_fs"))]
-pub(crate) use bundled::{BundledSkill, BundledSkillActivation};
+#[cfg(all(test, not(target_family = "wasm"), feature = "local_fs"))]
+pub(crate) use bundled::BundledSkillActivation;
 
 cfg_if::cfg_if! {
     if #[cfg(not(feature = "local_fs"))] {
@@ -77,11 +77,6 @@ impl SkillPathQuery for PathBuf {
         LocalOrRemotePath::Local(self.clone())
     }
 }
-
-#[cfg(not(target_family = "wasm"))]
-mod resolve_skill_spec;
-#[cfg(not(target_family = "wasm"))]
-pub use resolve_skill_spec::resolve_skill_spec;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "local_fs")] {

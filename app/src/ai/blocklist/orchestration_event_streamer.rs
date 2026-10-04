@@ -682,8 +682,7 @@ impl OrchestrationEventStreamer {
     /// immediately without waiting for the tracker's async metadata fetch.
     ///
     /// Idempotent: a no-op if the history model already knows this `run_id`
-    /// (e.g. an in-band child registered by `StartAgentExecutor`, a restored
-    /// placeholder, or a race-completed fetch). Passive remote views are also
+    /// (e.g. a restored placeholder or a race-completed fetch). Passive remote views are also
     /// skipped since they are not the authoritative process for the run.
     fn ensure_remote_child_placeholder(
         &mut self,
@@ -1698,7 +1697,6 @@ impl OrchestrationEventStreamer {
             | BlocklistAIHistoryEvent::UpdatedConversationTitle { .. }
             | BlocklistAIHistoryEvent::UpdatedConversationArtifacts { .. }
             | BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalSurfaces { .. }
-            | BlocklistAIHistoryEvent::NewConversationRequestComplete { .. }
             | BlocklistAIHistoryEvent::OrchestrationConfigUpdated { .. }
             | BlocklistAIHistoryEvent::ConversationUsageMetadataUpdated { .. }
             | BlocklistAIHistoryEvent::LocalSharedSessionEstablished { .. } => {}

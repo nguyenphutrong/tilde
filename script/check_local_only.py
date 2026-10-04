@@ -43,6 +43,14 @@ REMOVED_SOURCES = (
     "app/src/ai/blocklist/action_model/execute/get_files.rs",
     "app/src/ai/blocklist/action_model/execute/search_codebase.rs",
     "app/src/ai/blocklist/inline_action/search_codebase.rs",
+    "app/src/ai/blocklist/action_model/execute/start_agent.rs",
+    "app/src/ai/blocklist/action_model/execute/run_agents.rs",
+    "app/src/ai/blocklist/action_model/execute/run_agents_tests.rs",
+    "app/src/ai/blocklist/inline_action/run_agents_card_view.rs",
+    "app/src/ai/blocklist/inline_action/run_agents_card_view_tests.rs",
+    "app/src/ai/document/plan_publication.rs",
+    "app/src/ai/skills/resolve_skill_spec.rs",
+    "app/src/ai/skills/resolve_skill_spec_tests.rs",
     "app/src/settings/cloud_preferences_syncer.rs",
     "app/src/settings/cloud_preferences_syncer_tests.rs",
     "app/src/server/cloud_objects/fake_object_client.rs",
@@ -74,12 +82,22 @@ REMOVED_SOURCE_SYMBOLS = {
     "app/src/lib.rs": ("app_installation_detection",),
     "app/src/ai/mod.rs": ("get_relevant_files",),
     "app/src/server/server_api.rs": ("get_relevant_files", "GetRelevantFiles"),
-    "app/src/ai/agent/api/impl.rs": ("SearchCodebase",),
-    "crates/ai/src/agent/action/mod.rs": ("SearchCodebase", "SearchCodebaseRequest"),
+    "app/src/ai/agent/api/impl.rs": ("SearchCodebase", "RunAgents"),
+    "crates/ai/src/agent/action/mod.rs": (
+        "SearchCodebase", "SearchCodebaseRequest", "RunAgentsRequest", "StartAgentExecutionMode",
+    ),
     "crates/ai/src/agent/action/convert.rs": ("SearchCodebase",),
-    "app/src/ai/blocklist/action_model.rs": ("GetRelevantFilesController", "SearchCodebaseExecutor"),
+    "app/src/ai/blocklist/action_model.rs": (
+        "GetRelevantFilesController", "SearchCodebaseExecutor", "StartAgentExecutor", "RunAgentsExecutor",
+    ),
     "app/src/ai/blocklist/action_model/execute.rs": (
         "GetRelevantFilesController", "SearchCodebaseExecutor", "search_codebase",
+        "StartAgentExecutor", "RunAgentsExecutor", "start_agent", "run_agents",
+    ),
+    "app/src/ai/blocklist/history_model.rs": ("NewConversationRequestComplete",),
+    "app/src/ai/blocklist/block.rs": ("RunAgentsCardView", "run_agents_card_views"),
+    "app/src/pane_group/pane/terminal_pane.rs": (
+        "StartAgentConversation", "prepare_remote_child_launch", "prepare_local_oz_child_launch",
     ),
     "app/src/ai/blocklist/controller.rs": (
         "OrchestrationEventService", "OrchestrationEventStreamer",
@@ -112,6 +130,7 @@ REMOVED_SOURCE_SYMBOLS = {
         "is_using_conversation_for_pane_header_title", "active_session_remote_host",
         "register_codex_listener_without_session_start_event", "handle_cli_agent_notification",
         "GetRelevantFilesController", "get_relevant_files_controller",
+        "StartAgentConversation", "StartAgentExecutor", "StartAgentRequest",
     ),
     "app/src/pane_group/mod.rs": ("transitively_share_existing_local_children",),
     "app/src/terminal/view/pane_impl.rs": (

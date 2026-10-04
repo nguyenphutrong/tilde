@@ -10,6 +10,46 @@ use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{AIAgentActionType, AIAgentOutputMessageType};
 
 #[test]
+fn retired_run_agents_history_does_not_create_an_executable_action() {
+    let task_id = TaskId::new("legacy-task".to_string());
+    let message = api::Message {
+        id: "legacy-message".to_string(),
+        task_id: task_id.to_string(),
+        message: Some(api::message::Message::ToolCall(api::message::ToolCall {
+            tool_call_id: "legacy-launch".to_string(),
+            tool: Some(api::message::tool_call::Tool::RunAgents(api::RunAgents {
+                summary: "Launch a child".to_string(),
+                base_prompt: "Inspect the repository".to_string(),
+                agent_run_configs: vec![api::run_agents::AgentRunConfig {
+                    name: "reviewer".to_string(),
+                    prompt: "Review the changes".to_string(),
+                    ..Default::default()
+                }],
+                execution_mode: Some(api::run_agents::ExecutionModeOneOf::Local(
+                    api::run_agents::Local {},
+                )),
+                ..Default::default()
+            })),
+        })),
+        ..Default::default()
+    };
+
+    let converted = message
+        .to_client_output_message(ConversionParams {
+            task_id: &task_id,
+            current_todo_list: None,
+            active_code_review: None,
+            skill_path_origin: &SkillPathOrigin::Local,
+        })
+        .expect("legacy child launch should still decode");
+
+    assert!(matches!(
+        converted,
+        MaybeAIAgentOutputMessage::NoClientRepresentation
+    ));
+}
+
+#[test]
 fn retired_search_codebase_history_does_not_create_an_executable_action() {
     let task_id = TaskId::new("legacy-task".to_string());
     let message = api::Message {

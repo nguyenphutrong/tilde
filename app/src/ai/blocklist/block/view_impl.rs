@@ -1069,7 +1069,6 @@ impl View for AIBlock {
                     .gemini_enterprise_credentials_error_view
                     .as_ref(),
                 imported_comments: &self.imported_comments,
-                run_agents_card_views: &self.run_agents_card_views,
                 #[cfg(feature = "local_fs")]
                 resolved_code_block_paths: &self.resolved_code_block_paths,
                 #[cfg(feature = "local_fs")]
