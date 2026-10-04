@@ -177,10 +177,8 @@ pub enum RespectUserSyncSetting {
     No,
 }
 
-/// The surface the settings system is running in. Set once at startup by the
-/// start-app logic (see [`set_settings_mode`]) and consulted by the settings
-/// infrastructure to vary behavior per surface (cloud sync, native-store
-/// migration, and which config directory the settings file lives in).
+/// The settings surface, established by [`set_settings_mode`] at startup. Controls native-store
+/// migration and the settings file's config directory.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SettingsMode {
     /// The full desktop GUI application.
@@ -190,16 +188,6 @@ pub enum SettingsMode {
 }
 
 impl SettingsMode {
-    /// Whether settings for this mode are synced to the cloud (Warp Drive). The
-    /// GUI syncs; the TUI keeps its config local so the two surfaces never
-    /// clobber shared cloud state.
-    pub fn should_sync_to_cloud(self) -> bool {
-        match self {
-            SettingsMode::Gui => true,
-            SettingsMode::Tui => false,
-        }
-    }
-
     /// Whether this surface performs the one-time native-store → TOML settings
     /// migration. Only the GUI has legacy native-store settings to migrate;
     /// other surfaces (e.g. the TUI) start fresh and must never migrate or touch

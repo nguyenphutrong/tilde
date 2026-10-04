@@ -37,6 +37,9 @@ ENDPOINT = re.compile(
 )
 SOURCE_SUFFIXES = {".rs", ".toml", ".sh", ".ps1", ".yml", ".yaml", ".json"}
 REMOVED_SOURCES = (
+    "app/src/settings/cloud_preferences_syncer.rs",
+    "app/src/settings/cloud_preferences_syncer_tests.rs",
+    "app/src/server/cloud_objects/fake_object_client.rs",
     "app/src/terminal/view/init_project/",
     "app/src/terminal/view/inline_banner/agent_mode_setup.rs",
     "app/src/pane_group/pane/view/header/sharing.rs",
@@ -63,6 +66,15 @@ REMOVED_TELEMETRY_SYMBOLS = re.compile(
 )
 REMOVED_SOURCE_SYMBOLS = {
     "app/src/app_state.rs": ("ServerId",),
+    "app/src/settings/mod.rs": ("cloud_preferences_syncer",),
+    "app/src/settings/privacy.rs": ("CloudPreferencesSyncer", "maybe_sync_with_warp_drive_prefs"),
+    "app/src/auth/auth_manager.rs": ("CloudPreferencesSyncer",),
+    "app/src/ai/execution_profiles/profiles.rs": (
+        "CloudPreferencesSyncer", "cloud_collection_awaiting_reconciliation",
+        "sync_explicit_settings_collection",
+    ),
+    "crates/settings/src/lib.rs": ("should_sync_to_cloud",),
+    "crates/warpui_extras/src/user_preferences/toml_backed.rs": ("file_content_hash",),
     "app/src/workspace/view.rs": (
         "team_uid_for_window", "notify_terminal_focus_change", "CloudPreferencesSettings",
         "TELEMETRY_FLAG", "SETTINGS_SYNC_FLAG", "AI_RULES_FLAG", "FILE_BASED_MCP_FLAG",

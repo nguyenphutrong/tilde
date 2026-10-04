@@ -480,3 +480,11 @@ Explicit legacy agent controls and eager AI startup controllers still remain rem
 The prompt-chip/grid/alt-screen/Escape/title selection passed 122 tests; 14 guard tests, format,
 GUI all-target Clippy and integration/TUI checks passed. Rendering remains blocked by the known
 startup controller dependency; no new visual result is claimed.
+
+The Warp Drive preference syncer, its fake backend and tests, auth/privacy/profile callbacks,
+cloud-reconciliation gates and explicit profile publisher are deleted. TOML hashing and its direct
+SHA-256 dependency are removed; stored last-sync hashes are left untouched. Local TOML parsing,
+reload, write inhibition, and native-store migration remain, without any schema or data deletion.
+Legacy profile import and auth/privacy server APIs remain separate removal debt.
+All 30 TOML preference tests, 14 guard tests, format and GUI all-target Clippy passed. App profile
+runtime tests are deferred to the final combined suite; their sources compile in all-target Clippy.
