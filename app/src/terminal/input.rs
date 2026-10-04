@@ -1830,7 +1830,6 @@ impl Input {
         let prompt_view = ctx.add_typed_action_view(|ctx| {
             PromptDisplay::new(
                 current_prompt.clone(),
-                terminal_view_id,
                 menu_positioning_provider.clone(),
                 initial_session_context.clone(),
                 current_repo_path.clone(),

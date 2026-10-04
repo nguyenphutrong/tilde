@@ -327,8 +327,7 @@ use crate::terminal::block_list_viewport::{
 };
 use crate::terminal::bootstrap::init_subshell_command;
 use crate::terminal::cli_agent_sessions::{
-    CLIAgentInputEntrypoint, CLIAgentInputState, CLIAgentRichInputCloseReason,
-    CLIAgentSessionsModel,
+    CLIAgentInputEntrypoint, CLIAgentRichInputCloseReason, CLIAgentSessionsModel,
 };
 use crate::terminal::color::List;
 use crate::terminal::event::{
@@ -2635,7 +2634,6 @@ pub struct TerminalView {
     /// `true` when this view hosts a child agent split off into its own
     /// pane/tab. Drives breadcrumb-vs-pill-bar rendering in the pane header.
     is_orchestration_split_off: bool,
-    is_using_conversation_for_pane_header_title: bool,
 
     ambient_agent_view_model: Option<ModelHandle<ambient_agent::AmbientAgentViewModel>>,
     pending_cloud_followup_task_id: Option<AmbientAgentTaskId>,
@@ -3935,7 +3933,6 @@ impl TerminalView {
             agent_view_controller,
             agent_view_back_button,
             is_orchestration_split_off: false,
-            is_using_conversation_for_pane_header_title: false,
             // Wired after construction via `wire_ambient_agent_view_model`.
             ambient_agent_view_model: None,
             conversation_details_panel,
@@ -5233,7 +5230,6 @@ impl TerminalView {
                 self.pane_configuration.update(ctx, |pane_config, ctx| {
                     pane_config.set_title(self.terminal_title.clone(), ctx);
                 });
-                self.is_using_conversation_for_pane_header_title = false;
             }
             BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalSurfaces {
                 conversation_id,
@@ -6288,18 +6284,6 @@ impl TerminalView {
 
     pub fn sessions_model(&self) -> &ModelHandle<Sessions> {
         &self.sessions
-    }
-
-    /// Returns `None` for local sessions, `Some("user@hostname")` for remote.
-    fn active_session_remote_host<C: ModelAsRef>(&self, ctx: &C) -> Option<String> {
-        self.active_block_session_id().and_then(|session_id| {
-            let session = self.sessions.as_ref(ctx).get(session_id)?;
-            if session.is_local() {
-                None
-            } else {
-                Some(format!("{}@{}", session.user(), session.hostname()))
-            }
-        })
     }
 
     /// Returns whether a specific session is local, treating shared-session
@@ -9905,16 +9889,6 @@ impl TerminalView {
                     footer.clear(ctx);
                 });
                 self.hide_warpify_footer_in_blocklist(ctx);
-                if matches!(block_completed_event.block_type, BlockType::User(_)) {
-                    // Close the rich input editor if it was open (side effects
-                    // like input config restore happen reactively).
-                    // The auto-toggle flag is irrelevant here because the
-                    // session is removed immediately afterwards.
-                    self.close_cli_agent_rich_input(CLIAgentRichInputCloseReason::Other, ctx);
-                    CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions_model, ctx| {
-                        sessions_model.remove_session(self.view_id, ctx);
-                    });
-                }
 
                 let next_block_index = block_completed_event.block_index + BlockIndex::from(1);
 
@@ -9937,9 +9911,6 @@ impl TerminalView {
                         .or_default();
                 }
 
-                // Revert the pane title to the conversation name (if any) now that
-                // is_long_running() has become false. Without this, the title stays at the
-                // terminal title until the shell's precmd hook fires its next SetTitle event.
                 self.update_pane_configuration(ctx);
             }
             ModelEvent::VisibleBootstrapBlock => {
@@ -17200,77 +17171,8 @@ impl TerminalView {
                 ctx.notify();
             }
             InputEvent::Escape => {
-                if self.has_active_cli_agent_input_session(ctx) {
-                    self.close_cli_agent_rich_input_and_disable_auto_toggle(ctx);
-                    return;
-                }
-                if FeatureFlag::AgentView.is_enabled()
-                    && self.agent_view_controller.as_ref(ctx).is_active()
-                {
-                    // For child agents, ESC navigates to the parent first;
-                    // run this before any can-exit gating.
-                    if self.try_navigate_to_parent_conversation(ctx) {
-                        return;
-                    }
-
-                    // Disable escape completely for ambient agents without a parent terminal.
-                    if self
-                        .agent_view_controller
-                        .as_ref(ctx)
-                        .can_exit_agent_view()
-                        .is_err()
-                    {
-                        return;
-                    }
-
-                    let is_long_running = self
-                        .model
-                        .lock()
-                        .block_list()
-                        .active_block()
-                        .is_active_and_long_running();
-                    if is_long_running && self.is_ambient_agent_session(ctx) {
-                        self.exit_agent_view(ctx);
-                    } else if !is_long_running {
-                        // During first-time setup, always exit directly without confirmation
-                        // since the setup overlay would obscure any confirmation dialog.
-                        let is_in_setup = self
-                            .ambient_agent_view_model
-                            .as_ref()
-                            .is_some_and(|model| model.as_ref(ctx).is_in_setup());
-                        if !is_in_setup && !self.input.as_ref(ctx).buffer_text(ctx).is_empty() {
-                            self.agent_view_controller.update(ctx, |session, ctx| {
-                                session.exit_agent_view_with_required_confirmation(
-                                    ExitConfirmationTrigger::Escape,
-                                    ctx,
-                                );
-                            });
-                        } else {
-                            self.exit_agent_view(ctx);
-                        }
-                    }
-                }
-
                 // Ignore any passive blocks on escape.
                 self.clear_prompt_suggestions(ctx);
-
-                if self
-                    .model
-                    .lock()
-                    .block_list()
-                    .active_block()
-                    .is_agent_tagged_in()
-                {
-                    self.tag_out_agent_for_user_long_running_command(ctx);
-
-                    if FeatureFlag::AgentView.is_enabled()
-                        && self.agent_view_controller.as_ref(ctx).is_inline()
-                    {
-                        self.agent_view_controller.update(ctx, |controller, ctx| {
-                            controller.exit_agent_view(ctx);
-                        });
-                    }
-                }
 
                 ctx.emit(Event::Escape)
             }
@@ -19566,9 +19468,6 @@ impl TerminalView {
         if should_use_ligature_rendering(app) {
             alt_screen_element = alt_screen_element.with_ligature_rendering();
         }
-        if self.should_hide_cli_agent_cursor_cell(app) {
-            alt_screen_element = alt_screen_element.with_hide_cursor_cell();
-        }
         alt_screen_element =
             alt_screen_element.with_shared_session_presence(self.shared_session_presence_manager());
 
@@ -19652,14 +19551,6 @@ impl TerminalView {
             &self.content_element_position_id,
         )
         .finish()
-    }
-
-    /// Returns true when cursor rendering should be suppressed because the
-    /// CLI agent rich input is open.
-    fn should_hide_cli_agent_cursor_cell(&self, app: &AppContext) -> bool {
-        CLIAgentSessionsModel::as_ref(app)
-            .session(self.view_id)
-            .is_some_and(|s| matches!(s.input_state, CLIAgentInputState::Open { .. }))
     }
 
     fn render_block_list_element(
@@ -19822,10 +19713,6 @@ impl TerminalView {
 
         if should_use_ligature_rendering(app) {
             element = element.with_ligature_rendering();
-        }
-
-        if self.should_hide_cli_agent_cursor_cell(app) {
-            element = element.with_hide_cursor_cell();
         }
 
         element = element.with_filtered_blocks(filtered_blocks);

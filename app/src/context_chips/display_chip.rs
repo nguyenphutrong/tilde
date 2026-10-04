@@ -17,8 +17,8 @@ use warpui::keymap::Keystroke;
 use warpui::platform::Cursor;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
-    AppContext, Element, Entity, EntityId, Gradient, ModelHandle, SingletonEntity, TypedActionView,
-    View, ViewContext, ViewHandle,
+    AppContext, Element, Entity, Gradient, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle,
 };
 
 use super::directory_fetcher::{
@@ -41,7 +41,6 @@ use crate::context_chips::git_branch_on_click::{
 use crate::context_chips::node_version_popup::{NodeVersionPopupEvent, NodeVersionPopupView};
 use crate::context_chips::spacing;
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
-use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::input::{MenuPositioning, MenuPositioningProvider};
 use crate::terminal::model::session::SessionType;
 use crate::terminal::model_events::ModelEventDispatcher;
@@ -339,8 +338,6 @@ pub struct DisplayChip {
     is_shared_session_viewer: bool,
     /// Cached display string for the code review keybinding.
     code_review_keybinding: Option<String>,
-    /// The terminal view this chip belongs to, used to check CLI agent session state.
-    terminal_view_id: EntityId,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -664,7 +661,6 @@ pub struct MenuItem {
 /// Configuration for creating a DisplayChip
 #[derive(Clone)]
 pub struct DisplayChipConfig {
-    pub terminal_view_id: EntityId,
     pub menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
     pub session_context: Option<SessionContext>,
     pub current_repo_path: Option<PathBuf>,
@@ -1043,16 +1039,7 @@ impl DisplayChip {
             menu_positioning_provider: config.menu_positioning_provider,
             is_shared_session_viewer: config.is_shared_session_viewer,
             code_review_keybinding,
-            terminal_view_id: config.terminal_view_id,
         }
-    }
-
-    /// Returns `true` when a CLI agent session is active for this chip's terminal,
-    /// meaning interactive behaviors (menus, hover, click) should be suppressed.
-    fn is_cli_agent_session_active(&self, app: &AppContext) -> bool {
-        CLIAgentSessionsModel::as_ref(app)
-            .session(self.terminal_view_id)
-            .is_some()
     }
 
     fn close_node_version_popup(&mut self, ctx: &mut ViewContext<'_, DisplayChip>) {
@@ -1240,8 +1227,7 @@ impl DisplayChip {
         let appearance = Appearance::as_ref(app);
         let font_color = appearance.theme().ansi_fg_green();
 
-        let is_interactive =
-            !self.is_shared_session_viewer && !self.is_cli_agent_session_active(app);
+        let is_interactive = !self.is_shared_session_viewer;
 
         let chip_text = self.text.clone();
         let hover = Hoverable::new(self.mouse_state.clone(), move |state| {
@@ -1352,8 +1338,7 @@ impl DisplayChip {
             appearance.monospace_font_family()
         };
         let font_size = udi_font_size(appearance);
-        let is_interactive =
-            !self.is_shared_session_viewer && !self.is_cli_agent_session_active(app);
+        let is_interactive = !self.is_shared_session_viewer;
         let fallback_branch = self.text.clone();
         let tracking_status = tracking_status
             .clone()
@@ -1610,11 +1595,7 @@ impl DisplayChip {
 
         let mut stack = Stack::new();
 
-        // CLI agent sessions own working-directory changes while active.
-        let is_cli_agent_active = self.is_cli_agent_session_active(app);
-        let allow_show_menu = show_menu && !is_cli_agent_active;
-
-        let button = if allow_show_menu {
+        let button = if show_menu {
             let chip_text = self.text.clone();
             let font_color = theme.ansi_fg_cyan();
 
@@ -1656,7 +1637,7 @@ impl DisplayChip {
                 let chip_element = render_udi_chip(config, appearance);
                 let mut stack = Stack::new().with_child(chip_element);
 
-                if state.is_hovered() && !is_cli_agent_active {
+                if state.is_hovered() {
                     let tool_tip = appearance
                         .ui_builder()
                         .tool_tip("Working directory".to_string())
@@ -1920,13 +1901,6 @@ impl TypedActionView for DisplayChip {
                 }
             },
             DisplayChipAction::ToggleMenu => {
-                // All ToggleMenu consumers (WorkingDirectory, GitBranch,
-                // GitBranchStatus, NodeVersion) route through shell commands
-                // (cd, git checkout, nvm use) that don't work in CLI agent
-                // context, so we suppress all of them.
-                if self.is_cli_agent_session_active(ctx) {
-                    return;
-                }
                 match &mut self.display_chip_kind {
                     DisplayChipKind::GitBranch { menu, menu_open }
                     | DisplayChipKind::GitBranchStatus {
