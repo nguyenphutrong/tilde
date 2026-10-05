@@ -1,5 +1,6 @@
 pub mod buffer_model;
 mod classic;
+mod cli_agent;
 mod common;
 pub mod decorations;
 pub mod inline_history;
@@ -203,6 +204,9 @@ use crate::suggestions::ignored_suggestions_model::{
 use crate::terminal::autosuggestions::get_similar_history_context;
 use crate::terminal::autosuggestions::{
     get_reverse_chronological_potential_autosuggestions, is_command_valid,
+};
+use crate::terminal::cli_agent_sessions::{
+    CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
 };
 use crate::terminal::input::buffer_model::InputBufferModel;
 use crate::terminal::input::inline_history::InlineHistoryMenuView;
@@ -780,6 +784,9 @@ pub enum Event {
     },
     Enter,
     ExecuteCommand(Box<ExecuteCommandEvent>),
+    SubmitCLIAgentInput {
+        text: String,
+    },
     ExecuteAIQuery,
     EmacsBindingUsed,
     /// The input editor was locally edited and
@@ -1885,6 +1892,31 @@ impl Input {
         // and the lazy shared-session viewer path.
         let ambient_agent_view_state: Option<AmbientAgentViewState> = None;
 
+        ctx.subscribe_to_model(&CLIAgentSessionsModel::handle(ctx), |me, _, event, ctx| {
+            let CLIAgentSessionsModelEvent::InputSessionChanged {
+                terminal_view_id,
+                new_input_state,
+                ..
+            } = event
+            else {
+                return;
+            };
+            if *terminal_view_id != me.terminal_view_id {
+                return;
+            }
+            me.clear_buffer_and_reset_undo_stack(ctx);
+            if matches!(new_input_state, CLIAgentInputState::Open { .. }) {
+                let draft = CLIAgentSessionsModel::handle(ctx)
+                    .update(ctx, |sessions, _| sessions.take_draft(me.terminal_view_id));
+                if let Some(draft) = draft {
+                    me.replace_buffer_content(&draft, ctx);
+                }
+            }
+            me.update_cli_agent_enter_settings(ctx);
+            me.set_zero_state_hint_text(ctx);
+            ctx.notify();
+        });
+
         let prompt_render_helper = PromptRenderHelper::new(
             sessions.clone(),
             prompt_view,
@@ -2025,10 +2057,13 @@ impl Input {
                     middle_click_paste: false,
                     allow_user_cursor_preference: true,
                     delegate_paste_handling: true,
-                    keymap_context_modifier: Some(Box::new(move |context, _| {
+                    keymap_context_modifier: Some(Box::new(move |context, app| {
                         context
                             .set
                             .insert(flags::TERMINAL_INPUT_PAGE_KEYS_HANDLED_BY_INPUT);
+                        if CLIAgentSessionsModel::as_ref(app).is_input_open(terminal_view_id) {
+                            context.set.insert(flags::CLI_AGENT_RICH_INPUT_OPEN);
+                        }
                     })),
                     ..Default::default()
                 };
@@ -3251,6 +3286,12 @@ impl Input {
     }
 
     pub fn set_zero_state_hint_text(&mut self, ctx: &mut ViewContext<Self>) {
+        if CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id) {
+            self.editor.update(ctx, |editor, ctx| {
+                editor.set_placeholder_text("Message the CLI agent… (Ctrl-G to close)", ctx);
+            });
+            return;
+        }
         let toggled_on = *InputSettings::as_ref(ctx).show_hint_text;
         if self.should_show_universal_developer_input(ctx) || toggled_on {
             self.editor.update(ctx, |editor, ctx| {
@@ -3297,6 +3338,9 @@ impl Input {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
+            AISettingsChangedEvent::SubmitRichInputOnCtrlEnter { .. } => {
+                self.update_cli_agent_enter_settings(ctx);
+            }
             AISettingsChangedEvent::AgentModeQuerySuggestionsEnabled { .. }
             | AISettingsChangedEvent::IsAnyAIEnabled { .. }
             | AISettingsChangedEvent::IsActiveAIEnabled { .. } => {
@@ -6141,6 +6185,13 @@ impl Input {
             }
 
             EditorEvent::Enter => self.input_enter(ctx),
+            EditorEvent::CtrlEnter
+                if CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id) =>
+            {
+                ctx.emit(Event::SubmitCLIAgentInput {
+                    text: self.buffer_text(ctx),
+                });
+            }
             EditorEvent::CmdEnter => self.input_cmd_enter(ctx),
             EditorEvent::Escape => self.editor_escape(ctx),
             EditorEvent::CtrlC { cleared_buffer_len } => {
@@ -7324,6 +7375,9 @@ impl Input {
     }
 
     pub fn completion_session_context(&self, ctx: &AppContext) -> Option<SessionContext> {
+        if CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id) {
+            return None;
+        }
         self.active_block_session_id()
             .and_then(|active_block_session_id| {
                 let current_session = self.sessions.as_ref(ctx).get(active_block_session_id);
@@ -7701,6 +7755,18 @@ impl Input {
     /// is an active and long running command; in such a state, the enter keypress should be
     /// handled by the ongoing process corresponding to the active/long running command.
     pub(crate) fn input_enter(&mut self, ctx: &mut ViewContext<Self>) {
+        if CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id) {
+            if *AISettings::as_ref(ctx).submit_on_ctrl_enter {
+                self.editor.update(ctx, |editor, ctx| {
+                    editor.user_initiated_insert("\n", PlainTextEditorViewAction::NewLine, ctx);
+                });
+            } else {
+                ctx.emit(Event::SubmitCLIAgentInput {
+                    text: self.buffer_text(ctx),
+                });
+            }
+            return;
+        }
         ctx.emit(Event::Enter);
         if self.should_insert_newline_on_enter(ctx) {
             self.editor.update(ctx, |editor, ctx| {
@@ -9428,7 +9494,9 @@ impl View for Input {
     }
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
-        if self.should_show_universal_developer_input(app) {
+        if CLIAgentSessionsModel::as_ref(app).is_input_open(self.terminal_view_id) {
+            self.render_cli_agent_input(app)
+        } else if self.should_show_universal_developer_input(app) {
             self.render_terminal_input(app)
         } else {
             self.render_classic_input(app)

@@ -136,6 +136,7 @@ pub enum TerminalAction {
     },
     BlockListContextMenu(BlockListMenuSource),
     CloseContextMenu,
+    ToggleCLIAgentRichInput,
     Paste,
     Copy,
     CopyOutputs,
@@ -423,6 +424,7 @@ impl fmt::Debug for TerminalAction {
         use TerminalAction::*;
 
         match self {
+            ToggleCLIAgentRichInput => f.write_str("ToggleCLIAgentRichInput"),
             Scroll { delta } => write!(f, "Scroll {{ delta: {delta} }}"),
             AltScroll { delta, .. } => write!(f, "AltScroll {{ delta: {delta} }}"),
             SharedSessionViewerAltScroll { new_scroll_top } => write!(

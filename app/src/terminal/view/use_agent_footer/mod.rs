@@ -1,10 +1,15 @@
 //! Shell-integration footer placement and legacy CLI input controls.
 
-use crate::terminal::cli_agent_sessions::{CLIAgentInputEntrypoint, CLIAgentSessionsModel};
+use crate::terminal::cli_agent_sessions::{
+    CLIAgentInputEntrypoint, CLIAgentInputState, CLIAgentSession, CLIAgentSessionContext,
+    CLIAgentSessionStatus, CLIAgentSessionsModel,
+};
 mod warpify_footer;
 
 use std::sync::Arc;
+use std::time::Duration;
 
+use async_io::Timer;
 use parking_lot::FairMutex;
 use pathfinder_color::ColorU;
 use warp_core::features::FeatureFlag;
@@ -21,9 +26,12 @@ use warpui::{AppContext, SingletonEntity, TypedActionView, ViewContext};
 
 use super::{RichContentInsertionPosition, TerminalAction, TerminalView};
 use crate::server::telemetry::{CLIAgentType, TelemetryEvent};
-use crate::settings::InputModeSettings;
-use crate::terminal::TerminalModel;
+use crate::settings::{AISettings, CompiledCommandsForCodingAgentToolbar, InputModeSettings};
 use crate::terminal::cli_agent_sessions::CLIAgentRichInputCloseReason;
+use crate::terminal::cli_agent_sessions::event::parse_event;
+use crate::terminal::cli_agent_sessions::listener::{CLIAgentSessionListener, is_agent_supported};
+use crate::terminal::model::escape_sequences::{BRACKETED_PASTE_END, BRACKETED_PASTE_START};
+use crate::terminal::{CLIAgent, TerminalModel};
 use crate::ui_components::blended_colors;
 use crate::view_components::action_button::ActionButtonTheme;
 
@@ -56,6 +64,199 @@ impl TerminalView {
         CLIAgentSessionsModel::as_ref(app).is_input_open(self.view_id)
     }
 
+    pub(super) fn detect_cli_agent(&mut self, ctx: &mut ViewContext<Self>) {
+        let command = {
+            let model = self.model.lock();
+            let block = model.block_list().active_block();
+            if !block.is_active_and_long_running() {
+                return;
+            }
+            block.command_with_secrets_obfuscated(false)
+        };
+        let agent = self.active_block_session_id().and_then(|id| {
+            let session = self.sessions.as_ref(ctx).get(id)?;
+            CLIAgent::detect(
+                &command,
+                Some(session.shell_family().escape_char()),
+                Some(session.aliases()),
+            )
+        });
+        let custom = agent.is_none();
+        let Some(agent) =
+            agent.or_else(|| CompiledCommandsForCodingAgentToolbar::matched_agent(ctx, &command))
+        else {
+            return;
+        };
+        if !agent.supports_cli_agent_footer()
+            || CLIAgentSessionsModel::as_ref(ctx)
+                .session(self.view_id)
+                .is_some()
+        {
+            return;
+        }
+        let should_auto_toggle_input =
+            *AISettings::as_ref(ctx).auto_open_rich_input_on_cli_agent_start;
+        CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
+            sessions.set_session(
+                self.view_id,
+                CLIAgentSession {
+                    agent,
+                    status: CLIAgentSessionStatus::InProgress,
+                    session_context: CLIAgentSessionContext::default(),
+                    input_state: CLIAgentInputState::Closed,
+                    should_auto_toggle_input,
+                    listener: None,
+                    plugin_version: None,
+                    remote_host: None,
+                    draft_text: None,
+                    custom_command_prefix: custom
+                        .then(|| command.split_whitespace().next().map(str::to_owned))
+                        .flatten(),
+                    received_rich_notification: false,
+                },
+                ctx,
+            );
+        });
+        if agent == CLIAgent::Codex {
+            let events = self.model_events_handle.clone();
+            let view_id = self.view_id;
+            let listener =
+                ctx.add_model(|ctx| CLIAgentSessionListener::new(view_id, agent, &events, ctx));
+            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
+                sessions.register_listener(
+                    view_id,
+                    agent,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    should_auto_toggle_input,
+                    listener,
+                    ctx,
+                );
+            });
+        }
+        if should_auto_toggle_input {
+            self.open_cli_agent_rich_input(CLIAgentInputEntrypoint::AutoShow, ctx);
+        }
+    }
+
+    pub(super) fn handle_cli_agent_notification(
+        &mut self,
+        title: Option<&str>,
+        body: &str,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let Some(notification) = parse_event(title, body) else {
+            return;
+        };
+        let agent = notification.agent;
+        if !agent.supports_cli_agent_footer()
+            || !is_agent_supported(&agent)
+            || CLIAgentSessionsModel::as_ref(ctx)
+                .session(self.view_id)
+                .is_some_and(|s| s.listener.is_some())
+        {
+            return;
+        }
+        let view_id = self.view_id;
+        let events = self.model_events_handle.clone();
+        let listener =
+            ctx.add_model(|ctx| CLIAgentSessionListener::new(view_id, agent, &events, ctx));
+        let should_auto_toggle_input =
+            *AISettings::as_ref(ctx).auto_open_rich_input_on_cli_agent_start;
+        CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
+            sessions.register_listener(
+                view_id,
+                agent,
+                notification.cwd.clone(),
+                notification.project.clone(),
+                notification.session_id.clone(),
+                notification.payload.plugin_version.clone(),
+                None,
+                should_auto_toggle_input,
+                listener,
+                ctx,
+            );
+            sessions.update_from_event(view_id, &notification, ctx);
+        });
+        if should_auto_toggle_input {
+            self.open_cli_agent_rich_input(CLIAgentInputEntrypoint::AutoShow, ctx);
+        }
+    }
+
+    pub(super) fn submit_cli_agent_input(&mut self, text: String, ctx: &mut ViewContext<Self>) {
+        let Some(session) = CLIAgentSessionsModel::as_ref(ctx).session(self.view_id) else {
+            return;
+        };
+        if text.trim().is_empty() || !self.has_active_cli_agent_input_session(ctx) {
+            return;
+        }
+        let agent = session.agent;
+        let block_id = self.model.lock().block_list().active_block().id().clone();
+        let bytes = text.into_bytes();
+        self.input.update(ctx, |input, ctx| {
+            input.clear_buffer_and_reset_undo_stack(ctx)
+        });
+        if bytes.len() > 1 && matches!(bytes[0], b'!' | b'&') {
+            // Claude-style mode prefixes need a separate input event before the prompt body.
+            self.write_user_bytes_to_pty(vec![bytes[0]], ctx);
+            ctx.spawn(
+                Timer::after(Duration::from_millis(50)),
+                move |me, _, ctx| {
+                    if me.has_active_cli_agent_input_session(ctx)
+                        && me.model.lock().block_list().active_block().id() == &block_id
+                    {
+                        me.write_cli_agent_text_then_submit(bytes[1..].to_vec(), agent, ctx);
+                    }
+                },
+            );
+        } else {
+            self.write_cli_agent_text_then_submit(bytes, agent, ctx);
+        }
+    }
+
+    fn write_cli_agent_text_then_submit(
+        &mut self,
+        mut bytes: Vec<u8>,
+        agent: CLIAgent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let block_id = self.model.lock().block_list().active_block().id().clone();
+        if matches!(
+            agent,
+            CLIAgent::Codex | CLIAgent::OhMyPi | CLIAgent::Hermes | CLIAgent::Copilot
+        ) {
+            bytes = [BRACKETED_PASTE_START, &bytes, BRACKETED_PASTE_END].concat();
+        }
+        self.write_user_bytes_to_pty(bytes, ctx);
+        let delay = if agent == CLIAgent::Copilot { 300 } else { 50 };
+        ctx.spawn(
+            Timer::after(Duration::from_millis(delay)),
+            move |me, _, ctx| {
+                // A delayed Enter must never execute a shell command after the agent exits.
+                if CLIAgentSessionsModel::as_ref(ctx)
+                    .session(me.view_id)
+                    .is_some_and(|s| s.agent == agent)
+                    && me.model.lock().block_list().active_block().id() == &block_id
+                {
+                    me.write_user_bytes_to_pty(b"\r".to_vec(), ctx);
+                    let settings = AISettings::as_ref(ctx);
+                    let auto_toggle = *settings.auto_toggle_rich_input
+                        && CLIAgentSessionsModel::as_ref(ctx)
+                            .session(me.view_id)
+                            .is_some_and(|s| {
+                                s.supports_rich_status() && s.should_auto_toggle_input
+                            });
+                    if !auto_toggle && *settings.auto_dismiss_rich_input_after_submit {
+                        me.close_cli_agent_rich_input(CLIAgentRichInputCloseReason::Submit, ctx);
+                    }
+                }
+            },
+        );
+    }
+
     pub(super) fn maybe_show_warpify_footer_in_blocklist(&mut self, ctx: &mut ViewContext<Self>) {
         self.hide_warpify_footer_in_blocklist(ctx);
         if self.model.lock().is_alt_screen_active() || !self.warpify_footer.as_ref(ctx).is_active()
@@ -80,9 +281,8 @@ impl TerminalView {
         ctx.notify();
     }
 
-    /// Closes the CLI agent rich input session. Side effects (input config restore,
-    /// buffer clear, hint text) are handled reactively by subscribers to
-    /// `CLIAgentSessionsModelEvent::InputSessionChanged`.
+    /// Closes the CLI agent rich input session. Subscribers to
+    /// `CLIAgentSessionsModelEvent::InputSessionChanged` update the editor and focus.
     pub(in crate::terminal) fn close_cli_agent_rich_input(
         &mut self,
         reason: CLIAgentRichInputCloseReason,
@@ -127,7 +327,6 @@ impl TerminalView {
             );
         }
 
-        self.redetermine_terminal_focus(ctx);
         ctx.notify();
     }
 
@@ -146,6 +345,7 @@ impl TerminalView {
         // agent session, so the session should always exist here.
         let Some(cli_agent) = CLIAgentSessionsModel::as_ref(ctx)
             .session(self.view_id)
+            .filter(|session| session.agent.supports_cli_agent_footer())
             .map(|session| session.agent)
         else {
             return;
@@ -176,9 +376,6 @@ impl TerminalView {
             ctx
         );
 
-        // Input mode switch, buffer clear, draft restoration, and hint text
-        // are handled reactively by Input's subscription to InputSessionChanged.
-        self.redetermine_terminal_focus(ctx);
         ctx.notify();
     }
 }

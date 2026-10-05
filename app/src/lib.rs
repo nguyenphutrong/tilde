@@ -1261,6 +1261,7 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(|_| simple_logger::manager::LogManager::new());
     ctx.add_singleton_model(TerminalKeybindings::new);
     ctx.add_singleton_model(|_| ActiveSession::default());
+    ctx.add_singleton_model(|_| terminal::cli_agent_sessions::CLIAgentSessionsModel::new());
 
     #[cfg(all(not(target_family = "wasm"), feature = "local_tty"))]
     {

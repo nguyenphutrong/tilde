@@ -155,7 +155,6 @@ REMOVED_SOURCE_SYMBOLS = {
         "needs_git_status_for_agent_context", "needs_pr_info_for_agent_context",
         "should_hide_cli_agent_cursor_cell", "with_hide_cursor_cell",
         "is_using_conversation_for_pane_header_title", "active_session_remote_host",
-        "register_codex_listener_without_session_start_event", "handle_cli_agent_notification",
         "GetRelevantFilesController", "get_relevant_files_controller",
         "StartAgentConversation", "StartAgentExecutor", "StartAgentRequest",
         "conversation_details_panel", "ToggleConversationDetailsPanel",
@@ -164,7 +163,7 @@ REMOVED_SOURCE_SYMBOLS = {
         "apply_shared_session_agent_interaction_state", "tag_into_active_block",
     ),
     "app/src/terminal/view/action.rs": (
-        "SetInputModeAgent", "SetInputModeTerminal", "ToggleCLIAgentRichInput",
+        "SetInputModeAgent", "SetInputModeTerminal",
     ),
     "app/src/pane_group/mod.rs": ("transitively_share_existing_local_children",),
     "app/src/terminal/view/pane_impl.rs": (

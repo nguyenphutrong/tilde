@@ -317,7 +317,11 @@ use crate::terminal::block_list_viewport::{
     ScrollState, ViewportState,
 };
 use crate::terminal::bootstrap::init_subshell_command;
-use crate::terminal::cli_agent_sessions::{CLIAgentRichInputCloseReason, CLIAgentSessionsModel};
+use crate::terminal::cli_agent_sessions::event::CLI_AGENT_NOTIFICATION_SENTINEL;
+use crate::terminal::cli_agent_sessions::{
+    CLIAgentInputEntrypoint, CLIAgentInputState, CLIAgentRichInputCloseReason,
+    CLIAgentSessionStatus, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
+};
 use crate::terminal::color::List;
 use crate::terminal::event::{
     AfterBlockCompletedEvent, BlockType, TerminalMode, UserBlockCompleted,
@@ -2601,6 +2605,7 @@ pub struct TerminalView {
     cli_subagent_views: HashMap<BlockId, ViewHandle<CLISubagentView>>,
     cli_subagent_controller: ModelHandle<CLISubagentController>,
     warpify_footer: ViewHandle<WarpifyFooterView>,
+    cli_agent_input_open: bool,
 
     agent_view_controller: ModelHandle<AgentViewController>,
     agent_view_back_button: ViewHandle<ActionButton>,
@@ -3373,6 +3378,36 @@ impl TerminalView {
         ctx.subscribe_to_model(&ai_context_model, Self::handle_ai_context_model_event);
 
         ctx.subscribe_to_model(&ai_input_model, Self::handle_ai_input_model_event);
+        ctx.subscribe_to_model(&CLIAgentSessionsModel::handle(ctx), |me, _, event, ctx| {
+            if event.terminal_view_id() != me.view_id {
+                return;
+            }
+            if let CLIAgentSessionsModelEvent::InputSessionChanged {
+                new_input_state, ..
+            } = event
+            {
+                me.cli_agent_input_open =
+                    matches!(new_input_state, CLIAgentInputState::Open { .. });
+                me.redetermine_terminal_focus(ctx);
+            }
+            if let CLIAgentSessionsModelEvent::StatusChanged { status, .. } = event {
+                let should_toggle = *AISettings::as_ref(ctx).auto_toggle_rich_input
+                    && CLIAgentSessionsModel::as_ref(ctx)
+                        .session(me.view_id)
+                        .is_some_and(|s| s.should_auto_toggle_input && s.supports_rich_status());
+                if should_toggle {
+                    if matches!(status, CLIAgentSessionStatus::Blocked { .. }) {
+                        me.close_cli_agent_rich_input(
+                            CLIAgentRichInputCloseReason::AutoToggle,
+                            ctx,
+                        );
+                    } else {
+                        me.open_cli_agent_rich_input(CLIAgentInputEntrypoint::AutoShow, ctx);
+                    }
+                }
+            }
+            ctx.notify();
+        });
         ctx.subscribe_to_model(&ai_action_model, Self::handle_ai_action_model_event);
         ctx.subscribe_to_model(
             &ai_action_model.as_ref(ctx).shell_command_executor(ctx),
@@ -3846,6 +3881,7 @@ impl TerminalView {
             cli_subagent_views: Default::default(),
             cli_subagent_controller,
             warpify_footer,
+            cli_agent_input_open: false,
             agent_view_controller,
             agent_view_back_button,
             is_orchestration_split_off: false,
@@ -6042,7 +6078,13 @@ impl TerminalView {
     }
 
     pub fn is_input_box_visible(&self, model: &TerminalModel) -> bool {
-        if model.is_read_only() || model.is_alt_screen_active() {
+        if model.is_read_only() {
+            return false;
+        }
+        if self.cli_agent_input_open {
+            return true;
+        }
+        if model.is_alt_screen_active() {
             return false;
         }
         !model
@@ -6851,6 +6893,11 @@ impl TerminalView {
 
         let bytes = data.into();
         let bytes_vec = bytes.to_vec();
+        if bytes.as_ref() == [0x03] {
+            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
+                sessions.observe_ctrl_c_write(self.view_id, ctx);
+            });
+        }
         self.clear_selected_blocks(ctx);
         self.update_scroll_position_locking(ScrollPositionUpdate::AfterWriteUserBytesToPty, ctx);
         self.write_to_pty(bytes, ctx);
@@ -8806,6 +8853,11 @@ impl TerminalView {
             ModelEvent::BlockCompleted(block_completed_event) => {
                 record_trace_event!("command_execution:block_completed");
                 end_trace_after_next!("window:redraw:end");
+                if matches!(block_completed_event.block_type, BlockType::User(_)) {
+                    CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
+                        sessions.remove_session(self.view_id, ctx);
+                    });
+                }
                 let block_completed_event_clone = block_completed_event.clone();
                 self.input.update(ctx, |input, ctx| {
                     input.handle_block_completed_event(block_completed_event_clone, ctx);
@@ -9025,6 +9077,7 @@ impl TerminalView {
                                     LONG_RUNNING_COMMAND_DURATION_MS,
                                 )),
                                 move |me, _, ctx| {
+                                    me.detect_cli_agent(ctx);
                                     me.maybe_show_warpify_footer_in_blocklist(ctx);
                                     // Update agent view back button state when command becomes long-running
                                     if FeatureFlag::AgentView.is_enabled()
@@ -9730,6 +9783,19 @@ impl TerminalView {
                 });
             }
             ModelEvent::PluggableNotification { title, body } => {
+                if title.as_deref() == Some(CLI_AGENT_NOTIFICATION_SENTINEL) {
+                    self.handle_cli_agent_notification(title.as_deref(), body, ctx);
+                    return;
+                }
+                if title.is_none()
+                    && CLIAgentSessionsModel::as_ref(ctx)
+                        .session(self.view_id)
+                        .is_some_and(|s| {
+                            s.agent == cli_agent::CLIAgent::Codex && s.listener.is_some()
+                        })
+                {
+                    return;
+                }
                 if self.is_navigated_away_from_window(ctx) {
                     let notification_title =
                         title.clone().unwrap_or_else(|| "Notification".to_string());
@@ -15923,6 +15989,9 @@ impl TerminalView {
     fn handle_input_event(&mut self, event: &InputEvent, ctx: &mut ViewContext<Self>) {
         match event {
             InputEvent::Enter => self.clear_prompt_suggestions(ctx),
+            InputEvent::SubmitCLIAgentInput { text } => {
+                self.submit_cli_agent_input(text.clone(), ctx)
+            }
             InputEvent::PageUp => self.page_up(ctx),
             InputEvent::PageDown => self.page_down(ctx),
             InputEvent::ExecuteCommand(event) => {
@@ -16088,6 +16157,10 @@ impl TerminalView {
                 ctx.notify();
             }
             InputEvent::Escape => {
+                if self.has_active_cli_agent_input_session(ctx) {
+                    self.close_cli_agent_rich_input_and_disable_auto_toggle(ctx);
+                    return;
+                }
                 // Ignore any passive blocks on escape.
                 self.clear_prompt_suggestions(ctx);
 
@@ -20575,6 +20648,7 @@ impl TypedActionView for TerminalView {
             // Below are actions that are most likely irrelevant to users or are very noisy and the
             // debug version shouldn't be announced.
             Scroll { .. }
+            | ToggleCLIAgentRichInput
             | AltScroll { .. }
             | SharedSessionViewerAltScroll { .. }
             | ClickOnGrid { .. }
@@ -20653,6 +20727,13 @@ impl TypedActionView for TerminalView {
         let input_mode = *InputModeSettings::as_ref(ctx).input_mode.value();
 
         match action {
+            ToggleCLIAgentRichInput => {
+                if self.has_active_cli_agent_input_session(ctx) {
+                    self.close_cli_agent_rich_input_and_disable_auto_toggle(ctx);
+                } else {
+                    self.open_cli_agent_rich_input(CLIAgentInputEntrypoint::CtrlG, ctx);
+                }
+            }
             Scroll { delta } => self.scroll(*delta, ctx),
             AltScroll { delta, point } => self.alt_scroll(*delta, *point, ctx),
             SharedSessionViewerAltScroll { new_scroll_top } => {
@@ -22041,6 +22122,12 @@ impl View for TerminalView {
 
     fn keymap_context(&self, app: &AppContext) -> warpui::keymap::Context {
         let mut context = Self::default_keymap_context();
+        if CLIAgentSessionsModel::as_ref(app)
+            .session(self.view_id)
+            .is_some_and(|s| s.agent.supports_cli_agent_footer())
+        {
+            context.set.insert(init::CLI_AGENT_SESSION_ACTIVE_KEY);
+        }
         context.map.insert(
             "TerminalView_BlockSelectionCardinality",
             self.selected_blocks.cardinality().as_keymap_context_value(),

@@ -66,6 +66,13 @@ pub fn init(app: &mut AppContext) {
 
     init_overlapping_keybindings(app);
     app.register_editable_bindings([EditableBinding::new(
+        "terminal:toggle_cli_agent_rich_input",
+        "Toggle CLI Agent Prompt",
+        TerminalAction::ToggleCLIAgentRichInput,
+    )
+    .with_key_binding("ctrl-g")
+    .with_context_predicate(id!("Terminal") & id!(CLI_AGENT_SESSION_ACTIVE_KEY))]);
+    app.register_editable_bindings([EditableBinding::new(
         TOGGLE_HIDE_CLI_RESPONSES_KEYBINDING,
         "Toggle Hide CLI Responses",
         TerminalAction::ToggleHideCliResponses,

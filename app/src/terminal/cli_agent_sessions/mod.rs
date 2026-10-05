@@ -447,6 +447,7 @@ impl CLIAgentSessionsModel {
     }
 
     pub fn remove_session(&mut self, terminal_view_id: EntityId, ctx: &mut ModelContext<Self>) {
+        self.close_input(terminal_view_id, false, ctx);
         self.abort_pending_cancel(terminal_view_id);
         self.ctrl_c_cancel_state.remove(&terminal_view_id);
         if let Some(session) = self.sessions.remove(&terminal_view_id) {
