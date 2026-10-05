@@ -364,7 +364,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::CloudModeImageContext,
         #[cfg(feature = "summarization_via_message_replacement")]
         FeatureFlag::SummarizationViaMessageReplacement,
-        #[cfg(feature = "pluggable_notifications")]
         FeatureFlag::PluggableNotifications,
         #[cfg(feature = "async_find")]
         FeatureFlag::AsyncFind,
@@ -440,7 +439,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::HOANotifications,
         #[cfg(feature = "open_code_notifications")]
         FeatureFlag::OpenCodeNotifications,
-        #[cfg(feature = "cli_agent_rich_input")]
         FeatureFlag::CLIAgentRichInput,
         #[cfg(feature = "transfer_control_tool")]
         FeatureFlag::TransferControlTool,
@@ -462,7 +460,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::HOARemoteControl,
         #[cfg(feature = "codex_notifications")]
         FeatureFlag::CodexNotifications,
-        #[cfg(feature = "codex_plugin")]
         FeatureFlag::CodexPlugin,
         #[cfg(feature = "trim_trailing_blank_lines")]
         FeatureFlag::TrimTrailingBlankLines,

@@ -546,7 +546,7 @@ impl TerminalView {
             };
             block.command_with_secrets_obfuscated(false)
         };
-        let Some(cli_agent) = CLIAgent::detect(&command, None, None, ctx) else {
+        let Some(cli_agent) = CLIAgent::detect(&command, None, None) else {
             return false;
         };
         let Some(ambient_agent_view_model) = self.ambient_agent_view_model.as_ref() else {

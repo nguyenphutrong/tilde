@@ -28,6 +28,7 @@ use crate::pane_group::Event::OpenConversationHistory;
 use crate::pane_group::{self, Direction, PaneGroup};
 use crate::persistence::{BlockCompleted, ModelEvent};
 use crate::session_management::SessionNavigationData;
+use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::general_settings::GeneralSettings;
 #[cfg(not(target_family = "wasm"))]
 use crate::terminal::shared_session::IsSharedSessionCreator;
@@ -259,6 +260,11 @@ impl PaneContent for TerminalPane {
         let pane_stack = self.view.as_ref(ctx).pane_stack().clone();
         let contents = pane_stack.as_ref(ctx).entries().to_vec();
         for (manager, view) in contents {
+            if matches!(detach_type, DetachType::Closed) {
+                CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
+                    sessions.remove_session(view.id(), ctx);
+                });
+            }
             // Notify the view that it's being detached so it can react appropriately
             // (e.g. the shared-session viewer tears down its network only when the detach
             // is not reversible).

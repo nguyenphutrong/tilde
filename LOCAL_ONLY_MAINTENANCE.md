@@ -3,6 +3,9 @@
 Tilde is a local terminal, not an ADE or an agent hub. **Cloud/AI removal is incomplete.**
 Disabling a feature does not remove its source or dependencies, and this audit is not proof of
 network silence. GitHub Releases updates and necessary local networking remain.
+External CLI agents such as Claude Code and Codex, including Tilde's separate prompt composer,
+are retained. The removal target is built-in Warp Agent/Oz and Warp cloud services, not external
+programs or their local terminal integration.
 
 ## Recovery and upstream policy
 
@@ -14,7 +17,7 @@ and tip [76761c22](https://github.com/warpdotdev/warp/commit/76761c22e3251307949
 
 Never merge upstream wholesale. Review full diffs and tests before importing terminal grid/ANSI,
 editor, WarpUI/rendering, PTY/shell, completion/history, or platform correctness fixes. Reject
-AI/Oz/MCP/agents, teams, collaboration, accounts/auth, cloud/server, GraphQL and telemetry additions,
+built-in Warp AI/Oz/MCP, teams, collaboration, accounts/auth, cloud/server, GraphQL and telemetry additions,
 including additions hidden inside otherwise eligible commits. New product UI is not a platform fix.
 Check ancestry and current behavior; patch conflicts do not prove a fix is already present. Port
 only the relevant behavior, reproduce the boundary case, and commit each verified coherent change.
@@ -592,3 +595,24 @@ had zero restarts and its logs contained no panic or unregistered-singleton erro
 the default horizontal-tab local shell path, not vertical tabs or retired AI surfaces.
 All 19 selected tab, Clear Blocks, Ctrl-C and input-visibility regressions passed, alongside 15 guard
 tests, residue checking, format and warning-allowing GUI all-target Clippy.
+
+External CLI sessions and the separate prompt composer are restored under the clarified scope.
+Command/alias/custom-wrapper detection uses local state, without cloud-team lookups. The composer
+sends text directly to the agent's PTY, supports multiline input and drafts, and returns focus to
+the native CLI when closed or awaiting permission. Codex receives bracketed paste followed by a
+separate Enter; delayed submission is cancelled when the agent's block ends. Local session models
+drive vertical-tab agent titles/status/detail panels without Warp cloud/history singleton access.
+Warp Agent/Oz remains excluded. Image attachment chips and agent slash menus are not restored.
+
+All 249 selected CLI-session, detection, composer, local-input, icon and vertical-tab tests passed,
+including the focus/draft regression exposed by the first GUI smoke. Format, 15 guard tests, the
+161-entry residue check, warning-allowing GUI all-target Clippy, all-target integration/TUI checking
+and the Linux GUI build passed.
+A fresh-profile Linux/Xvfb smoke used explicitly labelled local Claude/Codex protocol fixtures:
+multiline submission and Codex bracketed-paste bytes were asserted at the PTY; Ctrl-G preserved the
+draft; permission events closed/reopened the composer; Codex alternate-screen input and the vertical
+tab detail panel rendered correctly. Shell commands succeeded after both agents exited. Inspected
+screenshots show both composers. The GUI had zero restarts and no panic/unregistered-singleton log
+entries; the orb lacks a Secret Service keyring. These fixtures do not verify real Claude/Codex AI
+services, installed hooks, or native macOS/Windows behavior. Previously recorded broad-suite failures
+and strict baseline warnings are not declared resolved by this focused verification.

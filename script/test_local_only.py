@@ -7,7 +7,7 @@ from check_local_only import ROOT, REMOVED_SOURCES, REMOVED_SOURCE_SYMBOLS, inve
 
 
 class LocalOnlyGuardTests(unittest.TestCase):
-    def test_local_command_lifecycle_does_not_access_cli_agent_sessions(self):
+    def test_local_command_lifecycle_does_not_access_warp_agent_history(self):
         source = (ROOT / "app/src/terminal/view.rs").read_text()
         for start, end in [
             ("ModelEvent::BlockCompleted(", "ModelEvent::VisibleBootstrapBlock"),
@@ -16,8 +16,8 @@ class LocalOnlyGuardTests(unittest.TestCase):
         ]:
             with self.subTest(handler=start):
                 handler = source.split(start, 1)[1].split(end, 1)[0]
-                self.assertNotIn("CLIAgentSessionsModel", handler)
-                self.assertNotIn("cli_agent", handler)
+                self.assertNotIn("BlocklistAIHistoryModel", handler)
+                self.assertNotIn("AgentConversationsModel", handler)
 
     def test_local_input_keymap_does_not_access_ai_history(self):
         source = (ROOT / "app/src/terminal/input.rs").read_text()

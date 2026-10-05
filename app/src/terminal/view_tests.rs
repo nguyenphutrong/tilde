@@ -6,6 +6,7 @@ use std::rc::Rc;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use async_io::Timer;
 use chrono::{Local, Utc};
 use parking_lot::FairMutex;
 use session_sharing_protocol::common::CLIAgentSessionState;
@@ -6003,7 +6004,55 @@ fn open_cli_agent_rich_input_for_agent_with_window_id(
 }
 
 #[test]
-fn escape_emits_local_event_without_touching_legacy_cli_input() {
+fn external_codex_composer_sends_bracketed_prompt_and_separate_enter() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let _rich_input = FeatureFlag::CLIAgentRichInput.override_enabled(true);
+        let terminal = open_cli_agent_rich_input_for_agent(&mut app, CLIAgent::Codex);
+        let writes = Rc::new(RefCell::new(Vec::new()));
+        app.update(|ctx| {
+            let writes = writes.clone();
+            ctx.subscribe_to_view(&terminal, move |_, event, _| {
+                if let Event::WriteBytesToPty { bytes } = event {
+                    writes.borrow_mut().push(bytes.to_vec());
+                }
+            });
+        });
+        terminal.update(&mut app, |view, ctx| {
+            view.model.lock().simulate_long_running_block("codex", "");
+            view.submit_cli_agent_input("explain café\nthen test".to_owned(), ctx);
+        });
+        crate::test_util::assert_eventually!(writes.borrow().len() == 2, "submit should finish");
+        assert_eq!(
+            *writes.borrow(),
+            [
+                "\x1b[200~explain café\nthen test\x1b[201~"
+                    .as_bytes()
+                    .to_vec(),
+                b"\r".to_vec(),
+            ]
+        );
+        writes.borrow_mut().clear();
+        terminal.update(&mut app, |view, ctx| {
+            view.submit_cli_agent_input("pending prompt".to_owned(), ctx);
+            view.model.lock().finish_block();
+        });
+        Timer::after(Duration::from_millis(100)).await;
+        assert_eq!(
+            *writes.borrow(),
+            [b"\x1b[200~pending prompt\x1b[201~".to_vec()],
+            "agent exit must cancel the delayed Enter"
+        );
+        terminal.read(&app, |view, ctx| {
+            assert!(!view.has_active_cli_agent_input_session(ctx));
+            assert!(view.is_input_box_visible(&view.model.lock()));
+            assert_eq!(view.input.as_ref(ctx).buffer_text(ctx), "");
+        });
+    });
+}
+
+#[test]
+fn escape_closes_cli_input_before_emitting_local_escape() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         let _rich_input = FeatureFlag::CLIAgentRichInput.override_enabled(true);
@@ -6019,9 +6068,9 @@ fn escape_emits_local_event_without_touching_legacy_cli_input() {
         });
         terminal.update(&mut app, |view, ctx| {
             view.handle_input_event(&InputEvent::Escape, ctx);
-            assert!(view.has_active_cli_agent_input_session(ctx));
+            assert!(!view.has_active_cli_agent_input_session(ctx));
         });
-        assert_eq!(*escape_count.borrow(), 1);
+        assert_eq!(*escape_count.borrow(), 0);
     });
 }
 
@@ -6044,12 +6093,22 @@ fn ctrl_g_closes_cli_agent_rich_input_when_editor_is_focused() {
         let (window_id, terminal) =
             open_cli_agent_rich_input_for_agent_with_window_id(&mut app, CLIAgent::OpenCode);
 
+        terminal.update(&mut app, |view, ctx| {
+            view.model
+                .lock()
+                .simulate_long_running_block("opencode", "");
+            view.input.update(ctx, |input, ctx| {
+                input.replace_buffer_content("keep this unsent draft", ctx);
+            });
+            view.focus_input_box(ctx);
+        });
         // Dispatch Ctrl-G through the focused editor's responder chain.
         let (input_id, editor_id) = terminal.read(&app, |view, ctx| {
             let input = view.input.clone();
             let editor = input.as_ref(ctx).editor().clone();
             (input.id(), editor.id())
         });
+        assert_eq!(app.focused_view_id(window_id), Some(editor_id));
         let handled = app
             .dispatch_keystroke(
                 window_id,
@@ -6064,6 +6123,24 @@ fn ctrl_g_closes_cli_agent_rich_input_when_editor_is_focused() {
             assert!(
                 !view.has_active_cli_agent_input_session(ctx),
                 "rich input should be closed after Ctrl-G"
+            );
+        });
+        assert_eq!(app.focused_view_id(window_id), Some(terminal.id()));
+        assert!(
+            app.dispatch_keystroke(
+                window_id,
+                &[terminal.id()],
+                &warpui::keymap::Keystroke::parse("ctrl-g").unwrap(),
+                false,
+            )
+            .unwrap()
+        );
+        assert_eq!(app.focused_view_id(window_id), Some(editor_id));
+        terminal.read(&app, |view, ctx| {
+            assert!(view.has_active_cli_agent_input_session(ctx));
+            assert_eq!(
+                view.input.as_ref(ctx).buffer_text(ctx),
+                "keep this unsent draft"
             );
         });
     })
@@ -6173,7 +6250,7 @@ fn ctrl_g_toggles_cli_agent_rich_input_from_terminal_context() {
 }
 
 #[test]
-fn legacy_cli_agent_sessions_keep_local_command_hint() {
+fn external_cli_agent_sessions_show_prompt_hint() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         let _agent_view = FeatureFlag::AgentView.override_enabled(true);
@@ -6193,14 +6270,17 @@ fn legacy_cli_agent_sessions_keep_local_command_hint() {
                     .editor()
                     .as_ref(ctx)
                     .placeholder_text("");
-                assert_eq!(placeholder_text, Some("Run commands"));
+                assert_eq!(
+                    placeholder_text,
+                    Some("Message the CLI agent… (Ctrl-G to close)")
+                );
             });
         }
     })
 }
 
 #[test]
-fn cli_agent_rich_input_shell_mode_uses_run_commands_hint_text() {
+fn closed_cli_agent_input_restores_shell_hint() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         let _agent_view = FeatureFlag::AgentView.override_enabled(true);
@@ -6208,6 +6288,7 @@ fn cli_agent_rich_input_shell_mode_uses_run_commands_hint_text() {
 
         let terminal = open_cli_agent_rich_input_for_agent(&mut app, CLIAgent::Claude);
         terminal.update(&mut app, |view, ctx| {
+            view.close_cli_agent_rich_input(CLIAgentRichInputCloseReason::Manual, ctx);
             view.input.update(ctx, |input, ctx| {
                 input.ai_input_model().update(ctx, |ai_input, ctx| {
                     ai_input.set_input_config(
@@ -7566,7 +7647,7 @@ fn single_general_review_comment(content: &str) -> AgentReviewCommentBatch {
 fn set_warp_tui_session(view: &mut TerminalView, ctx: &mut ViewContext<TerminalView>) {
     view.model.lock().simulate_long_running_block("warp", "");
     assert_eq!(
-        CLIAgent::detect("warp", None, None, ctx),
+        CLIAgent::detect("warp", None, None),
         Some(CLIAgent::WarpTui)
     );
 
@@ -7692,7 +7773,7 @@ fn active_cli_agent_ignores_non_tui_long_running_command() {
         });
 
         terminal.read(&app, |view, ctx| {
-            assert_eq!(CLIAgent::detect("vim", None, None, ctx), None);
+            assert_eq!(CLIAgent::detect("vim", None, None), None);
             assert_eq!(
                 view.active_cli_agent(ctx),
                 None,

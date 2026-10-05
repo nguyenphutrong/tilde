@@ -7242,7 +7242,7 @@ fn open_rich_input_for_terminal(terminal: &ViewHandle<TerminalView>, app: &mut A
 }
 
 #[test]
-fn legacy_cli_session_does_not_change_local_editor() {
+fn external_cli_composer_routes_multiline_prompt_without_entering_warp_agent() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -7251,25 +7251,35 @@ fn legacy_cli_session_does_not_change_local_editor() {
             input.replace_buffer_content("echo draft", ctx)
         });
 
+        open_rich_input_for_terminal(&terminal, &mut app);
         AISettings::handle(&app).update(&mut app, |settings, ctx| {
             settings.submit_on_ctrl_enter.set_value(true, ctx).unwrap();
         });
-        open_rich_input_for_terminal(&terminal, &mut app);
         input.read(&app, |input, ctx| {
-            assert_eq!(input.buffer_text(ctx), "echo draft");
+            assert_eq!(input.buffer_text(ctx), "");
             assert_eq!(input.input_type(ctx), InputType::Shell);
             let context = input.editor().as_ref(ctx).keymap_context(ctx);
-            assert!(!context.set.contains(flags::CLI_AGENT_RICH_INPUT_OPEN));
+            assert!(context.set.contains(flags::CLI_AGENT_RICH_INPUT_OPEN));
             assert!(!context.set.contains(flags::CTRL_ENTER_ENTERS_AGENT_VIEW));
         });
+        let prompts = Rc::new(RefCell::new(Vec::new()));
+        let observed = prompts.clone();
+        app.update(|ctx| {
+            ctx.subscribe_to_view(&input, move |_, event, _| {
+                if let Event::SubmitCLIAgentInput { text } = event {
+                    observed.borrow_mut().push(text.clone());
+                }
+            });
+        });
         input.update(&mut app, |input, ctx| {
+            input.replace_buffer_content("explain café", ctx);
+            input.input_enter(ctx);
+            assert_eq!(input.buffer_text(ctx), "explain café\n");
             input.editor().update(ctx, |editor, ctx| {
                 editor.handle_action(&EditorAction::CtrlEnter, ctx);
             });
         });
-        input.read(&app, |input, ctx| {
-            assert_eq!(input.buffer_text(ctx), "echo draft\n")
-        });
+        assert_eq!(*prompts.borrow(), ["explain café\n"]);
     });
 }
 
