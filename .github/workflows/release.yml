@@ -6,10 +6,10 @@ on:
       version:
         description: Release version (must match the Tilde app version)
         required: true
-        default: v0.1.4
+        default: v0.1.5
         type: string
       confirmation:
-        description: Type "release-v0.1.4" to create the prerelease
+        description: Type "release-v0.1.5" to create the prerelease
         required: true
         type: string
 
@@ -170,6 +170,17 @@ jobs:
           cp LICENSE-AGPL NOTICE "$release_dir/"
           cat > "$release_dir/release-notes.md" <<'EOF'
           Tilde is an independent, terminal-only application distributed under the GNU Affero General Public License v3.0.
+
+          ## Changes in v0.1.5
+
+          - Preserve external CLI agents such as Claude Code and Codex, including Tilde's separate multiline prompt composer, drafts, permission handoff, and vertical-tab status.
+          - Remove local inference/model assets, voice input, Rudder transport, Sentry reporting, and HTTP OpenTelemetry, along with many built-in Warp Agent/cloud UI and startup dependencies.
+          - Preserve local shell/PTY, editor, history, completion, Git, ordinary SSH, legacy database compatibility, and GitHub updates.
+          - Fix GUI startup and input-focus failures caused by retired AI dependencies.
+
+          ## Known limitations
+
+          Warp AI/cloud/auth/network source removal is incomplete; this release is not a claim of network silence. External-agent image attachment chips and slash menus are not restored. CLI composer checks used local protocol fixtures, not live Claude/Codex AI services. Focused checks passed, but strict baseline lint warnings and previously recorded broader test failures remain; see LOCAL_ONLY_MAINTENANCE.md in the source.
 
           This prerelease supports macOS on Apple Silicon (arm64) only. It is ad-hoc signed, not signed with an Apple Developer ID, and not notarized because this repository has no Tilde-owned signing credentials. macOS Gatekeeper will therefore warn or block the app on first launch. Verify the downloaded SHA-256 checksum before using Finder's **Open** command from the context menu to approve it.
 
